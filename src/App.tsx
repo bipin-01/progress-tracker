@@ -18,6 +18,7 @@ import {
   Eye,
   FileText,
   PersonStanding,
+  Search,
   Settings,
   Sparkles,
   Target,
@@ -397,12 +398,31 @@ function getPathForView(view: View) {
   return view === "dashboard" ? "/" : `/${view}`;
 }
 
+type NotesMode = "home" | "writing" | "reading" | "review" | "queue" | "ai";
+
+type AppCommand = {
+  id: string;
+  title: string;
+  hint: string;
+  group: string;
+  action: () => void;
+};
+
+function isTypingTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  return element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+}
+
 function App() {
   const clock = useClock();
   const auth = useSupabaseAuth();
   const [activeView, setActiveView] = useState<View>(() => getViewFromPath(window.location.pathname));
   const [remoteSeedVersion, setRemoteSeedVersion] = useState(0);
   const [activeTaskProjectId, setActiveTaskProjectId] = useState(initialTaskProjects[0]?.id ?? "");
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [notesModeRequest, setNotesModeRequest] = useState<{ mode: NotesMode; nonce: number } | null>(null);
   const goals = useGoalsData(initialGoals, remoteSeedVersion);
   const habits = useHabitsData(initialHabits, remoteSeedVersion);
   const taskProjects = useTaskProjectsData(initialTaskProjects, remoteSeedVersion);
@@ -453,6 +473,57 @@ function App() {
     setActiveView(view);
   }
 
+  function openNotesMode(mode: NotesMode) {
+    setNotesModeRequest((request) => ({ mode, nonce: (request?.nonce ?? 0) + 1 }));
+    navigateTo("notes");
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && key === "k") {
+        event.preventDefault();
+        setCommandOpen((value) => !value);
+        return;
+      }
+
+      if (commandOpen && event.key === "Escape") {
+        event.preventDefault();
+        setCommandOpen(false);
+        setCommandQuery("");
+        return;
+      }
+
+      if (event.key === "?" && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        setCommandOpen(true);
+        return;
+      }
+
+      if (commandOpen || activeView === "notes" || isTypingTarget(event.target) || event.metaKey || event.ctrlKey || event.altKey) return;
+      const shortcutMap: Partial<Record<string, View>> = {
+        d: "dashboard",
+        g: "goals",
+        h: "habits",
+        t: "tasks",
+        k: "kanban",
+        n: "notes",
+        c: "calendar",
+        p: "progress",
+        i: "insights",
+        a: "agents",
+      };
+      const nextView = shortcutMap[key];
+      if (nextView) {
+        event.preventDefault();
+        navigateTo(nextView);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeView, commandOpen]);
+
   useEffect(() => {
     if (!taskProjects.some((project) => project.id === activeTaskProjectId)) {
       setActiveTaskProjectId(taskProjects[0]?.id ?? "");
@@ -500,6 +571,23 @@ function App() {
                     : activeView === "agents"
                       ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
                     : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+  const appCommands: AppCommand[] = [
+    { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
+    { id: "nav-goals", group: "Navigate", title: "Goals Registry", hint: "Manage objectives and priorities.", action: () => navigateTo("goals") },
+    { id: "nav-habits", group: "Navigate", title: "Habit Protocol", hint: "Track daily routines and scheduled habits.", action: () => navigateTo("habits") },
+    { id: "nav-tasks", group: "Navigate", title: "Task Protocol", hint: "Open day-by-day task projects.", action: () => navigateTo("tasks") },
+    { id: "nav-kanban", group: "Navigate", title: "Execution Board", hint: "Open Kanban workflow state.", action: () => navigateTo("kanban") },
+    { id: "nav-calendar", group: "Navigate", title: "Calendar", hint: "Open deadlines, appointments, and projects.", action: () => navigateTo("calendar") },
+    { id: "nav-progress", group: "Navigate", title: "Progress Metrics", hint: "Review streak, focus, and momentum.", action: () => navigateTo("progress") },
+    { id: "nav-insights", group: "Navigate", title: "Pattern Analysis", hint: "Open behavior and completion insights.", action: () => navigateTo("insights") },
+    { id: "nav-agents", group: "Navigate", title: "Agents Command", hint: "Open autonomous coach recommendations.", action: () => navigateTo("agents") },
+    { id: "notes-home", group: "Study Notes", title: "Study Home", hint: "Open the notes command center.", action: () => openNotesMode("home") },
+    { id: "notes-write", group: "Study Notes", title: "Write Mode", hint: "Open the markdown writing studio.", action: () => openNotesMode("writing") },
+    { id: "notes-read", group: "Study Notes", title: "Reading Mode", hint: "Open the document reading workspace.", action: () => openNotesMode("reading") },
+    { id: "notes-review", group: "Study Notes", title: "Review Mode", hint: "Generate active recall cards.", action: () => openNotesMode("review") },
+    { id: "notes-queue", group: "Study Notes", title: "Review Queue", hint: "Run due flashcards and scheduled study cards.", action: () => openNotesMode("queue") },
+    { id: "notes-ai", group: "Study Notes", title: "AI Study Console", hint: "Analyze notes and ask study questions.", action: () => openNotesMode("ai") },
+  ];
 
   if (auth.isConfigured && auth.loading) {
     return <AuthScreen mode="loading" />;
@@ -543,6 +631,9 @@ function App() {
               <span>{clock.day}</span>
               <span className="sep">.</span>
               <strong>{clock.time}</strong>
+              <button className="command-trigger" type="button" aria-label="Open command palette" onClick={() => setCommandOpen(true)}>
+                <Search />
+              </button>
               <button aria-label="Alerts">
                 <Bell />
                 <i />
@@ -724,7 +815,7 @@ function App() {
           ) : activeView === "kanban" ? (
             <KanbanView cards={kanbanCards} activity={kanbanActivity} projects={taskProjects} />
           ) : activeView === "notes" ? (
-            <NotesView notes={studyNotes} folders={studyFolders} />
+            <NotesView notes={studyNotes} folders={studyFolders} modeRequest={notesModeRequest} />
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
@@ -744,7 +835,98 @@ function App() {
           )}
         </main>
       </div>
+      <CommandPalette
+        open={commandOpen}
+        query={commandQuery}
+        commands={appCommands}
+        onQueryChange={setCommandQuery}
+        onClose={() => {
+          setCommandOpen(false);
+          setCommandQuery("");
+        }}
+      />
     </>
+  );
+}
+
+function CommandPalette({
+  open,
+  query,
+  commands,
+  onQueryChange,
+  onClose,
+}: {
+  open: boolean;
+  query: string;
+  commands: AppCommand[];
+  onQueryChange: (value: string) => void;
+  onClose: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const filteredCommands = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return commands;
+    return commands.filter((command) =>
+      `${command.group} ${command.title} ${command.hint}`.toLowerCase().includes(needle),
+    );
+  }, [commands, query]);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(id);
+  }, [open]);
+
+  function runCommand(command: AppCommand) {
+    command.action();
+    onClose();
+  }
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="command-palette-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="command-palette" role="dialog" aria-modal="true" aria-label="Command palette">
+        <div className="command-search-row">
+          <Search />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                onClose();
+              }
+              if (event.key === "Enter" && filteredCommands[0]) {
+                event.preventDefault();
+                runCommand(filteredCommands[0]);
+              }
+            }}
+            placeholder="// jump to route, tool, study mode"
+          />
+        </div>
+        <div className="command-results">
+          {filteredCommands.length === 0 ? (
+            <div className="command-empty">// no command matched</div>
+          ) : (
+            filteredCommands.map((command) => (
+              <button type="button" onClick={() => runCommand(command)} key={command.id}>
+                <span>{command.group}</span>
+                <strong>{command.title}</strong>
+                <em>{command.hint}</em>
+              </button>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -2064,9 +2246,17 @@ function KanbanView({
   );
 }
 
-function NotesView({ notes, folders }: { notes: StudyNote[]; folders: StudyFolder[] }) {
+function NotesView({
+  notes,
+  folders,
+  modeRequest,
+}: {
+  notes: StudyNote[];
+  folders: StudyFolder[];
+  modeRequest?: { mode: NotesMode; nonce: number } | null;
+}) {
   const [activeNoteId, setActiveNoteId] = useState(notes[0]?.id ?? "");
-  const [mode, setMode] = useState<"home" | "writing" | "reading" | "review" | "queue" | "ai">("home");
+  const [mode, setMode] = useState<NotesMode>("home");
   const [filter, setFilter] = useState<"all" | "pinned" | "recent">("all");
   const [activeFolderId, setActiveFolderId] = useState("all");
   const [query, setQuery] = useState("");
@@ -2082,6 +2272,7 @@ function NotesView({ notes, folders }: { notes: StudyNote[]; folders: StudyFolde
   const [draftTitle, setDraftTitle] = useState("");
   const [draftBody, setDraftBody] = useState("");
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   const textSaveRef = useRef<number | null>(null);
   const sortedNotes = useMemo(() => sortStudyNotes(notes), [notes]);
   const activeNote = notes.find((note) => note.id === activeNoteId) ?? sortedNotes[0];
@@ -2113,6 +2304,10 @@ function NotesView({ notes, folders }: { notes: StudyNote[]; folders: StudyFolde
     setDraftTitle(activeNote?.title ?? "");
     setDraftBody(activeNote?.body ?? "");
   }, [activeNote?.id]);
+
+  useEffect(() => {
+    if (modeRequest) setMode(modeRequest.mode);
+  }, [modeRequest?.nonce]);
 
   useEffect(() => () => {
     if (textSaveRef.current) window.clearTimeout(textSaveRef.current);
@@ -2317,6 +2512,45 @@ function NotesView({ notes, folders }: { notes: StudyNote[]; folders: StudyFolde
     setAskInput("");
   }
 
+  useEffect(() => {
+    const handleNotesShortcuts = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === "/") {
+        event.preventDefault();
+        setLibraryCollapsed(false);
+        requestAnimationFrame(() => searchRef.current?.focus());
+        return;
+      }
+      const modeMap: Partial<Record<string, NotesMode>> = {
+        h: "home",
+        w: "writing",
+        r: "reading",
+        v: "review",
+        q: "queue",
+        a: "ai",
+      };
+      if (key === "n") {
+        event.preventDefault();
+        void createNote("note");
+        return;
+      }
+      if (key === "f") {
+        event.preventDefault();
+        setLibraryCollapsed((value) => !value);
+        return;
+      }
+      const nextMode = modeMap[key];
+      if (nextMode) {
+        event.preventDefault();
+        setMode(nextMode);
+      }
+    };
+
+    window.addEventListener("keydown", handleNotesShortcuts);
+    return () => window.removeEventListener("keydown", handleNotesShortcuts);
+  }, [activeFolderId, folders]);
+
   return (
     <>
       <section className={`notes-workspace ${libraryCollapsed ? "library-collapsed" : ""} ${notesFullscreen ? "notes-fullscreen" : ""}`}>
@@ -2353,7 +2587,7 @@ function NotesView({ notes, folders }: { notes: StudyNote[]; folders: StudyFolde
             </div>
           </div>
           <div className="notes-search">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
+            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
           </div>
           <div className="notes-tabs">
             {(["all", "pinned", "recent"] as const).map((item) => (
