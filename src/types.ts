@@ -94,11 +94,20 @@ export type StudyAskMessage = {
   createdAt: string;
 };
 
+export type StudyObjective = {
+  id: string;
+  title: string;
+  done: boolean;
+  weight: number;
+};
+
 export type StudyFolder = {
   id: string;
   name: string;
   color: KanbanLabelColor;
   parentId?: string;
+  examDate?: string;
+  objectives?: StudyObjective[];
   createdAt: string;
 };
 

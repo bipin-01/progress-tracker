@@ -76,6 +76,17 @@ export class ProgressTrackerDatabase extends Dexie {
       studyNotes: "id, kind, pinned, folderId, updatedAt",
       studyFolders: "id, parentId, name, createdAt",
     });
+    this.version(8).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
   }
 }
 

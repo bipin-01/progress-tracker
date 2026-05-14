@@ -50,7 +50,6 @@ function useRemoteTable<T extends StoreMap[TableName]>(table: TableName, fallbac
   const [records, setRecords] = useState<T[]>(fallback);
   const { user, loading } = useSupabaseAuth();
   const userId = user?.id ?? null;
-  const fallbackKey = useMemo(() => fallback.map((record) => record.id).join("|"), [fallback]);
 
   useEffect(() => {
     if (!supabase || loading || !userId) {
@@ -84,7 +83,7 @@ function useRemoteTable<T extends StoreMap[TableName]>(table: TableName, fallbac
       active = false;
       void client.removeChannel(channel);
     };
-  }, [fallbackKey, loading, refreshKey, table, userId]);
+  }, [fallback, loading, refreshKey, table, userId]);
 
   return records;
 }
@@ -422,6 +421,8 @@ function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
     name: folder.name,
     color: folder.color,
     parent_id: folder.parentId ?? null,
+    exam_date: folder.examDate ?? null,
+    objectives: folder.objectives ?? [],
     created_at: folder.createdAt,
   };
 }
