@@ -1,11 +1,16 @@
 import Dexie, { type Table } from "dexie";
-import type { CalendarEvent, Goal, Habit, ProjectTask, TaskProject } from "./types";
+import type { AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
 
 export class ProgressTrackerDatabase extends Dexie {
   goals!: Table<Goal, string>;
   habits!: Table<Habit, string>;
   taskProjects!: Table<TaskProject, string>;
   calendarEvents!: Table<CalendarEvent, string>;
+  kanbanCards!: Table<KanbanCard, string>;
+  kanbanActivity!: Table<KanbanActivity, string>;
+  agentRecommendations!: Table<AgentRecommendation, string>;
+  studyNotes!: Table<StudyNote, string>;
+  studyFolders!: Table<StudyFolder, string>;
 
   constructor() {
     super("ziftinity-progress-tracker");
@@ -14,6 +19,51 @@ export class ProgressTrackerDatabase extends Dexie {
       habits: "id, time, done",
       taskProjects: "id, currentDay, deadlineDays",
       calendarEvents: "id, day, kind, time",
+    });
+    this.version(2).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+    });
+    this.version(3).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+    });
+    this.version(4).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+    });
+    this.version(5).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, updatedAt",
+    });
+    this.version(6).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, name, createdAt",
     });
   }
 }
@@ -25,19 +75,28 @@ export async function seedDatabase(seed: {
   habits: Habit[];
   taskProjects: TaskProject[];
   calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  studyNotes: StudyNote[];
+  studyFolders: StudyFolder[];
 }) {
-  const [goalCount, habitCount, projectCount, eventCount] = await Promise.all([
+  const [goalCount, habitCount, projectCount, eventCount, kanbanCount, noteCount, folderCount] = await Promise.all([
     db.goals.count(),
     db.habits.count(),
     db.taskProjects.count(),
     db.calendarEvents.count(),
+    db.kanbanCards.count(),
+    db.studyNotes.count(),
+    db.studyFolders.count(),
   ]);
 
-  await db.transaction("rw", db.goals, db.habits, db.taskProjects, db.calendarEvents, async () => {
+  await db.transaction("rw", [db.goals, db.habits, db.taskProjects, db.calendarEvents, db.kanbanCards, db.studyNotes, db.studyFolders], async () => {
     if (goalCount === 0) await db.goals.bulkPut(seed.goals);
     if (habitCount === 0) await db.habits.bulkPut(seed.habits);
     if (projectCount === 0) await db.taskProjects.bulkPut(seed.taskProjects);
     if (eventCount === 0) await db.calendarEvents.bulkPut(seed.calendarEvents);
+    if (kanbanCount === 0) await db.kanbanCards.bulkPut(seed.kanbanCards);
+    if (noteCount === 0) await db.studyNotes.bulkPut(seed.studyNotes);
+    if (folderCount === 0) await db.studyFolders.bulkPut(seed.studyFolders);
   });
 }
 
@@ -76,6 +135,63 @@ export const calendarCrud = {
   },
 };
 
+export const kanbanCrud = {
+  add(card: KanbanCard) {
+    return db.kanbanCards.put(card);
+  },
+  update(id: string, patch: Partial<Omit<KanbanCard, "id">>) {
+    return db.kanbanCards.update(id, patch);
+  },
+  async move(id: string, columnId: KanbanColumnId, order: number) {
+    return db.kanbanCards.update(id, { columnId, order });
+  },
+  delete(id: string) {
+    return db.kanbanCards.delete(id);
+  },
+};
+
+export const kanbanActivityCrud = {
+  add(activity: KanbanActivity) {
+    return db.kanbanActivity.put(activity);
+  },
+};
+
+export const agentRecommendationCrud = {
+  add(recommendation: AgentRecommendation) {
+    return db.agentRecommendations.put(recommendation);
+  },
+  update(id: string, patch: Partial<Omit<AgentRecommendation, "id">>) {
+    return db.agentRecommendations.update(id, patch);
+  },
+  delete(id: string) {
+    return db.agentRecommendations.delete(id);
+  },
+};
+
+export const studyNoteCrud = {
+  add(note: StudyNote) {
+    return db.studyNotes.put(note);
+  },
+  update(id: string, patch: Partial<Omit<StudyNote, "id">>) {
+    return db.studyNotes.update(id, patch);
+  },
+  delete(id: string) {
+    return db.studyNotes.delete(id);
+  },
+};
+
+export const studyFolderCrud = {
+  add(folder: StudyFolder) {
+    return db.studyFolders.put(folder);
+  },
+  update(id: string, patch: Partial<Omit<StudyFolder, "id">>) {
+    return db.studyFolders.update(id, patch);
+  },
+  delete(id: string) {
+    return db.studyFolders.delete(id);
+  },
+};
+
 export const taskProjectCrud = {
   add(project: TaskProject) {
     return db.taskProjects.put(project);
@@ -86,14 +202,24 @@ export const taskProjectCrud = {
   async setCurrentDay(projectId: string, day: number) {
     return db.taskProjects.update(projectId, { currentDay: day });
   },
+  async updateDates(projectId: string, startDate: string, endDate: string, deadlineDays: number) {
+    const project = await db.taskProjects.get(projectId);
+    if (!project) return;
+    return db.taskProjects.update(projectId, {
+      startDate,
+      endDate,
+      deadlineDays,
+      currentDay: Math.min(project.currentDay, deadlineDays),
+    });
+  },
   async addTask(projectId: string, day: number, task: ProjectTask) {
     const project = await db.taskProjects.get(projectId);
     if (!project) return;
     await db.taskProjects.put({
       ...project,
       tasksByDay: {
-        ...project.tasksByDay,
-        [day]: [...(project.tasksByDay[day] ?? []), task],
+        ...(project.tasksByDay ?? {}),
+        [day]: [...((project.tasksByDay ?? {})[day] ?? []), task],
       },
     });
   },
@@ -103,8 +229,8 @@ export const taskProjectCrud = {
     await db.taskProjects.put({
       ...project,
       tasksByDay: {
-        ...project.tasksByDay,
-        [day]: (project.tasksByDay[day] ?? []).map((task) => (task.id === taskId ? updater(task) : task)),
+        ...(project.tasksByDay ?? {}),
+        [day]: ((project.tasksByDay ?? {})[day] ?? []).map((task) => (task.id === taskId ? updater(task) : task)),
       },
     });
   },
@@ -114,8 +240,8 @@ export const taskProjectCrud = {
     await db.taskProjects.put({
       ...project,
       tasksByDay: {
-        ...project.tasksByDay,
-        [day]: (project.tasksByDay[day] ?? []).filter((task) => task.id !== taskId),
+        ...(project.tasksByDay ?? {}),
+        [day]: ((project.tasksByDay ?? {})[day] ?? []).filter((task) => task.id !== taskId),
       },
     });
   },

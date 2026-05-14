@@ -1,0 +1,5072 @@
+import {
+  Bell,
+  Bot,
+  BookOpen,
+  BriefcaseBusiness,
+  CalendarDays,
+  Check,
+  Columns3,
+  CircleDollarSign,
+  Code2,
+  Gauge,
+  HeartPulse,
+  Home,
+  Leaf,
+  ListTodo,
+  Music,
+  NotebookText,
+  Eye,
+  FileText,
+  PersonStanding,
+  Settings,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Trash2,
+  WalletCards,
+} from "lucide-react";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { CSSProperties, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  agentRecommendationCrud,
+  calendarCrud,
+  goalCrud,
+  habitCrud,
+  kanbanActivityCrud,
+  kanbanCrud,
+  studyFolderCrud,
+  studyNoteCrud,
+  taskProjectCrud,
+  seedRemoteDatabase,
+  useCalendarEventsData,
+  useAgentRecommendationsData,
+  useDataBackendLabel,
+  useGoalsData,
+  useHabitsData,
+  useKanbanActivityData,
+  useKanbanCardsData,
+  useSupabaseAuth,
+  useStudyFoldersData,
+  useStudyNotesData,
+  useTaskProjectsData,
+  signInWithEmail,
+  signOut,
+  signUpWithEmail,
+} from "./dataStore";
+import { seedDatabase } from "./database";
+import type { AgentId, AgentRecommendation, CalendarEvent, Category, Goal, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, TaskProject, View } from "./types";
+
+const iconMap: Record<IconKey, typeof BookOpen> = {
+  book: BookOpen,
+  run: PersonStanding,
+  wallet: WalletCards,
+  code: Code2,
+  leaf: Leaf,
+  target: Target,
+};
+
+const categories: Category[] = [
+  { name: "Personal", progress: 75, fraction: "6 / 8", Icon: PersonStanding },
+  { name: "Health", progress: 68, fraction: "4 / 6", Icon: HeartPulse },
+  { name: "Learning", progress: 60, fraction: "3 / 5", Icon: BookOpen },
+  { name: "Career", progress: 80, fraction: "4 / 5", Icon: BriefcaseBusiness },
+  { name: "Finance", progress: 64, fraction: "3 / 5", Icon: CircleDollarSign },
+  { name: "Creativity", progress: 50, fraction: "2 / 4", Icon: Music },
+];
+
+const priorityRank: Record<Priority, number> = {
+  ziftinity: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+const priorityLabel: Record<Priority, string> = {
+  ziftinity: "Ziftinity",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+const initialGoals: Goal[] = [
+  {
+    id: "read-books",
+    title: "Read 24 books this year",
+    due: "Dec 31, 2026",
+    level: "high",
+    progress: 50,
+    meta: "12 / 24 books completed",
+    iconKey: "book",
+    chart: "line",
+  },
+  {
+    id: "run-10k",
+    title: "Run a 10K",
+    due: "Jun 30, 2026",
+    level: "high",
+    progress: 70,
+    meta: "4 runs this week",
+    iconKey: "run",
+    chart: "bars",
+  },
+  {
+    id: "save-5000",
+    title: "Save $5,000",
+    due: "Dec 31, 2026",
+    level: "high",
+    progress: 64,
+    meta: "$3,200 / $5,000 saved",
+    iconKey: "wallet",
+    chart: "line",
+  },
+  {
+    id: "launch-website",
+    title: "Launch my website",
+    due: "Aug 15, 2026",
+    level: "medium",
+    progress: 45,
+    meta: "Design phase in progress",
+    iconKey: "code",
+    chart: "blocks",
+  },
+  {
+    id: "meditation",
+    title: "Daily meditation habit",
+    due: "Ongoing",
+    level: "low",
+    progress: 80,
+    meta: "24 of 30 days this month",
+    iconKey: "leaf",
+    chart: "dots",
+  },
+];
+
+const initialTaskProjects: TaskProject[] = [
+  {
+    id: "onboarding-flow",
+    name: "Launch onboarding flow",
+    startDate: "2026-05-01",
+    endDate: "2026-06-19",
+    deadlineDays: 50,
+    currentDay: 12,
+    tasksByDay: {
+      12: [
+        { id: "wireframe-screen", name: "Wireframe onboarding screen 3", done: false },
+        { id: "review-pr", name: "Review pull request #312", done: false },
+        { id: "maya-copy", name: "Sync with Maya - copy review", done: true },
+      ],
+    },
+  },
+  {
+    id: "run-10k",
+    name: "Run a 10K",
+    startDate: "2026-05-01",
+    endDate: "2026-06-09",
+    deadlineDays: 40,
+    currentDay: 8,
+    tasksByDay: {
+      8: [
+        { id: "tempo-run", name: "Tempo run - 5km", done: false },
+        { id: "hydrate", name: "Hydrate 2L", done: true },
+        { id: "stretch", name: "Stretch - 15 min", done: false },
+      ],
+    },
+  },
+  {
+    id: "save-money",
+    name: "Save $5,000",
+    startDate: "2026-05-01",
+    endDate: "2026-07-29",
+    deadlineDays: 90,
+    currentDay: 41,
+    tasksByDay: {
+      41: [
+        { id: "log-spending", name: "Log this week's spending", done: false },
+        { id: "auto-transfer", name: "Auto-transfer $120 to savings", done: false },
+      ],
+    },
+  },
+];
+
+const initialHabits: Habit[] = [
+  { id: "wake", name: "Wake", time: "06:30", duration: "start", done: true },
+  { id: "meditate", name: "Meditate", time: "07:00", duration: "10 min", done: true },
+  { id: "run", name: "Run 5km", time: "07:30", duration: "easy pace", done: true },
+  { id: "deep-work", name: "Deep work - onboarding flow", time: "09:30", duration: "90 min", done: true },
+  { id: "read", name: "Read 30 pages", time: "21:00", duration: "pages", done: false },
+  { id: "stretch", name: "Stretch & mobility", time: "20:00", duration: "15 min", done: false },
+  { id: "journal", name: "Evening journal", time: "22:00", duration: "reflection", done: false },
+];
+
+const journalEntries = [
+  {
+    date: "May 11",
+    body: "Tried the running shoes my brother gave me. They click. Slept like a rock after.",
+  },
+  {
+    date: "May 10",
+    body: "First draft of onboarding wireframes done. Hate the third screen. Will revisit Tuesday.",
+  },
+  {
+    date: "May 09",
+    body: "Skipped reading. Brain was mush. Slept early instead - fair trade.",
+  },
+];
+
+const initialStudyNotes: StudyNote[] = [
+  {
+    id: "study-running-shoes",
+    title: "Running Shoes Field Notes",
+    body: "## Observation\nTried the running shoes my brother gave me. They click, but recovery sleep was strong after.\n\n## Follow-up\n- Compare pace after two more runs\n- Note ankle comfort\n- Decide if these become race-day shoes",
+    tags: ["running", "reflection"],
+    pinned: true,
+    kind: "note",
+    createdAt: "2026-05-11T21:45:00.000Z",
+    updatedAt: "2026-05-11T21:45:00.000Z",
+  },
+  {
+    id: "study-onboarding-wireframes",
+    title: "Onboarding Wireframe Review",
+    body: "## Current read\nFirst draft is functional, but the third screen is carrying too much explanation.\n\n> Revisit Tuesday with a smaller decision path.\n\n### Questions\n- What does the user need to know first?\n- Which action should be visually dominant?\n- Can the empty state become useful instead of decorative?",
+    tags: ["product", "ux", "study"],
+    pinned: false,
+    kind: "note",
+    createdAt: "2026-05-12T09:45:00.000Z",
+    updatedAt: "2026-05-12T09:45:00.000Z",
+  },
+];
+
+const initialStudyFolders: StudyFolder[] = [
+  { id: "folder-all-study", name: "Study Inbox", color: "cyan", createdAt: "2026-05-11T12:00:00.000Z" },
+  { id: "folder-certifications", name: "Certifications", color: "violet", createdAt: "2026-05-11T12:05:00.000Z" },
+  { id: "folder-project-notes", name: "Project Notes", color: "lime", createdAt: "2026-05-11T12:10:00.000Z" },
+];
+
+const initialCalendarEvents: CalendarEvent[] = [];
+const calendarMonth = 4;
+const calendarYear = 2026;
+
+type KanbanColumnConfig = {
+  id: KanbanColumnId;
+  title: string;
+  signal: string;
+  wipLimit: number;
+  collapsed: boolean;
+};
+
+type KanbanSortMode = "manual" | "priority" | "due" | "title";
+type KanbanSwimlaneMode = "none" | "priority" | "tag" | "project";
+type KanbanBoardMode = "board" | "list" | "calendar";
+type KanbanDueFilter = "all" | "overdue" | "today" | "scheduled" | "none";
+
+const defaultKanbanColumns: KanbanColumnConfig[] = [
+  { id: "backlog", title: "Backlog", signal: "Capture", wipLimit: 6, collapsed: false },
+  { id: "planned", title: "Planned", signal: "Queued", wipLimit: 5, collapsed: false },
+  { id: "in-progress", title: "In Progress", signal: "Active", wipLimit: 3, collapsed: false },
+  { id: "review", title: "Review", signal: "Verify", wipLimit: 4, collapsed: false },
+  { id: "done", title: "Done", signal: "Complete", wipLimit: 99, collapsed: false },
+];
+
+const initialKanbanCards: KanbanCard[] = [
+  {
+    id: "kanban-wireframes",
+    title: "Wireframe onboarding flow",
+    description: "Resolve the third screen and map the first-run task path.",
+    columnId: "in-progress",
+    priority: "high",
+    linkedTaskProjectId: "onboarding-flow",
+    linkedDay: 12,
+    dueDate: "2026-05-15",
+    tags: ["product", "ux"],
+    labels: [{ name: "Product", color: "cyan" }],
+    subtasks: [
+      { id: "sub-wire-1", title: "Map screen states", done: true },
+      { id: "sub-wire-2", title: "Clean empty state", done: false },
+    ],
+    estimateMinutes: 180,
+    trackedMinutes: 95,
+    attachments: [{ id: "att-wire-1", name: "Flow notes", url: "https://example.com/onboarding-flow" }],
+    comments: [
+      { id: "comment-wire-1", body: "Third screen still needs sharper hierarchy.", createdAt: "2026-05-12T14:30:00.000Z" },
+    ],
+    order: 1,
+  },
+  {
+    id: "kanban-supabase",
+    title: "Connect hosted Supabase",
+    description: "Move from local stack to hosted project once credentials are ready.",
+    columnId: "planned",
+    priority: "ziftinity",
+    dueDate: "2026-05-18",
+    tags: ["backend"],
+    labels: [{ name: "Backend", color: "violet" }],
+    subtasks: [
+      { id: "sub-supa-1", title: "Create hosted project", done: false },
+      { id: "sub-supa-2", title: "Push migrations", done: false },
+    ],
+    estimateMinutes: 120,
+    trackedMinutes: 35,
+    attachments: [],
+    comments: [],
+    blockedBy: "Waiting on hosted Supabase credentials",
+    order: 1,
+  },
+  {
+    id: "kanban-calendar-signal",
+    title: "Calendar signal colors",
+    description: "Surface event type markers directly on calendar days.",
+    columnId: "done",
+    priority: "medium",
+    tags: ["calendar"],
+    labels: [{ name: "Calendar", color: "lime" }],
+    subtasks: [
+      { id: "sub-cal-1", title: "Add day markers", done: true },
+      { id: "sub-cal-2", title: "Preview event titles", done: true },
+    ],
+    estimateMinutes: 90,
+    trackedMinutes: 80,
+    attachments: [],
+    comments: [],
+    order: 1,
+  },
+];
+
+const navItems = [
+  { id: "dashboard", label: "Dashboard", Icon: Home },
+  { id: "goals", label: "Goals", Icon: Target },
+  { id: "habits", label: "Habits", Icon: Check, count: "4/7" },
+  { id: "tasks", label: "Tasks", Icon: ListTodo },
+  { id: "kanban", label: "Kanban", Icon: Columns3 },
+  { id: "notes", label: "Notes", Icon: NotebookText },
+  { id: "calendar", label: "Calendar", Icon: CalendarDays },
+  { id: "progress", label: "Progress", Icon: TrendingUp },
+  { id: "insights", label: "Insights", Icon: Gauge },
+  { id: "agents", label: "Agents", Icon: Bot },
+];
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return {
+    date: new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(now),
+    day: new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(now),
+    time: new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(now),
+  };
+}
+
+const routeViewMap: Record<string, View> = {
+  "/": "dashboard",
+  "/dashboard": "dashboard",
+  "/goals": "goals",
+  "/habits": "habits",
+  "/tasks": "tasks",
+  "/task": "tasks",
+  "/kanban": "kanban",
+  "/board": "kanban",
+  "/notes": "notes",
+  "/calendar": "calendar",
+  "/calender": "calendar",
+  "/progress": "progress",
+  "/insights": "insights",
+  "/agents": "agents",
+};
+
+function getViewFromPath(pathname: string): View {
+  const normalizedPath = pathname.toLowerCase().replace(/\/+$/, "") || "/";
+  return routeViewMap[normalizedPath] ?? "dashboard";
+}
+
+function isView(value: string): value is View {
+  return Object.values(routeViewMap).includes(value as View);
+}
+
+function getPathForView(view: View) {
+  return view === "dashboard" ? "/" : `/${view}`;
+}
+
+function App() {
+  const clock = useClock();
+  const auth = useSupabaseAuth();
+  const [activeView, setActiveView] = useState<View>(() => getViewFromPath(window.location.pathname));
+  const [remoteSeedVersion, setRemoteSeedVersion] = useState(0);
+  const [activeTaskProjectId, setActiveTaskProjectId] = useState(initialTaskProjects[0]?.id ?? "");
+  const goals = useGoalsData(initialGoals, remoteSeedVersion);
+  const habits = useHabitsData(initialHabits, remoteSeedVersion);
+  const taskProjects = useTaskProjectsData(initialTaskProjects, remoteSeedVersion);
+  const calendarEvents = useCalendarEventsData(initialCalendarEvents, remoteSeedVersion);
+  const kanbanCards = useKanbanCardsData(initialKanbanCards, remoteSeedVersion);
+  const kanbanActivity = useKanbanActivityData(remoteSeedVersion);
+  const agentRecommendations = useAgentRecommendationsData(remoteSeedVersion);
+  const studyFolders = useStudyFoldersData(initialStudyFolders, remoteSeedVersion);
+  const studyNotes = useStudyNotesData(initialStudyNotes, remoteSeedVersion);
+  const backendLabel = useDataBackendLabel();
+
+  useEffect(() => {
+    void seedDatabase({
+      goals: initialGoals,
+      habits: initialHabits,
+      taskProjects: initialTaskProjects,
+      calendarEvents: initialCalendarEvents,
+      kanbanCards: initialKanbanCards,
+      studyNotes: initialStudyNotes,
+      studyFolders: initialStudyFolders,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!auth.user) return;
+    void seedRemoteDatabase({
+      goals: initialGoals,
+      habits: initialHabits,
+      taskProjects: initialTaskProjects,
+      calendarEvents: initialCalendarEvents,
+      kanbanCards: initialKanbanCards,
+      studyNotes: initialStudyNotes,
+      studyFolders: initialStudyFolders,
+    }, auth.user.id).then(() => setRemoteSeedVersion((version) => version + 1));
+  }, [auth.user]);
+
+  useEffect(() => {
+    const handlePopState = () => setActiveView(getViewFromPath(window.location.pathname));
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  function navigateTo(view: View) {
+    const route = getPathForView(view);
+    if (window.location.pathname !== route) {
+      window.history.pushState({}, "", route);
+    }
+    setActiveView(view);
+  }
+
+  useEffect(() => {
+    if (!taskProjects.some((project) => project.id === activeTaskProjectId)) {
+      setActiveTaskProjectId(taskProjects[0]?.id ?? "");
+    }
+  }, [activeTaskProjectId, taskProjects]);
+  const dashboardTasks = useMemo(() => getDashboardTasks(taskProjects), [taskProjects]);
+  const upcomingEvents = useMemo(() => getUpcomingEvents(calendarEvents, new Date()), [calendarEvents]);
+  const done = dashboardTasks.filter((task) => task.done).length;
+  const taskProgress = Math.round((done / Math.max(dashboardTasks.length, 1)) * 100);
+  const sortedGoals = useMemo(() => sortGoals(goals), [goals]);
+  const currentObjectives = useMemo(() => getCurrentObjectives(taskProjects), [taskProjects]);
+  const dashboardReflection = useMemo(
+    () => getDashboardReflection({ goals, habits, dashboardTasks, upcomingEvents }),
+    [dashboardTasks, goals, habits, upcomingEvents],
+  );
+  const priorities = sortedGoals.slice(0, 5).map((goal) => ({
+    name: goal.title,
+    level: goal.level,
+    progress: goal.progress,
+  }));
+  const overall = Math.round(
+    goals.reduce((total, goal) => total + goal.progress, 0) / Math.max(goals.length, 1),
+  );
+  const circumference = 2 * Math.PI * 78;
+  const ringOffset = circumference * (1 - overall / 100);
+  const hexNoise = useMemo(() => makeNoise(), []);
+  const habitsDone = habits.filter((habit) => habit.done).length;
+  const pageMeta =
+    activeView === "goals"
+      ? { title: "Goals Registry", subtitle: "All active objectives - sorted by priority" }
+      : activeView === "habits"
+        ? { title: "Habit Protocol", subtitle: "Daily routines // execute at scheduled time" }
+        : activeView === "tasks"
+          ? { title: "Task Protocol", subtitle: "Tabbed objectives // day-by-day execution" }
+          : activeView === "kanban"
+            ? { title: "Execution Board", subtitle: "Workflow state // card-based operations" }
+            : activeView === "notes"
+              ? { title: "Study Notes", subtitle: "Reading library // markdown workspace" }
+              : activeView === "calendar"
+                ? { title: "Calendar · May 2026", subtitle: "Consistency map // per-day completion" }
+                : activeView === "progress"
+                  ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
+                  : activeView === "insights"
+                    ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
+                    : activeView === "agents"
+                      ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
+                    : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+
+  if (auth.isConfigured && auth.loading) {
+    return <AuthScreen mode="loading" />;
+  }
+
+  if (auth.isConfigured && !auth.user) {
+    return <AuthScreen mode="signin" />;
+  }
+
+  return (
+    <>
+      <svg width="0" height="0" className="defs" aria-hidden="true">
+        <defs>
+          <linearGradient id="signalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#35d7ff" />
+            <stop offset="100%" stopColor="#aa72ff" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="data-noise left">{hexNoise}</div>
+      <div className="data-noise right">{hexNoise}</div>
+      <div className="scan-top">{hexNoise}</div>
+      <div className="app-shell">
+        <Sidebar
+          activeView={activeView}
+          goalsCount={goals.length}
+          habitsDone={habitsDone}
+          habitsTotal={habits.length}
+          taskProjectCount={taskProjects.length}
+          onNavigate={navigateTo}
+        />
+        <main className="main-panel">
+          <header className="topbar">
+            <div>
+              <h1>{pageMeta.title}</h1>
+              <p>{pageMeta.subtitle}</p>
+            </div>
+            <div className="topbar-meta" aria-label="Current dashboard time">
+              <span>{clock.date}</span>
+              <span className="sep">.</span>
+              <span>{clock.day}</span>
+              <span className="sep">.</span>
+              <strong>{clock.time}</strong>
+              <button aria-label="Alerts">
+                <Bell />
+                <i />
+              </button>
+              <button aria-label="Settings">
+                <Settings />
+              </button>
+              {auth.user && (
+                <button className="auth-chip" type="button" onClick={() => void signOut()} title={auth.user.email ?? "Signed in"}>
+                  {auth.user.email?.split("@")[0] ?? "User"}
+                </button>
+              )}
+            </div>
+          </header>
+
+          {activeView === "dashboard" ? (
+            <>
+          <section className="top-grid" aria-label="Dashboard overview">
+            <HudCard className="ring-card" active>
+              <CardHeader title="Overall Goal Progress" meta="live" />
+              <div className="ring-layout">
+                <div className="progress-ring" aria-label={`${overall}% complete`}>
+                  <svg viewBox="0 0 200 200">
+                    <g className="ring-ticks">
+                      {Array.from({ length: 60 }, (_, index) => {
+                        const angle = (index / 60) * Math.PI * 2;
+                        const r1 = 90;
+                        const r2 = index % 5 === 0 ? 101 : 96;
+                        return (
+                          <line
+                            key={index}
+                            x1={100 + Math.cos(angle) * r1}
+                            y1={100 + Math.sin(angle) * r1}
+                            x2={100 + Math.cos(angle) * r2}
+                            y2={100 + Math.sin(angle) * r2}
+                          />
+                        );
+                      })}
+                    </g>
+                    <circle className="ring-track" cx="100" cy="100" r="78" />
+                    <circle
+                      className="ring-value"
+                      cx="100"
+                      cy="100"
+                      r="78"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={ringOffset}
+                    />
+                  </svg>
+                  <div className="ring-copy">
+                    <strong>{overall}%</strong>
+                    <span>Complete</span>
+                  </div>
+                </div>
+                <div className="legend">
+                  <LegendItem color="cyan" label="Completed" value="22" />
+                  <LegendItem color="violet" label="In Progress" value="9" />
+                  <LegendItem color="dim" label="Not Started" value="5" />
+                </div>
+              </div>
+              <div className="quote-strip">Small steps today, unstoppable tomorrow.</div>
+            </HudCard>
+
+            <HudCard className="category-card">
+              <CardHeader title="Category Progress" />
+              <div className="category-list">
+                {categories.map(({ Icon, ...category }) => (
+                  <div className="category-row" key={category.name}>
+                    <div className="category-line">
+                      <Icon />
+                      <span>{category.name}</span>
+                      <strong>{category.progress}%</strong>
+                      <em>{category.fraction}</em>
+                    </div>
+                    <ProgressBar value={category.progress} />
+                  </div>
+                ))}
+              </div>
+              <CommandLink>View Category Analytics</CommandLink>
+            </HudCard>
+
+            <HudCard className="priority-card">
+              <CardHeader title="Top Priorities" />
+              <div className="priority-list">
+                {priorities.map((priority, index) => (
+                  <div className="priority-row" key={priority.name}>
+                    <span className="priority-index">{String(index + 1).padStart(2, "0")}</span>
+                    <span>{priority.name}</span>
+                    <PriorityChip level={priority.level} />
+                    <strong>{priority.progress}%</strong>
+                  </div>
+                ))}
+              </div>
+              <CommandLink>View All Priorities</CommandLink>
+            </HudCard>
+          </section>
+
+          <section className="goals-grid" aria-label="Goal cards">
+            {sortedGoals.slice(0, 5).map((goal) => (
+              <GoalCard key={goal.title} goal={goal} />
+            ))}
+          </section>
+
+          <section className="work-grid daily-work">
+            <HudCard className="tasks-card">
+              <CardHeader title="Today's Daily Tasks" meta={`${done} / ${dashboardTasks.length} - ${taskProgress}%`} />
+              <div className="task-list">
+                {dashboardTasks.map((task) => (
+                  <button
+                    className={`task-row ${task.done ? "done" : ""}`}
+                    key={`${task.projectId}-${task.day}-${task.id}`}
+                    onClick={() =>
+                      void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({
+                          ...item,
+                          done: !item.done,
+                        }))
+                    }
+                  >
+                    <span className="checkbox">{task.done && <Check />}</span>
+                    <span className="task-label">{task.name}</span>
+                    <span className="task-source">{task.projectName} - D{task.day}</span>
+                  </button>
+                ))}
+              </div>
+            </HudCard>
+          </section>
+
+          <HudCard className="next-days-card">
+            <CardHeader title="Next 14 Days" meta={`${upcomingEvents.length} events`} />
+            <div className="upcoming-list" aria-label="Upcoming calendar events">
+              {upcomingEvents.length === 0 ? (
+                <div className="empty-calendar-band">// no scheduled items in range</div>
+              ) : (
+                upcomingEvents.map(({ event, date }) => (
+                  <div className="upcoming-row" key={event.id}>
+                    <span className={`event-kind ${event.kind}`}>{event.kind}</span>
+                    <div>
+                      <strong>{event.title}</strong>
+                      <em>{formatUpcomingDate(date)} - {event.time}</em>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <CommandLink onClick={() => navigateTo("calendar")}>Open Calendar</CommandLink>
+          </HudCard>
+
+          <div className="row-divider">View All Goals</div>
+
+          <section className="bottom-grid" aria-label="Long range dashboard">
+            <MonthlyGoals projects={taskProjects} objectives={currentObjectives} />
+            <YearlyGoals goals={goals} />
+            <TimelineCard goals={goals} events={upcomingEvents} />
+            <ReflectionCard reflection={dashboardReflection} />
+          </section>
+
+          <svg className="bottom-scan" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true">
+            <polyline
+              points="0,24 42,21 88,23 132,20 178,25 222,19 268,24 312,18 356,22 402,16 448,21 490,17 536,23 578,20 624,24 668,18 714,22 760,17 804,25 850,21 896,23 940,18 986,24 1032,21 1076,19 1122,23 1168,20 1200,22"
+            />
+          </svg>
+
+          <footer className="sysline">
+            <span>// System synchronized</span>
+            <strong>All nodes operational</strong>
+            <span>{backendLabel}</span>
+          </footer>
+            </>
+          ) : activeView === "goals" ? (
+            <GoalsRegistry goals={sortedGoals} onAddGoal={goalCrud.add} onDeleteGoal={goalCrud.delete} />
+          ) : activeView === "habits" ? (
+            <HabitProtocol habits={habits} />
+          ) : activeView === "tasks" ? (
+            <TaskProtocol
+              projects={taskProjects}
+              activeProjectId={activeTaskProjectId}
+              onActiveProjectChange={setActiveTaskProjectId}
+            />
+          ) : activeView === "kanban" ? (
+            <KanbanView cards={kanbanCards} activity={kanbanActivity} projects={taskProjects} />
+          ) : activeView === "notes" ? (
+            <NotesView notes={studyNotes} folders={studyFolders} />
+          ) : activeView === "calendar" ? (
+            <CalendarView events={calendarEvents} />
+          ) : activeView === "progress" ? (
+            <ProgressView />
+          ) : activeView === "insights" ? (
+            <InsightsView />
+          ) : (
+            <AgentsView
+              goals={goals}
+              habits={habits}
+              projects={taskProjects}
+              dashboardTasks={dashboardTasks}
+              calendarEvents={calendarEvents}
+              kanbanCards={kanbanCards}
+              recommendations={agentRecommendations}
+            />
+          )}
+        </main>
+      </div>
+    </>
+  );
+}
+
+function AuthScreen({ mode }: { mode: "loading" | "signin" }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [message, setMessage] = useState(mode === "loading" ? "Synchronizing auth session..." : "");
+  const [busy, setBusy] = useState(false);
+  const hexNoise = useMemo(() => makeNoise(), []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!email.trim() || password.length < 6) {
+      setMessage("Use an email and a password with at least 6 characters.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      if (isSignUp) {
+        await signUpWithEmail(email.trim(), password);
+        setMessage("Account created. If email confirmation is enabled, confirm it before signing in.");
+      } else {
+        await signInWithEmail(email.trim(), password);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Auth request failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="data-noise left">{hexNoise}</div>
+      <div className="data-noise right">{hexNoise}</div>
+      <div className="scan-top">{hexNoise}</div>
+      <main className="auth-shell">
+        <HudCard className="auth-card" active>
+          <div className="brand-card auth-brand">
+            <div className="brand-mark" />
+            <div>
+              <strong>FOCUS//OS</strong>
+              <span>secure sync</span>
+            </div>
+          </div>
+          <CardHeader title="Identity Link" meta={isSignUp ? "create account" : "sign in"} />
+          <p className="auth-copy">
+            Connect a Supabase user account so goals, habits, tasks, calendar, and Kanban history sync across web and the future Mac app.
+          </p>
+          {mode === "loading" ? (
+            <div className="auth-message">{message}</div>
+          ) : (
+            <form className="auth-form" onSubmit={submit}>
+              <label>
+                <span>Email</span>
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+              </label>
+              <label>
+                <span>Password</span>
+                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="minimum 6 characters" />
+              </label>
+              {message && <div className="auth-message">{message}</div>}
+              <button className="submit-goal" type="submit" disabled={busy}>
+                {busy ? "Processing..." : isSignUp ? "Create Account" : "Sign In"}
+              </button>
+              <button className="auth-switch" type="button" onClick={() => setIsSignUp((value) => !value)}>
+                {isSignUp ? "Already have an account" : "Create a new account"}
+              </button>
+            </form>
+          )}
+        </HudCard>
+      </main>
+    </>
+  );
+}
+
+function GoalsRegistry({
+  goals,
+  onAddGoal,
+  onDeleteGoal,
+}: {
+  goals: Goal[];
+  onAddGoal: (goal: Goal) => void;
+  onDeleteGoal: (id: string) => void;
+}) {
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("Dec 31, 2026");
+  const [level, setLevel] = useState<Priority>("ziftinity");
+  const [progress, setProgress] = useState(0);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+
+    onAddGoal({
+      id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title: cleanTitle,
+      due: due.trim() || "Ongoing",
+      level,
+      progress,
+      meta: `${progress}% initialized`,
+      iconKey: "target",
+      chart: "line",
+    });
+    setTitle("");
+    setDue("Dec 31, 2026");
+    setLevel("ziftinity");
+    setProgress(0);
+  }
+
+  return (
+    <>
+      <HudCard className="goal-editor-card">
+        <CardHeader title="Add Goal" meta={`${goals.length} active`} />
+        <form className="goal-form" onSubmit={handleSubmit}>
+          <label>
+            <span>Objective</span>
+            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Launch app beta" />
+          </label>
+          <label>
+            <span>Due</span>
+            <input value={due} onChange={(event) => setDue(event.target.value)} placeholder="Dec 31, 2026" />
+          </label>
+          <label>
+            <span>Priority</span>
+            <select value={level} onChange={(event) => setLevel(event.target.value as Priority)}>
+              <option value="ziftinity">Ziftinity</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label>
+            <span>Progress</span>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={progress}
+              onChange={(event) => setProgress(Number(event.target.value))}
+            />
+          </label>
+          <button className="submit-goal" type="submit">+ Add Goal</button>
+        </form>
+      </HudCard>
+
+      <HudCard className="goals-registry-card">
+        <CardHeader title="All Goals" meta={`${goals.length} active`} />
+        <div className="registry-list">
+          {goals.map((goal, index) => (
+            <div className="registry-row" key={goal.id}>
+              <span className="priority-index">{String(index + 1).padStart(2, "0")}</span>
+              <div className="registry-main">
+                <strong>{goal.title}</strong>
+                <ProgressBar value={goal.progress} />
+              </div>
+              <span className="registry-due">{goal.due}</span>
+              <PriorityChip level={goal.level} />
+              <strong className="registry-progress">{goal.progress}%</strong>
+              <button className="delete-goal" type="button" onClick={() => onDeleteGoal(goal.id)} aria-label={`Delete ${goal.title}`}>
+                <Trash2 />
+              </button>
+            </div>
+          ))}
+        </div>
+      </HudCard>
+
+      <svg className="bottom-scan" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true">
+        <polyline points="0,24 42,21 88,23 132,20 178,25 222,19 268,24 312,18 356,22 402,16 448,21 490,17 536,23 578,20 624,24 668,18 714,22 760,17 804,25 850,21 896,23 940,18 986,24 1032,21 1076,19 1122,23 1168,20 1200,22" />
+      </svg>
+      <footer className="sysline">
+        <span>// System synchronized</span>
+        <strong>All nodes operational</strong>
+        <span>Goal registry online</span>
+      </footer>
+    </>
+  );
+}
+
+function HabitProtocol({ habits }: { habits: Habit[] }) {
+  const [name, setName] = useState("");
+  const [time, setTime] = useState("07:00");
+  const [duration, setDuration] = useState("10 min");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const sortedHabits = useMemo(() => sortHabits(habits), [habits]);
+  const done = habits.filter((habit) => habit.done).length;
+  const pct = Math.round((done / Math.max(habits.length, 1)) * 100);
+
+  function resetForm() {
+    setName("");
+    setTime("07:00");
+    setDuration("10 min");
+    setEditingId(null);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanName = name.trim();
+    if (!cleanName) return;
+
+    if (editingId) {
+      void habitCrud.update(editingId, { name: cleanName, time, duration: duration.trim() || "scheduled" });
+    } else {
+      void habitCrud.add({
+        id: `${Date.now()}-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        name: cleanName,
+        time,
+        duration: duration.trim() || "scheduled",
+        done: false,
+      });
+    }
+    resetForm();
+  }
+
+  function startEdit(habit: Habit) {
+    setName(habit.name);
+    setTime(habit.time);
+    setDuration(habit.duration);
+    setEditingId(habit.id);
+  }
+
+  return (
+    <>
+      <section className="habit-layout">
+        <div className="habit-main">
+          <HudCard className="habit-editor-card">
+            <CardHeader title={editingId ? "Edit Daily Habit" : "Add Daily Habit"} meta={`${done} / ${habits.length} - ${pct}%`} />
+            <form className="habit-form" onSubmit={handleSubmit}>
+              <label>
+                <span>Habit</span>
+                <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Read 30 pages" />
+              </label>
+              <label>
+                <span>Time</span>
+                <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+              </label>
+              <label>
+                <span>Duration</span>
+                <input value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="15 min" />
+              </label>
+              <button className="submit-goal" type="submit">{editingId ? "Save Habit" : "+ Add Habit"}</button>
+              {editingId && <button className="cancel-edit" type="button" onClick={resetForm}>Cancel</button>}
+            </form>
+          </HudCard>
+
+          <HudCard className="habits-card">
+            <CardHeader title="Daily Habits" meta={`${done} / ${habits.length} - ${pct}%`} />
+            <div className="habit-list">
+              {sortedHabits.map((habit) => (
+                <div className={`habit-row ${habit.done ? "done" : ""}`} key={habit.id}>
+                  <button
+                    className="checkbox"
+                    type="button"
+                    onClick={() =>
+                      void habitCrud.toggle(habit.id)
+                    }
+                    aria-label={`${habit.done ? "Mark incomplete" : "Mark complete"} ${habit.name}`}
+                  >
+                    {habit.done && <Check />}
+                  </button>
+                  <div>
+                    <strong>{habit.name}</strong>
+                    <span>{habit.duration}</span>
+                  </div>
+                  <span className="habit-time">{habit.time}</span>
+                  <button className="edit-habit" type="button" onClick={() => startEdit(habit)}>Edit</button>
+                  <button
+                    className="delete-goal"
+                    type="button"
+                    onClick={() => void habitCrud.delete(habit.id)}
+                    aria-label={`Delete ${habit.name}`}
+                  >
+                    <Trash2 />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </HudCard>
+        </div>
+
+        <HudCard className="habit-timeline-card">
+          <CardHeader title="Today's Timeline" />
+          <div className="timeline-list habit-timeline-list">
+            {sortedHabits.map((habit) => (
+              <div className="timeline-row" key={habit.id}>
+                <div className="timeline-date">
+                  <strong>{habit.time}</strong>
+                </div>
+                <div className="timeline-rail">
+                  <i className={habit.done ? "cyan" : "violet"} />
+                </div>
+                <div>
+                  <strong>{habit.name}</strong>
+                  <span>{habit.done ? "Done" : "Scheduled"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </HudCard>
+      </section>
+
+      <svg className="bottom-scan" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true">
+        <polyline points="0,24 42,21 88,23 132,20 178,25 222,19 268,24 312,18 356,22 402,16 448,21 490,17 536,23 578,20 624,24 668,18 714,22 760,17 804,25 850,21 896,23 940,18 986,24 1032,21 1076,19 1122,23 1168,20 1200,22" />
+      </svg>
+      <footer className="sysline">
+        <span>// System synchronized</span>
+        <strong>All nodes operational</strong>
+        <span>Habit protocol online</span>
+      </footer>
+    </>
+  );
+}
+
+function TaskProtocol({
+  projects,
+  activeProjectId,
+  onActiveProjectChange,
+}: {
+  projects: TaskProject[];
+  activeProjectId: string;
+  onActiveProjectChange: (id: string) => void;
+}) {
+  const normalizedProjects = useMemo(() => projects.map(normalizeTaskProject), [projects]);
+  const activeProject = normalizedProjects.find((project) => project.id === activeProjectId) ?? normalizedProjects[0];
+  const [projectName, setProjectName] = useState("");
+  const [startDate, setStartDate] = useState(() => toDateInputValue(new Date()));
+  const [endDate, setEndDate] = useState(() => toDateInputValue(addDays(new Date(), 39)));
+  const [newTask, setNewTask] = useState("");
+
+  useEffect(() => {
+    if (!activeProject && normalizedProjects[0]) onActiveProjectChange(normalizedProjects[0].id);
+  }, [activeProject, normalizedProjects, onActiveProjectChange]);
+
+  if (!activeProject) {
+    return (
+      <HudCard className="task-protocol-card">
+        <CardHeader title="Task Protocol" meta="0 objectives" />
+        <ProjectCreateForm
+          name={projectName}
+          startDate={startDate}
+          endDate={endDate}
+          onNameChange={setProjectName}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          onSubmit={() => {
+            const project = createProject(projectName, startDate, endDate);
+            if (!project) return;
+            void taskProjectCrud.add(project);
+            onActiveProjectChange(project.id);
+            setProjectName("");
+            resetProjectDates(setStartDate, setEndDate);
+          }}
+        />
+      </HudCard>
+    );
+  }
+
+  const projectStartDate = getProjectStartDate(activeProject);
+  const projectEndDate = getProjectEndDate(activeProject);
+  const projectDeadlineDays = getProjectDeadlineDays(activeProject);
+  const activeDay = Math.min(Math.max(activeProject.currentDay || 1, 1), projectDeadlineDays);
+  const activeDayDate = addDays(projectStartDate, activeDay - 1);
+  const dayTasks = activeProject.tasksByDay[activeDay] ?? [];
+  const projectTasks = Object.values(activeProject.tasksByDay).flat();
+  const projectDone = projectTasks.filter((task) => task.done).length;
+  const projectProgress = Math.round((projectDone / Math.max(projectTasks.length, 1)) * 100);
+  const daysLeft = Math.max(projectDeadlineDays - activeDay, 0);
+
+  function addProject() {
+    const project = createProject(projectName, startDate, endDate);
+    if (!project) return;
+    void taskProjectCrud.add(project);
+    onActiveProjectChange(project.id);
+    setProjectName("");
+    resetProjectDates(setStartDate, setEndDate);
+  }
+
+  function deleteProject(projectId: string) {
+    const next = normalizedProjects.filter((project) => project.id !== projectId);
+    if (projectId === activeProject.id) {
+      onActiveProjectChange(next[0]?.id ?? "");
+    }
+    void taskProjectCrud.delete(projectId);
+  }
+
+  function setActiveDay(day: number) {
+    void taskProjectCrud.setCurrentDay(activeProject.id, day);
+  }
+
+  function updateProjectDates(nextStartDate: string, nextEndDate: string) {
+    const start = parseDateInput(nextStartDate) ?? projectStartDate;
+    const endInput = parseDateInput(nextEndDate);
+    const end = endInput && endInput >= start ? endInput : start;
+    const normalizedStart = toDateInputValue(start);
+    const normalizedEnd = toDateInputValue(end);
+    void taskProjectCrud.updateDates(
+      activeProject.id,
+      normalizedStart,
+      normalizedEnd,
+      getDateRangeDays(normalizedStart, normalizedEnd),
+    );
+  }
+
+  function addTask() {
+    const name = newTask.trim();
+    if (!name) return;
+    const task: ProjectTask = {
+      id: `${Date.now()}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      name,
+      done: false,
+    };
+    void taskProjectCrud.addTask(activeProject.id, activeDay, task);
+    setNewTask("");
+  }
+
+  return (
+    <>
+      <HudCard className="task-protocol-card">
+        <div className="task-tabs" role="tablist" aria-label="Task objectives">
+          {normalizedProjects.map((project) => (
+            <div className={`task-tab ${project.id === activeProject.id ? "active" : ""}`} key={project.id}>
+              <button type="button" onClick={() => onActiveProjectChange(project.id)}>
+                <span />
+                <em>{project.name}</em>
+                <i>{getProjectDeadlineDays(project)}d</i>
+              </button>
+              <button
+                className="close-tab"
+                type="button"
+                onClick={() => deleteProject(project.id)}
+                aria-label={`Delete ${project.name} tab`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <ProjectCreateForm
+            compact
+            name={projectName}
+            startDate={startDate}
+            endDate={endDate}
+            onNameChange={setProjectName}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            onSubmit={addProject}
+          />
+        </div>
+
+        <section className="task-project-head">
+          <div>
+            <h2>{activeProject.name}</h2>
+            <p>
+              {formatTaskDate(projectStartDate)} - {formatTaskDate(projectEndDate)} - {projectDeadlineDays} days -
+              currently D{activeDay} ({formatTaskDate(activeDayDate)})
+            </p>
+            <div className="project-date-controls" aria-label="Project schedule">
+              <label>
+                <span>Start</span>
+                <input
+                  type="date"
+                  value={toDateInputValue(projectStartDate)}
+                  onChange={(event) => updateProjectDates(event.target.value, toDateInputValue(projectEndDate))}
+                />
+              </label>
+              <label>
+                <span>End</span>
+                <input
+                  type="date"
+                  value={toDateInputValue(projectEndDate)}
+                  onChange={(event) => updateProjectDates(toDateInputValue(projectStartDate), event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+          <div className="task-project-stats">
+            <MetricBadge value={`${projectDone}/${Math.max(projectTasks.length, 1)}`} label="subtasks" />
+            <MetricBadge value={String(daysLeft)} label="days left" />
+            <MetricBadge value={`${projectProgress}%`} label="progress" />
+          </div>
+        </section>
+        <ProgressBar value={projectProgress} />
+
+        <section className="day-section">
+          <CardHeader title="Day Planner" meta={`D${activeDay} - ${formatTaskDate(activeDayDate)}`} />
+          <div className="day-grid" role="list" aria-label={`${projectDeadlineDays} planned days`}>
+            {Array.from({ length: projectDeadlineDays }, (_, index) => {
+              const day = index + 1;
+              const date = addDays(projectStartDate, index);
+              const tasks = activeProject.tasksByDay[day] ?? [];
+              const isDone = tasks.length > 0 && tasks.every((task) => task.done);
+              return (
+                <button
+                  className={[
+                    "day-cell",
+                    day === activeDay ? "active" : "",
+                    tasks.length ? "planned" : "",
+                    isDone ? "complete" : "",
+                  ].join(" ")}
+                  key={day}
+                  type="button"
+                  onClick={() => setActiveDay(day)}
+                >
+                  <strong>D{day}</strong>
+                  <em>{formatTaskDate(date)}</em>
+                  <span>{tasks.length ? `${tasks.filter((task) => task.done).length}/${tasks.length}` : "open"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="day-task-panel">
+          <CardHeader
+            title={`D${String(activeDay).padStart(2, "0")} - ${formatTaskDate(activeDayDate)} - ${dayTasks.length} Tasks`}
+            meta={`${dayTasks.filter((task) => task.done).length} / ${dayTasks.length} complete`}
+          />
+          <div className="day-task-list">
+            {dayTasks.map((task) => (
+              <div className={`day-task-row ${task.done ? "done" : ""}`} key={task.id}>
+                <button
+                  className="checkbox"
+                  type="button"
+                  onClick={() =>
+                    void taskProjectCrud.updateTask(activeProject.id, activeDay, task.id, (item) => ({
+                        ...item,
+                        done: !item.done,
+                      }))
+                  }
+                  aria-label={`${task.done ? "Mark incomplete" : "Mark complete"} ${task.name}`}
+                >
+                  {task.done && <Check />}
+                </button>
+                <span>{task.name}</span>
+                <button
+                  className="delete-goal"
+                  type="button"
+                  onClick={() =>
+                    void taskProjectCrud.deleteTask(activeProject.id, activeDay, task.id)
+                  }
+                  aria-label={`Delete ${task.name}`}
+                >
+                  <Trash2 />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="add-day-task">
+            <input
+              value={newTask}
+              onChange={(event) => setNewTask(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") addTask();
+              }}
+              placeholder={`// add a task for D${activeDay} - press Enter`}
+            />
+            <button type="button" onClick={addTask}>+ Add</button>
+          </div>
+        </section>
+      </HudCard>
+
+      <svg className="bottom-scan" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true">
+        <polyline points="0,24 42,21 88,23 132,20 178,25 222,19 268,24 312,18 356,22 402,16 448,21 490,17 536,23 578,20 624,24 668,18 714,22 760,17 804,25 850,21 896,23 940,18 986,24 1032,21 1076,19 1122,23 1168,20 1200,22" />
+      </svg>
+      <footer className="sysline">
+        <span>// System synchronized</span>
+        <strong>All nodes operational</strong>
+        <span>Task protocol online</span>
+      </footer>
+    </>
+  );
+}
+
+function KanbanView({
+  cards,
+  activity,
+  projects,
+}: {
+  cards: KanbanCard[];
+  activity: KanbanActivity[];
+  projects: TaskProject[];
+}) {
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<Priority>("high");
+  const [columnId, setColumnId] = useState<KanbanColumnId>("backlog");
+  const [linkedTaskProjectId, setLinkedTaskProjectId] = useState("");
+  const [linkedDay, setLinkedDay] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [tags, setTags] = useState("");
+  const [labelColor, setLabelColor] = useState<KanbanLabelColor>("cyan");
+  const [estimateHours, setEstimateHours] = useState("");
+  const [blockedBy, setBlockedBy] = useState("");
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [newSubtask, setNewSubtask] = useState("");
+  const [newAttachment, setNewAttachment] = useState("");
+  const [newComment, setNewComment] = useState("");
+  const [columns, setColumns] = useState<KanbanColumnConfig[]>(loadKanbanColumns);
+  const [sortMode, setSortMode] = useState<KanbanSortMode>("manual");
+  const [swimlaneMode, setSwimlaneMode] = useState<KanbanSwimlaneMode>("none");
+  const [archiveDays, setArchiveDays] = useState(14);
+  const [showArchived, setShowArchived] = useState(false);
+  const [newColumnTitle, setNewColumnTitle] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterPriority, setFilterPriority] = useState<Priority | "all">("all");
+  const [filterTag, setFilterTag] = useState("");
+  const [filterDue, setFilterDue] = useState<KanbanDueFilter>("all");
+  const [boardMode, setBoardMode] = useState<KanbanBoardMode>("board");
+  const [focusMode, setFocusMode] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const sortedCards = useMemo(
+    () => cards.map(normalizeKanbanCard).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)),
+    [cards],
+  );
+  const visibleCards = useMemo(
+    () => sortedCards.filter((card) => showArchived || !card.archivedAt),
+    [showArchived, sortedCards],
+  );
+  const boardCards = useMemo(
+    () => filterKanbanCards(visibleCards, { searchQuery, filterPriority, filterTag, filterDue, focusMode }),
+    [filterDue, filterPriority, filterTag, focusMode, searchQuery, visibleCards],
+  );
+  const boardStats = useMemo(() => getKanbanBoardStats(boardCards, activity), [activity, boardCards]);
+  const availableTags = useMemo(
+    () => Array.from(new Set(visibleCards.flatMap((card) => card.tags))).sort((a, b) => a.localeCompare(b)),
+    [visibleCards],
+  );
+  const selectedCard = sortedCards.find((card) => card.id === selectedCardId) ?? null;
+  const recentActivity = useMemo(
+    () => [...activity].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8),
+    [activity],
+  );
+  const activeCards = boardCards.filter((card) => card.columnId !== "done").length;
+  const doneCards = boardCards.filter((card) => card.columnId === "done").length;
+
+  useEffect(() => {
+    window.localStorage.setItem("ziftinity-kanban-columns", JSON.stringify(columns));
+  }, [columns]);
+
+  useEffect(() => {
+    if (archiveDays <= 0) return;
+    const cutoff = Date.now() - archiveDays * 24 * 60 * 60 * 1000;
+    sortedCards
+      .filter((card) => card.columnId === "done" && !card.archivedAt)
+      .forEach((card) => {
+        const doneAt = getCardDoneTime(card, activity);
+        if (doneAt && new Date(doneAt).getTime() < cutoff) {
+          void kanbanCrud.update(card.id, { archivedAt: new Date().toISOString() });
+        }
+      });
+  }, [activity, archiveDays, sortedCards]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isFormField = target?.tagName === "INPUT" || target?.tagName === "SELECT" || target?.tagName === "TEXTAREA";
+      if (event.key === "Escape") {
+        setSelectedCardId(null);
+        setShowShortcuts(false);
+        return;
+      }
+      if (isFormField) return;
+      if (event.key.toLowerCase() === "n") {
+        titleInputRef.current?.focus();
+      }
+      if (event.key === "/") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (event.key === "?") {
+        setShowShortcuts((value) => !value);
+      }
+      if (selectedCard && event.key === "ArrowLeft") {
+        moveCard(selectedCard, -1);
+      }
+      if (selectedCard && event.key === "ArrowRight") {
+        moveCard(selectedCard, 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  function addCard(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    const columnCards = sortedCards.filter((card) => card.columnId === columnId);
+
+    const card: KanbanCard = {
+      id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title: cleanTitle,
+      description: description.trim(),
+      columnId,
+      priority,
+      linkedTaskProjectId: linkedTaskProjectId || undefined,
+      linkedDay: linkedDay ? Number(linkedDay) : undefined,
+      dueDate: dueDate || undefined,
+      tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+      labels: tags.split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 2).map((tag) => ({ name: tag, color: labelColor })),
+      subtasks: [],
+      estimateMinutes: estimateHours ? Math.max(0, Math.round(Number(estimateHours) * 60)) : undefined,
+      trackedMinutes: 0,
+      attachments: [],
+      comments: [],
+      blockedBy: blockedBy.trim() || undefined,
+      order: columnCards.length + 1,
+    };
+
+    void kanbanCrud.add(card);
+    logKanbanActivity({
+      card,
+      action: "created",
+      toColumnId: card.columnId,
+    });
+
+    setTitle("");
+    setDescription("");
+    setPriority("high");
+    setColumnId("backlog");
+    setLinkedTaskProjectId("");
+    setLinkedDay("");
+    setDueDate("");
+    setTags("");
+    setLabelColor("cyan");
+    setEstimateHours("");
+    setBlockedBy("");
+  }
+
+  function moveCard(card: KanbanCard, direction: -1 | 1) {
+    const index = columns.findIndex((column) => column.id === card.columnId);
+    const nextColumn = columns[index + direction];
+    if (!nextColumn) return;
+    const nextOrder = sortedCards.filter((item) => item.columnId === nextColumn.id).length + 1;
+    void kanbanCrud.move(card.id, nextColumn.id, nextOrder);
+    logKanbanActivity({
+      card,
+      action: "moved",
+      fromColumnId: card.columnId,
+      toColumnId: nextColumn.id,
+    });
+  }
+
+  function moveCardToColumn(card: KanbanCard, nextColumnId: KanbanColumnId) {
+    if (card.columnId === nextColumnId) return;
+    const nextOrder = sortedCards.filter((item) => item.columnId === nextColumnId).length + 1;
+    void kanbanCrud.move(card.id, nextColumnId, nextOrder);
+    logKanbanActivity({
+      card,
+      action: "moved",
+      fromColumnId: card.columnId,
+      toColumnId: nextColumnId,
+    });
+  }
+
+  function startDrag(event: DragEvent<HTMLElement>, card: KanbanCard) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", card.id);
+    setDraggingCardId(card.id);
+    setSelectedCardId(card.id);
+  }
+
+  function allowColumnDrop(event: DragEvent<HTMLElement>, columnId: KanbanColumnId) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function dropCard(event: DragEvent<HTMLElement>, columnId: KanbanColumnId) {
+    event.preventDefault();
+    const cardId = event.dataTransfer.getData("text/plain") || draggingCardId;
+    const card = sortedCards.find((item) => item.id === cardId);
+    if (card) moveCardToColumn(card, columnId);
+    setDraggingCardId(null);
+  }
+
+  function updateColumn(columnId: KanbanColumnId, patch: Partial<KanbanColumnConfig>) {
+    setColumns((items) => items.map((column) => column.id === columnId ? { ...column, ...patch } : column));
+  }
+
+  function reorderColumn(columnId: KanbanColumnId, direction: -1 | 1) {
+    setColumns((items) => {
+      const index = items.findIndex((column) => column.id === columnId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= items.length) return items;
+      const next = [...items];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  function addColumn() {
+    const cleanTitle = newColumnTitle.trim();
+    if (!cleanTitle) return;
+    const id = `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    setColumns((items) => [...items, { id, title: cleanTitle, signal: "Custom", wipLimit: 5, collapsed: false }]);
+    setColumnId(id);
+    setNewColumnTitle("");
+  }
+
+  function deleteColumn(column: KanbanColumnConfig) {
+    if (column.id === "backlog") return;
+    sortedCards.filter((card) => card.columnId === column.id).forEach((card) => {
+      void kanbanCrud.move(card.id, "backlog", sortedCards.filter((item) => item.columnId === "backlog").length + 1);
+      logKanbanActivity({ card, action: "moved", fromColumnId: column.id, toColumnId: "backlog" });
+    });
+    setColumns((items) => items.filter((item) => item.id !== column.id));
+    if (columnId === column.id) setColumnId("backlog");
+  }
+
+  function archiveDoneNow() {
+    sortedCards
+      .filter((card) => card.columnId === "done" && !card.archivedAt)
+      .forEach((card) => void kanbanCrud.update(card.id, { archivedAt: new Date().toISOString() }));
+  }
+
+  function undoLastMove() {
+    const lastMove = [...activity]
+      .filter((event) => event.action === "moved" && event.fromColumnId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    if (!lastMove?.fromColumnId) return;
+    const card = sortedCards.find((item) => item.id === lastMove.cardId);
+    if (!card) return;
+    const nextOrder = sortedCards.filter((item) => item.columnId === lastMove.fromColumnId).length + 1;
+    void kanbanCrud.move(card.id, lastMove.fromColumnId, nextOrder);
+    logKanbanActivity({
+      card,
+      action: "moved",
+      fromColumnId: card.columnId,
+      toColumnId: lastMove.fromColumnId,
+    });
+  }
+
+  function deleteCard(card: KanbanCard) {
+    logKanbanActivity({
+      card,
+      action: "deleted",
+      fromColumnId: card.columnId,
+    });
+    void kanbanCrud.delete(card.id);
+    if (selectedCardId === card.id) setSelectedCardId(null);
+  }
+
+  function toggleSubtask(card: KanbanCard, subtaskId: string) {
+    void kanbanCrud.update(card.id, {
+      subtasks: card.subtasks.map((subtask) => subtask.id === subtaskId ? { ...subtask, done: !subtask.done } : subtask),
+    });
+  }
+
+  function addSubtask(card: KanbanCard) {
+    const title = newSubtask.trim();
+    if (!title) return;
+    void kanbanCrud.update(card.id, {
+      subtasks: [...card.subtasks, { id: `${Date.now()}-subtask`, title, done: false }],
+    });
+    setNewSubtask("");
+  }
+
+  function addAttachment(card: KanbanCard) {
+    const url = newAttachment.trim();
+    if (!url) return;
+    void kanbanCrud.update(card.id, {
+      attachments: [...card.attachments, { id: `${Date.now()}-attachment`, name: getAttachmentName(url), url }],
+    });
+    setNewAttachment("");
+  }
+
+  function addComment(card: KanbanCard) {
+    const body = newComment.trim();
+    if (!body) return;
+    void kanbanCrud.update(card.id, {
+      comments: [...card.comments, { id: `${Date.now()}-comment`, body, createdAt: new Date().toISOString() }],
+    });
+    setNewComment("");
+  }
+
+  function updateTracked(card: KanbanCard, value: string) {
+    void kanbanCrud.update(card.id, {
+      trackedMinutes: Math.max(0, Math.round(Number(value || 0) * 60)),
+    });
+  }
+
+  return (
+    <>
+      <HudCard className="kanban-command-card">
+        <CardHeader title="Add Board Card" meta={`${activeCards} active - ${doneCards} complete`} />
+        <form className="kanban-form" onSubmit={addCard}>
+          <label>
+            <span>Card</span>
+            <input ref={titleInputRef} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Prepare beta checklist" />
+          </label>
+          <label>
+            <span>Column</span>
+            <select value={columnId} onChange={(event) => setColumnId(event.target.value as KanbanColumnId)}>
+              {columns.map((column) => (
+                <option value={column.id} key={column.id}>{column.title}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Priority</span>
+            <select value={priority} onChange={(event) => setPriority(event.target.value as Priority)}>
+              <option value="ziftinity">Ziftinity</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label>
+            <span>Due</span>
+            <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+          </label>
+          <label>
+            <span>Label</span>
+            <select value={labelColor} onChange={(event) => setLabelColor(event.target.value as KanbanLabelColor)}>
+              <option value="cyan">Cyan</option>
+              <option value="violet">Violet</option>
+              <option value="lime">Lime</option>
+              <option value="amber">Amber</option>
+              <option value="red">Red</option>
+            </select>
+          </label>
+          <label>
+            <span>Estimate</span>
+            <input type="number" min="0" step="0.25" value={estimateHours} onChange={(event) => setEstimateHours(event.target.value)} placeholder="2h" />
+          </label>
+          <label>
+            <span>Link</span>
+            <select value={linkedTaskProjectId} onChange={(event) => setLinkedTaskProjectId(event.target.value)}>
+              <option value="">No task link</option>
+              {projects.map((project) => (
+                <option value={project.id} key={project.id}>{project.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Day</span>
+            <input type="number" min="1" value={linkedDay} onChange={(event) => setLinkedDay(event.target.value)} placeholder="D12" />
+          </label>
+          <label className="kanban-description-field">
+            <span>Description</span>
+            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What needs to move forward?" />
+          </label>
+          <label>
+            <span>Tags</span>
+            <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="backend, beta" />
+          </label>
+          <label>
+            <span>Blocked By</span>
+            <input value={blockedBy} onChange={(event) => setBlockedBy(event.target.value)} placeholder="Waiting on..." />
+          </label>
+          <button className="submit-goal" type="submit">+ Add Card</button>
+        </form>
+      </HudCard>
+
+      <HudCard className="kanban-board-command-card">
+        <CardHeader title="Board Command" meta={`${boardStats.total} cards - ${boardStats.donePercent}% done - ${boardStats.overdue} overdue`} />
+        <div className="kanban-filter-bar">
+          <label className="kanban-search-field">
+            <span>Global Search</span>
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="type / then search cards..."
+            />
+          </label>
+          <label>
+            <span>Priority</span>
+            <select value={filterPriority} onChange={(event) => setFilterPriority(event.target.value as Priority | "all")}>
+              <option value="all">All priorities</option>
+              <option value="ziftinity">Ziftinity</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <label>
+            <span>Tag</span>
+            <select value={filterTag} onChange={(event) => setFilterTag(event.target.value)}>
+              <option value="">All tags</option>
+              {availableTags.map((tag) => <option value={tag} key={tag}>{tag}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Due Signal</span>
+            <select value={filterDue} onChange={(event) => setFilterDue(event.target.value as KanbanDueFilter)}>
+              <option value="all">All dates</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due today</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="none">No date</option>
+            </select>
+          </label>
+          <div className="kanban-view-toggle" role="group" aria-label="Board view">
+            {(["board", "list", "calendar"] as KanbanBoardMode[]).map((mode) => (
+              <button className={boardMode === mode ? "active" : ""} type="button" onClick={() => setBoardMode(mode)} key={mode}>
+                {mode}
+              </button>
+            ))}
+          </div>
+          <button className={focusMode ? "active" : ""} type="button" onClick={() => setFocusMode((value) => !value)}>
+            Focus
+          </button>
+          <button type="button" onClick={undoLastMove} disabled={!activity.some((event) => event.action === "moved" && event.fromColumnId)}>
+            Undo Move
+          </button>
+        </div>
+        <div className="kanban-stats-bar">
+          <span><strong>{boardStats.total}</strong> total</span>
+          <span><strong>{boardStats.donePercent}%</strong> done</span>
+          <span><strong>{boardStats.overdue}</strong> overdue</span>
+          <span><strong>{boardStats.avgCycle}</strong> avg cycle</span>
+          <span><strong>{boardStats.focusCount}</strong> focus cards</span>
+          <button type="button" onClick={() => setShowShortcuts((value) => !value)}>
+            {showShortcuts ? "Hide Keys" : "Shortcuts"}
+          </button>
+        </div>
+        {showShortcuts && (
+          <div className="kanban-shortcuts">
+            <span>N new card</span>
+            <span>/ search</span>
+            <span>? help</span>
+            <span>Esc close</span>
+            <span>Arrow keys move selected card</span>
+          </div>
+        )}
+        <div className="kanban-cycle-chart" aria-label="Cycle time by column">
+          {columns.map((column) => {
+            const value = getColumnCycleScore(column.id, boardCards, activity);
+            return (
+              <div className="cycle-column" key={column.id}>
+                <span>{column.title}</span>
+                <i style={{ height: `${Math.max(8, value)}%` }} />
+              </div>
+            );
+          })}
+        </div>
+      </HudCard>
+
+      <HudCard className="kanban-controls-card">
+        <CardHeader title="Column Controls" meta={`${columns.length} columns`} />
+        <div className="kanban-controls">
+          <label>
+            <span>New Column</span>
+            <input value={newColumnTitle} onChange={(event) => setNewColumnTitle(event.target.value)} placeholder="QA" />
+          </label>
+          <button type="button" onClick={addColumn}>+ Column</button>
+          <label>
+            <span>Sort</span>
+            <select value={sortMode} onChange={(event) => setSortMode(event.target.value as KanbanSortMode)}>
+              <option value="manual">Manual</option>
+              <option value="priority">Priority</option>
+              <option value="due">Due Date</option>
+              <option value="title">Title</option>
+            </select>
+          </label>
+          <label>
+            <span>Swimlane</span>
+            <select value={swimlaneMode} onChange={(event) => setSwimlaneMode(event.target.value as KanbanSwimlaneMode)}>
+              <option value="none">None</option>
+              <option value="priority">Priority</option>
+              <option value="tag">Tag</option>
+              <option value="project">Project</option>
+            </select>
+          </label>
+          <label>
+            <span>Archive Done</span>
+            <input type="number" min="1" value={archiveDays} onChange={(event) => setArchiveDays(Number(event.target.value) || 1)} />
+          </label>
+          <button type="button" onClick={archiveDoneNow}>Archive Now</button>
+          <button type="button" onClick={() => setShowArchived((value) => !value)}>
+            {showArchived ? "Hide Archive" : "Show Archive"}
+          </button>
+        </div>
+      </HudCard>
+
+      {boardMode === "board" && (
+        <div className="kanban-swimlanes">
+        {getSwimlaneGroups(boardCards, swimlaneMode, projects).map((lane) => (
+          <section className="kanban-swimlane" key={lane.id}>
+            {swimlaneMode !== "none" && <div className="kanban-swimlane-title">{lane.title}</div>}
+            <div className="kanban-board" aria-label={`${lane.title} execution board`}>
+              {columns.map((column, columnIndex) => {
+                const columnCards = sortKanbanCards(lane.cards.filter((card) => card.columnId === column.id), sortMode);
+                const isOverLimit = columnCards.length > column.wipLimit;
+                return (
+                  <HudCard className={`kanban-column ${column.collapsed ? "collapsed" : ""} ${isOverLimit ? "over-limit" : ""}`} key={`${lane.id}-${column.id}`}>
+                    <div
+                      className="kanban-column-dropzone"
+                      onDragOver={(event) => allowColumnDrop(event, column.id)}
+                      onDrop={(event) => dropCard(event, column.id)}
+                    >
+                    <div className="kanban-column-head">
+                      <input value={column.title} onChange={(event) => updateColumn(column.id, { title: event.target.value })} />
+                      <span className={isOverLimit ? "over-limit" : ""}>{columnCards.length}/{column.wipLimit}</span>
+                    </div>
+                    <div className="kanban-column-controls">
+                      <input
+                        type="number"
+                        min="1"
+                        value={column.wipLimit}
+                        aria-label={`${column.title} WIP limit`}
+                        onChange={(event) => updateColumn(column.id, { wipLimit: Math.max(1, Number(event.target.value) || 1) })}
+                      />
+                      <button type="button" onClick={() => reorderColumn(column.id, -1)} disabled={columnIndex === 0}>‹</button>
+                      <button type="button" onClick={() => reorderColumn(column.id, 1)} disabled={columnIndex === columns.length - 1}>›</button>
+                      <button type="button" onClick={() => updateColumn(column.id, { collapsed: !column.collapsed })}>
+                        {column.collapsed ? "Open" : "Fold"}
+                      </button>
+                      <button type="button" onClick={() => deleteColumn(column)} disabled={column.id === "backlog"}>Del</button>
+                    </div>
+                    <CardHeader title={column.signal} meta={`${columnCards.length} cards`} />
+                    {!column.collapsed && (
+                      <div className="kanban-card-list">
+                        {columnCards.length === 0 ? (
+                          <div className="kanban-empty">// no cards queued</div>
+                        ) : (
+                          columnCards.map((card) => (
+                    <article
+                      className={`kanban-card ${card.priority} ${card.blockedBy ? "blocked" : ""} ${getDueState(card.dueDate)} ${isKanbanSearchMatch(card, searchQuery) ? "search-match" : ""} ${draggingCardId === card.id ? "dragging" : ""}`}
+                      key={card.id}
+                      draggable
+                      onClick={() => setSelectedCardId(card.id)}
+                      onDragStart={(event) => startDrag(event, card)}
+                      onDragEnd={() => {
+                        setDraggingCardId(null);
+                      }}
+                    >
+                      {card.labels.length > 0 && (
+                        <div className="kanban-labels">
+                          {card.labels.map((label) => <span className={label.color} key={`${card.id}-${label.name}`}>{label.name}</span>)}
+                        </div>
+                      )}
+                      <div className="kanban-card-top">
+                        <PriorityChip level={card.priority} />
+                        {card.dueDate && <span className={`kanban-due ${getDueState(card.dueDate)}`}>{formatKanbanDate(card.dueDate)}</span>}
+                      </div>
+                      <strong>{card.title}</strong>
+                      {card.description && <p>{card.description}</p>}
+                      {card.subtasks.length > 0 && (
+                        <div className="kanban-subtask-meter">
+                          <ProgressBar value={getSubtaskProgress(card)} />
+                          <span>{card.subtasks.filter((subtask) => subtask.done).length}/{card.subtasks.length} subtasks</span>
+                        </div>
+                      )}
+                      <div className="kanban-card-meta">
+                        {card.estimateMinutes ? <span>{formatMinutes(card.trackedMinutes ?? 0)} / {formatMinutes(card.estimateMinutes)}</span> : null}
+                        {card.attachments.length > 0 && <span>{card.attachments.length} att</span>}
+                        {card.comments.length > 0 && <span>{card.comments.length} notes</span>}
+                        {card.blockedBy && <span className="blocked">blocked</span>}
+                      </div>
+                      {(card.linkedTaskProjectId || card.linkedDay) && (
+                        <em>
+                          {getProjectName(projects, card.linkedTaskProjectId)}
+                          {card.linkedDay ? ` - D${card.linkedDay}` : ""}
+                        </em>
+                      )}
+                      {card.tags.length > 0 && (
+                        <div className="kanban-tags">
+                          {card.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                        </div>
+                      )}
+                      <div className="kanban-card-actions">
+                        <button type="button" onClick={(event) => { event.stopPropagation(); moveCard(card, -1); }} disabled={columnIndex === 0}>‹</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); moveCard(card, 1); }} disabled={columnIndex === columns.length - 1}>›</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); deleteCard(card); }} aria-label={`Delete ${card.title}`}>
+                          <Trash2 />
+                        </button>
+                      </div>
+                    </article>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    </div>
+                  </HudCard>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+        </div>
+      )}
+
+      {boardMode === "list" && (
+        <HudCard className="kanban-list-view">
+          <CardHeader title="List View" meta={`${boardCards.length} matching cards`} />
+          <div className="kanban-list-rows">
+            {sortKanbanCards(boardCards, sortMode).map((card) => (
+              <button className={`kanban-list-row ${isKanbanSearchMatch(card, searchQuery) ? "search-match" : ""}`} type="button" onClick={() => setSelectedCardId(card.id)} key={card.id}>
+                <PriorityChip level={card.priority} />
+                <strong>{card.title}</strong>
+                <span>{getKanbanColumnTitle(card.columnId)}</span>
+                <em>{card.dueDate ? formatKanbanDate(card.dueDate) : "No date"}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+      )}
+
+      {boardMode === "calendar" && (
+        <HudCard className="kanban-calendar-view">
+          <CardHeader title="Card Calendar" meta="due date map" />
+          <div className="kanban-card-calendar">
+            {Array.from({ length: 14 }, (_, index) => addDays(new Date(), index)).map((date) => {
+              const dayCards = boardCards.filter((card) => parseDateInput(card.dueDate)?.toDateString() === date.toDateString());
+              return (
+                <div className={dayCards.length ? "has-cards" : ""} key={date.toISOString()}>
+                  <span>{formatUpcomingDate(date)}</span>
+                  {dayCards.slice(0, 3).map((card) => <button type="button" onClick={() => setSelectedCardId(card.id)} key={card.id}>{card.title}</button>)}
+                </div>
+              );
+            })}
+          </div>
+        </HudCard>
+      )}
+
+      {selectedCard && (
+        <HudCard className="kanban-detail-card">
+          <CardHeader title="Quick Detail" meta={getKanbanColumnTitle(selectedCard.columnId)} />
+          <div className="kanban-detail-grid">
+            <section>
+              <div className="kanban-detail-head">
+                <div>
+                  <strong>{selectedCard.title}</strong>
+                  <span>{selectedCard.description || "No description recorded"}</span>
+                </div>
+                <button type="button" onClick={() => setSelectedCardId(null)}>×</button>
+              </div>
+              {selectedCard.blockedBy && <div className="blocked-banner">Blocked by: {selectedCard.blockedBy}</div>}
+              <div className="kanban-detail-stats">
+                <span>Due {selectedCard.dueDate ? formatKanbanDate(selectedCard.dueDate) : "Unset"}</span>
+                <span>{getSubtaskProgress(selectedCard)}% checklist</span>
+                <label>
+                  Tracked h
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.25"
+                    value={((selectedCard.trackedMinutes ?? 0) / 60).toString()}
+                    onChange={(event) => updateTracked(selectedCard, event.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="detail-input-row">
+                <input value={newSubtask} onChange={(event) => setNewSubtask(event.target.value)} placeholder="Add checklist item" />
+                <button type="button" onClick={() => addSubtask(selectedCard)}>+ Item</button>
+              </div>
+              <div className="detail-checklist">
+                {selectedCard.subtasks.length === 0 ? (
+                  <span>// no checklist items</span>
+                ) : (
+                  selectedCard.subtasks.map((subtask) => (
+                    <button
+                      className={subtask.done ? "done" : ""}
+                      type="button"
+                      key={subtask.id}
+                      onClick={() => toggleSubtask(selectedCard, subtask.id)}
+                    >
+                      <i>{subtask.done && <Check />}</i>
+                      {subtask.title}
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
+            <section>
+              <div className="detail-input-row">
+                <input value={newAttachment} onChange={(event) => setNewAttachment(event.target.value)} placeholder="Attachment URL" />
+                <button type="button" onClick={() => addAttachment(selectedCard)}>+ Link</button>
+              </div>
+              <div className="detail-list">
+                {selectedCard.attachments.length === 0 ? <span>// no attachments</span> : selectedCard.attachments.map((attachment) => (
+                  <a href={attachment.url} target="_blank" rel="noreferrer" key={attachment.id}>{attachment.name}</a>
+                ))}
+              </div>
+              <div className="detail-input-row">
+                <input value={newComment} onChange={(event) => setNewComment(event.target.value)} placeholder="Progress note" />
+                <button type="button" onClick={() => addComment(selectedCard)}>+ Note</button>
+              </div>
+              <div className="detail-list comments">
+                {selectedCard.comments.length === 0 ? <span>// no comments</span> : selectedCard.comments.slice(-4).map((comment) => (
+                  <p key={comment.id}>{comment.body}</p>
+                ))}
+              </div>
+            </section>
+          </div>
+        </HudCard>
+      )}
+
+      <HudCard className="kanban-activity-card">
+        <CardHeader title="Board History" meta={`${activity.length} events`} />
+        <div className="kanban-activity-list">
+          {recentActivity.length === 0 ? (
+            <div className="kanban-empty">// no board events recorded</div>
+          ) : (
+            recentActivity.map((event) => (
+              <div className="kanban-activity-row" key={event.id}>
+                <span>{formatActivityTime(event.createdAt)}</span>
+                <strong>{event.cardTitle}</strong>
+                <em>{formatKanbanActivity(event)}</em>
+              </div>
+            ))
+          )}
+        </div>
+      </HudCard>
+
+      <SystemTrace label="Execution board online" />
+    </>
+  );
+}
+
+function NotesView({ notes, folders }: { notes: StudyNote[]; folders: StudyFolder[] }) {
+  const [activeNoteId, setActiveNoteId] = useState(notes[0]?.id ?? "");
+  const [mode, setMode] = useState<"home" | "writing" | "reading" | "review" | "queue" | "ai">("home");
+  const [filter, setFilter] = useState<"all" | "pinned" | "recent">("all");
+  const [activeFolderId, setActiveFolderId] = useState("all");
+  const [query, setQuery] = useState("");
+  const [activeTag, setActiveTag] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [folderInput, setFolderInput] = useState("");
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [libraryCollapsed, setLibraryCollapsed] = useState(false);
+  const [notesFullscreen, setNotesFullscreen] = useState(false);
+  const [aiResult, setAiResult] = useState<ReturnType<typeof buildLocalAiStudyAnalysis> | null>(null);
+  const [askInput, setAskInput] = useState("");
+  const [queueRevealed, setQueueRevealed] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftBody, setDraftBody] = useState("");
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const textSaveRef = useRef<number | null>(null);
+  const sortedNotes = useMemo(() => sortStudyNotes(notes), [notes]);
+  const activeNote = notes.find((note) => note.id === activeNoteId) ?? sortedNotes[0];
+  const reviewCards = useMemo(() => buildStudyReviewCards(activeNote), [activeNote]);
+  const savedFlashcards = activeNote?.flashcards ?? [];
+  const askHistory = activeNote?.askHistory ?? [];
+  const allSavedFlashcards = useMemo(() => getAllSavedFlashcards(notes), [notes]);
+  const dueFlashcards = useMemo(() => getDueFlashcards(allSavedFlashcards), [allSavedFlashcards]);
+  const nextScheduledCard = useMemo(() => getNextScheduledFlashcard(allSavedFlashcards), [allSavedFlashcards]);
+  const activeQueueItem = dueFlashcards[0] ?? nextScheduledCard;
+  const continueReadingNote = useMemo(() => sortedNotes.find((note) => note.kind === "document") ?? sortedNotes[0], [sortedNotes]);
+  const weakNotes = useMemo(() => getWeakStudyNotes(notes), [notes]);
+  const reviewedToday = useMemo(() => allSavedFlashcards.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length, [allSavedFlashcards]);
+  const recentStudyNotes = sortedNotes.slice(0, 4);
+  const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags))).sort(), [notes]);
+  const filteredNotes = sortedNotes.filter((note) => {
+    const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
+    const matchesFolder = activeFolderId === "all" || (activeFolderId === "uncategorized" ? !note.folderId : note.folderId === activeFolderId);
+    const matchesTag = !activeTag || note.tags.includes(activeTag);
+    const haystack = `${note.title} ${note.body} ${note.extractedText ?? ""} ${note.tags.join(" ")}`.toLowerCase();
+    return matchesFilter && matchesFolder && matchesTag && haystack.includes(query.trim().toLowerCase());
+  });
+
+  useEffect(() => {
+    if (!activeNote && sortedNotes[0]) setActiveNoteId(sortedNotes[0].id);
+  }, [activeNote, sortedNotes]);
+
+  useEffect(() => {
+    setDraftTitle(activeNote?.title ?? "");
+    setDraftBody(activeNote?.body ?? "");
+  }, [activeNote?.id]);
+
+  useEffect(() => () => {
+    if (textSaveRef.current) window.clearTimeout(textSaveRef.current);
+  }, []);
+
+  async function createNote(kind: StudyNote["kind"] = "note", seed?: Partial<StudyNote>) {
+    const now = new Date().toISOString();
+    const note: StudyNote = {
+      id: `${Date.now()}-${kind}`,
+      title: seed?.title ?? (kind === "document" ? "Uploaded document" : "Untitled study note"),
+      body: seed?.body ?? "## Notes\n\nStart writing here.",
+      tags: seed?.tags ?? (kind === "document" ? ["reading"] : ["study"]),
+      pinned: false,
+      kind,
+      folderId: seed?.folderId ?? (activeFolderId !== "all" && activeFolderId !== "uncategorized" ? activeFolderId : folders[0]?.id),
+      sourceName: seed?.sourceName,
+      mimeType: seed?.mimeType,
+      fileDataUrl: seed?.fileDataUrl,
+      extractedText: seed?.extractedText,
+      flashcards: seed?.flashcards ?? [],
+      askHistory: seed?.askHistory ?? [],
+      readingProgress: seed?.readingProgress ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await studyNoteCrud.add(note);
+    setActiveNoteId(note.id);
+    setMode(kind === "document" ? "reading" : "writing");
+  }
+
+  async function createFolder() {
+    const cleanName = folderInput.trim();
+    if (!cleanName) return;
+    const folder: StudyFolder = {
+      id: `${Date.now()}-${slugify(cleanName)}`,
+      name: cleanName,
+      color: ["cyan", "violet", "lime", "amber", "red"][folders.length % 5] as KanbanLabelColor,
+      createdAt: new Date().toISOString(),
+    };
+    await studyFolderCrud.add(folder);
+    setFolderInput("");
+    setActiveFolderId(folder.id);
+  }
+
+  function updateActive(patch: Partial<Omit<StudyNote, "id" | "createdAt">>) {
+    if (!activeNote) return;
+    void studyNoteCrud.update(activeNote.id, patch);
+  }
+
+  function scheduleTextSave(noteId: string, patch: Partial<Pick<StudyNote, "title" | "body">>) {
+    if (textSaveRef.current) window.clearTimeout(textSaveRef.current);
+    textSaveRef.current = window.setTimeout(() => {
+      void studyNoteCrud.update(noteId, patch);
+      textSaveRef.current = null;
+    }, 450);
+  }
+
+  function updateDraftTitle(value: string) {
+    setDraftTitle(value);
+    if (activeNote) scheduleTextSave(activeNote.id, { title: value });
+  }
+
+  function updateDraftBody(value: string) {
+    setDraftBody(value);
+    if (activeNote) scheduleTextSave(activeNote.id, { body: value });
+  }
+
+  function applyMarkdown(prefix: string, suffix = "") {
+    if (!activeNote) return;
+    const element = editorRef.current;
+    if (!element) {
+      updateDraftBody(`${draftBody}${prefix}${suffix}`);
+      return;
+    }
+    const start = element.selectionStart;
+    const end = element.selectionEnd;
+    const selected = draftBody.slice(start, end);
+    const inserted = `${prefix}${selected || "text"}${suffix}`;
+    const nextBody = `${draftBody.slice(0, start)}${inserted}${draftBody.slice(end)}`;
+    updateDraftBody(nextBody);
+    requestAnimationFrame(() => {
+      element.focus();
+      element.setSelectionRange(start + prefix.length, start + prefix.length + (selected || "text").length);
+    });
+  }
+
+  function addTag(value: string) {
+    if (!activeNote) return;
+    const clean = value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+    if (!clean || activeNote.tags.includes(clean)) return;
+    updateActive({ tags: [...activeNote.tags, clean] });
+    setTagInput("");
+  }
+
+  async function uploadDocuments(files: FileList | null) {
+    if (!files) return;
+    setUploadStatus(`extracting ${files.length} file${files.length === 1 ? "" : "s"}...`);
+    for (const file of Array.from(files)) {
+      try {
+        const extracted = await readStudyFile(file);
+        await createNote("document", {
+          title: file.name.replace(/\.[^.]+$/, ""),
+          body: extracted.body,
+          tags: ["reading", extracted.kind, ...(extracted.extracted ? ["searchable"] : ["manual-notes"])],
+          sourceName: file.name,
+          mimeType: extracted.mimeType,
+          fileDataUrl: extracted.fileDataUrl,
+          extractedText: extracted.extractedText,
+        });
+      } catch (error) {
+        await createNote("document", {
+          title: file.name.replace(/\.[^.]+$/, ""),
+          body: createUnsupportedDocumentBody(file.name, error instanceof Error ? error.message : "Extraction failed."),
+          tags: ["reading", "needs-review"],
+          sourceName: file.name,
+        });
+      }
+    }
+    setUploadStatus("upload extraction complete");
+  }
+
+  async function deleteActive() {
+    if (!activeNote) return;
+    if (!window.confirm(`Delete "${activeNote.title}"?`)) return;
+    await studyNoteCrud.delete(activeNote.id);
+    setActiveNoteId(sortedNotes.find((note) => note.id !== activeNote.id)?.id ?? "");
+  }
+
+  function saveGeneratedFlashcards(cards = aiResult?.flashcards ?? reviewCards) {
+    if (!activeNote || cards.length === 0) return;
+    const existing = activeNote.flashcards ?? [];
+    const existingKeys = new Set(existing.map((card) => slugify(card.question)));
+    const now = new Date().toISOString();
+    const nextCards = cards
+      .filter((card) => !existingKeys.has(slugify(card.question)))
+      .map((card, index) => ({
+        id: `${Date.now()}-flashcard-${index}`,
+        question: card.question,
+        answer: card.answer,
+        source: "source" in card && typeof card.source === "string" ? card.source : "ai study console",
+        difficulty: "new" as const,
+        reviewCount: 0,
+        dueAt: now,
+        createdAt: now,
+      }));
+    if (nextCards.length === 0) return;
+    updateActive({ flashcards: [...existing, ...nextCards] });
+  }
+
+  function updateFlashcard(cardId: string, patch: Partial<NonNullable<StudyNote["flashcards"]>[number]>) {
+    if (!activeNote) return;
+    updateActive({
+      flashcards: (activeNote.flashcards ?? []).map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
+    });
+  }
+
+  function updateNoteFlashcard(noteId: string, cardId: string, patch: Partial<NonNullable<StudyNote["flashcards"]>[number]>) {
+    const note = notes.find((item) => item.id === noteId);
+    if (!note) return;
+    void studyNoteCrud.update(note.id, {
+      flashcards: (note.flashcards ?? []).map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
+    });
+  }
+
+  function deleteFlashcard(cardId: string) {
+    if (!activeNote) return;
+    updateActive({ flashcards: (activeNote.flashcards ?? []).filter((card) => card.id !== cardId) });
+  }
+
+  function reviewQueueCard(rating: "again" | "learning" | "known") {
+    if (!activeQueueItem) return;
+    const current = activeQueueItem.card;
+    const reviewedAt = new Date().toISOString();
+    const nextPatch =
+      rating === "again"
+        ? { difficulty: "learning" as const, dueAt: addMinutesIso(20), reviewCount: current.reviewCount + 1, lastReviewedAt: reviewedAt }
+        : rating === "learning"
+          ? { difficulty: "learning" as const, dueAt: addDaysIso(1), reviewCount: current.reviewCount + 1, lastReviewedAt: reviewedAt }
+          : { difficulty: "known" as const, dueAt: addDaysIso(current.reviewCount > 2 ? 10 : 4), reviewCount: current.reviewCount + 1, lastReviewedAt: reviewedAt };
+    updateNoteFlashcard(activeQueueItem.noteId, current.id, nextPatch);
+    setQueueRevealed(false);
+  }
+
+  function jumpToQueueSource() {
+    if (!activeQueueItem) return;
+    setActiveNoteId(activeQueueItem.noteId);
+    setMode("ai");
+  }
+
+  function askActiveNote() {
+    if (!activeNote) return;
+    const question = askInput.trim();
+    if (!question) return;
+    const answer = answerStudyQuestion(activeNote, question);
+    const message = {
+      id: `${Date.now()}-ask`,
+      question,
+      answer,
+      createdAt: new Date().toISOString(),
+    };
+    updateActive({ askHistory: [...(activeNote.askHistory ?? []), message] });
+    setAskInput("");
+  }
+
+  return (
+    <>
+      <section className={`notes-workspace ${libraryCollapsed ? "library-collapsed" : ""} ${notesFullscreen ? "notes-fullscreen" : ""}`}>
+        <HudCard className={`notes-sidebar ${libraryCollapsed ? "collapsed" : ""}`}>
+          <div className="notes-library-head">
+            {!libraryCollapsed && <CardHeader title="Study Library" meta={`${notes.length} entries`} />}
+            <button className="library-toggle" type="button" onClick={() => setLibraryCollapsed((value) => !value)} aria-label={libraryCollapsed ? "Open study library" : "Collapse study library"}>
+              {libraryCollapsed ? "library" : "collapse"}
+            </button>
+          </div>
+          {!libraryCollapsed && (
+            <>
+          <div className="folder-system">
+            <div className="folder-system-head">
+              <span>Directories</span>
+              <strong>{folders.length}</strong>
+            </div>
+            <button className={activeFolderId === "all" ? "active" : ""} type="button" onClick={() => setActiveFolderId("all")}>
+              <span className="folder-dot cyan" /> All Notes <em>{notes.length}</em>
+            </button>
+            {folders.map((folder) => (
+              <button className={activeFolderId === folder.id ? "active" : ""} type="button" onClick={() => setActiveFolderId(folder.id)} key={folder.id}>
+                <span className={`folder-dot ${folder.color}`} /> {folder.name} <em>{notes.filter((note) => note.folderId === folder.id).length}</em>
+              </button>
+            ))}
+            <button className={activeFolderId === "uncategorized" ? "active" : ""} type="button" onClick={() => setActiveFolderId("uncategorized")}>
+              <span className="folder-dot amber" /> Uncategorized <em>{notes.filter((note) => !note.folderId).length}</em>
+            </button>
+            <div className="folder-create">
+              <input value={folderInput} onChange={(event) => setFolderInput(event.target.value)} onKeyDown={(event) => {
+                if (event.key === "Enter") void createFolder();
+              }} placeholder="new directory" />
+              <button type="button" onClick={() => void createFolder()}>add</button>
+            </div>
+          </div>
+          <div className="notes-search">
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
+          </div>
+          <div className="notes-tabs">
+            {(["all", "pinned", "recent"] as const).map((item) => (
+              <button className={filter === item ? "active" : ""} type="button" onClick={() => setFilter(item)} key={item}>{item}</button>
+            ))}
+          </div>
+          <div className="notes-tags">
+            <button className={!activeTag ? "active" : ""} type="button" onClick={() => setActiveTag("")}>all tags</button>
+            {allTags.map((tag) => (
+              <button className={activeTag === tag ? "active" : ""} type="button" onClick={() => setActiveTag(tag)} key={tag}>{tag}</button>
+            ))}
+          </div>
+          <div className="note-list">
+            {filteredNotes.length === 0 ? (
+              <div className="kanban-empty">// no notes match current filter</div>
+            ) : (
+              filteredNotes.map((note) => (
+                <button className={`note-list-item ${activeNote?.id === note.id ? "active" : ""}`} type="button" onClick={() => setActiveNoteId(note.id)} key={note.id}>
+                  <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
+                  <strong>{note.title || "Untitled"}</strong>
+                  <em>{getWordCount(note.body)} words · {formatActivityTime(note.updatedAt)}</em>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="notes-create-row">
+            <button type="button" onClick={() => void createNote("note")}>+ note</button>
+            <label>
+              <input type="file" multiple accept=".pdf,.docx,.md,.markdown,.txt,.csv,.json,.html,.css,.js,.ts,.tsx" onChange={(event) => void uploadDocuments(event.target.files)} />
+              + upload
+            </label>
+          </div>
+          {uploadStatus && <div className="notes-upload-status">{uploadStatus}</div>}
+            </>
+          )}
+        </HudCard>
+
+        <HudCard className="notes-editor-card">
+          {activeNote ? (
+            <>
+              <div className="notes-editor-head">
+                <div className="notes-mode-toggle" role="tablist" aria-label="Notes mode">
+                  <button className={mode === "home" ? "active" : ""} type="button" onClick={() => setMode("home")}>
+                    <Home /> home
+                  </button>
+                  <button className={mode === "writing" ? "active" : ""} type="button" onClick={() => setMode("writing")}>
+                    <NotebookText /> write
+                  </button>
+                  <button className={mode === "reading" ? "active" : ""} type="button" onClick={() => setMode("reading")}>
+                    <Eye /> read
+                  </button>
+                  <button className={mode === "review" ? "active" : ""} type="button" onClick={() => setMode("review")}>
+                    <Sparkles /> review
+                  </button>
+                  <button className={mode === "queue" ? "active" : ""} type="button" onClick={() => setMode("queue")}>
+                    <ListTodo /> queue
+                  </button>
+                  <button className={mode === "ai" ? "active" : ""} type="button" onClick={() => setMode("ai")}>
+                    <Bot /> ai
+                  </button>
+                </div>
+                <div className="notes-actions">
+                  <button type="button" onClick={() => setNotesFullscreen((value) => !value)}>{notesFullscreen ? "exit full" : "full screen"}</button>
+                  <button type="button" onClick={() => updateActive({ pinned: !activeNote.pinned })}>{activeNote.pinned ? "unpin" : "pin"}</button>
+                  <button type="button" onClick={() => void deleteActive()}>delete</button>
+                </div>
+              </div>
+
+              <input className="note-title-input" value={draftTitle} onChange={(event) => updateDraftTitle(event.target.value)} onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  editorRef.current?.focus();
+                }
+              }} />
+
+              <div className="note-directory-row">
+                <span>Directory</span>
+                <select value={activeNote.folderId ?? "uncategorized"} onChange={(event) => updateActive({ folderId: event.target.value === "uncategorized" ? undefined : event.target.value })}>
+                  <option value="uncategorized">Uncategorized</option>
+                  {folders.map((folder) => (
+                    <option value={folder.id} key={folder.id}>{folder.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="note-tag-editor">
+                {activeNote.tags.map((tag) => (
+                  <button type="button" onClick={() => updateActive({ tags: activeNote.tags.filter((item) => item !== tag) })} key={tag}>{tag} ×</button>
+                ))}
+                <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    addTag(tagInput);
+                  }
+                  if (event.key === "Backspace" && !tagInput && activeNote.tags.length > 0) {
+                    updateActive({ tags: activeNote.tags.slice(0, -1) });
+                  }
+                }} placeholder="add tag" />
+              </div>
+
+              {mode === "home" ? (
+                <div className="notes-home-mode">
+                  <section className="notes-home-hero">
+                    <div>
+                      <span>Study Command</span>
+                      <strong>{dueFlashcards.length > 0 ? `${dueFlashcards.length} cards due now` : "No urgent reviews"}</strong>
+                      <p>{dueFlashcards.length > 0 ? "Start with the review queue before creating more material." : "Continue reading, clean weak notes, or capture the next idea."}</p>
+                    </div>
+                    <div className="notes-home-actions">
+                      <button type="button" onClick={() => setMode("queue")}>start queue</button>
+                      <button type="button" onClick={() => void createNote("note")}>quick note</button>
+                      <button type="button" onClick={() => setMode("reading")}>continue reading</button>
+                    </div>
+                  </section>
+
+                  <div className="notes-home-grid">
+                    <section className="notes-home-panel continue-panel">
+                      <div className="ask-note-head">
+                        <span>Continue Reading</span>
+                        <strong>{continueReadingNote?.kind ?? "none"}</strong>
+                      </div>
+                      {continueReadingNote ? (
+                        <button type="button" onClick={() => {
+                          setActiveNoteId(continueReadingNote.id);
+                          setMode(continueReadingNote.kind === "document" ? "reading" : "writing");
+                        }}>
+                          <strong>{continueReadingNote.title}</strong>
+                          <em>{getReadingMinutes(continueReadingNote.extractedText ?? continueReadingNote.body)} min read · {formatActivityTime(continueReadingNote.updatedAt)}</em>
+                        </button>
+                      ) : (
+                        <div className="kanban-empty">// upload a document or create a note</div>
+                      )}
+                    </section>
+
+                    <section className="notes-home-panel">
+                      <div className="ask-note-head">
+                        <span>Study Health</span>
+                        <strong>{reviewedToday} reviewed today</strong>
+                      </div>
+                      <div className="notes-health-grid">
+                        <div><strong>{notes.length}</strong><span>notes</span></div>
+                        <div><strong>{allSavedFlashcards.length}</strong><span>cards</span></div>
+                        <div><strong>{weakNotes.length}</strong><span>weak</span></div>
+                      </div>
+                    </section>
+
+                    <section className="notes-home-panel">
+                      <div className="ask-note-head">
+                        <span>Weak Notes</span>
+                        <strong>{weakNotes.length} signals</strong>
+                      </div>
+                      <div className="notes-home-list">
+                        {weakNotes.length === 0 ? (
+                          <div className="kanban-empty">// no weak notes detected</div>
+                        ) : (
+                          weakNotes.slice(0, 4).map((item) => (
+                            <button type="button" onClick={() => {
+                              setActiveNoteId(item.note.id);
+                              setMode("ai");
+                            }} key={item.note.id}>
+                              <strong>{item.note.title}</strong>
+                              <em>{item.reason}</em>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="notes-home-panel">
+                      <div className="ask-note-head">
+                        <span>Recently Updated</span>
+                        <strong>{recentStudyNotes.length} notes</strong>
+                      </div>
+                      <div className="notes-home-list">
+                        {recentStudyNotes.map((note) => (
+                          <button type="button" onClick={() => {
+                            setActiveNoteId(note.id);
+                            setMode(note.kind === "document" ? "reading" : "writing");
+                          }} key={note.id}>
+                            <strong>{note.title}</strong>
+                            <em>{note.kind} · {getWordCount(note.body)} words · {formatActivityTime(note.updatedAt)}</em>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              ) : mode === "writing" ? (
+                <div className="writing-studio">
+                  <div className="markdown-toolbar">
+                    <button type="button" onClick={() => applyMarkdown("**", "**")}>B</button>
+                    <button type="button" onClick={() => applyMarkdown("*", "*")}>I</button>
+                    <button type="button" onClick={() => applyMarkdown("~~", "~~")}>S</button>
+                    <button type="button" onClick={() => applyMarkdown("# ")}>H1</button>
+                    <button type="button" onClick={() => applyMarkdown("## ")}>H2</button>
+                    <button type="button" onClick={() => applyMarkdown("### ")}>H3</button>
+                    <button type="button" onClick={() => applyMarkdown("- ")}>list</button>
+                    <button type="button" onClick={() => applyMarkdown("> ")}>quote</button>
+                    <button type="button" onClick={() => applyMarkdown("`", "`")}>code</button>
+                    <button type="button" onClick={() => updateDraftBody(`${draftBody}\n\n---\n\n`)}>rule</button>
+                    <button type="button" onClick={() => updateDraftBody(`${draftBody}\n\n## Summary\n\n\n## Key Ideas\n\n- \n\n## Questions\n\n- \n`)}>study block</button>
+                  </div>
+                  <div className="writing-layout">
+                    <section className="writing-paper">
+                      <div className="writing-paper-head">
+                        <span>draft</span>
+                        <strong>{getReadingMinutes(draftBody)} min read</strong>
+                      </div>
+                      <textarea ref={editorRef} className="note-body-editor" value={draftBody} onChange={(event) => updateDraftBody(event.target.value)} placeholder="Write study notes, summaries, questions, examples..." />
+                    </section>
+                    <aside className="writing-sidecar">
+                      <div className="writing-stats">
+                        <div><strong>{getWordCount(draftBody)}</strong><span>words</span></div>
+                        <div><strong>{getHeadingCount(draftBody)}</strong><span>headings</span></div>
+                        <div><strong>{getChecklistCount(draftBody)}</strong><span>bullets</span></div>
+                      </div>
+                      <div className="study-prompts">
+                        <strong>Study Prompts</strong>
+                        {["What is the main idea?", "What confused me?", "What would I test myself on?", "How does this connect to my goals?"].map((prompt) => (
+                          <button type="button" onClick={() => updateDraftBody(`${draftBody}\n\n### ${prompt}\n\n`)} key={prompt}>{prompt}</button>
+                        ))}
+                      </div>
+                      <div className="live-preview-panel">
+                        <span>live preview</span>
+                        <div className="markdown-preview compact">{renderMarkdownPreview(draftBody)}</div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              ) : mode === "reading" ? (
+                <div className="reading-mode">
+                  <div className="reading-meta">
+                    <FileText />
+                    <span>{activeNote.sourceName ?? activeNote.kind}</span>
+                    <strong>{getReadingMinutes(activeNote.extractedText ?? activeNote.body)} min read</strong>
+                  </div>
+                  <div className="reading-layout">
+                    <section className="reading-document-pane">
+                      {activeNote.mimeType === "application/pdf" && activeNote.fileDataUrl ? (
+                        <PdfDocumentViewer title={activeNote.title} dataUrl={activeNote.fileDataUrl} />
+                      ) : (
+                        <div className="document-page">
+                          <div className="markdown-preview">{renderMarkdownPreview(activeNote.body)}</div>
+                        </div>
+                      )}
+                    </section>
+                    <aside className="reading-capture-panel">
+                      <div className="capture-head">
+                        <strong>Capture Notes</strong>
+                        <span>{getWordCount(draftBody)} words</span>
+                      </div>
+                      <textarea value={draftBody} onChange={(event) => updateDraftBody(event.target.value)} placeholder="Capture summaries, questions, formulas, examples, or follow-up tasks while reading..." />
+                      <div className="capture-actions">
+                        {["Key idea", "Question", "Definition", "Action item"].map((label) => (
+                          <button type="button" onClick={() => updateDraftBody(`${draftBody}\n\n### ${label}\n\n- `)} key={label}>{label}</button>
+                        ))}
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              ) : mode === "review" ? (
+                <div className="review-mode">
+                  <div className="review-brief">
+                    <div>
+                      <span>Active Recall Deck</span>
+                      <strong>{reviewCards.length} cards generated</strong>
+                    </div>
+                    <button type="button" onClick={() => saveGeneratedFlashcards(reviewCards)}>
+                      save cards
+                    </button>
+                  </div>
+                  {reviewCards.length === 0 ? (
+                    <div className="kanban-empty">// add headings, bullets, or extracted text to generate review cards</div>
+                  ) : (
+                    <div className="review-card-grid">
+                      {reviewCards.map((card, index) => (
+                        <details className="review-card" key={`${card.question}-${index}`}>
+                          <summary>
+                            <span>{String(index + 1).padStart(2, "0")}</span>
+                            <strong>{card.question}</strong>
+                          </summary>
+                          <p>{card.answer}</p>
+                          <em>{card.source}</em>
+                        </details>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : mode === "queue" ? (
+                <div className="review-queue-mode">
+                  <div className="queue-stats">
+                    <div>
+                      <span>Due Now</span>
+                      <strong>{dueFlashcards.length}</strong>
+                    </div>
+                    <div>
+                      <span>Total Cards</span>
+                      <strong>{allSavedFlashcards.length}</strong>
+                    </div>
+                    <div>
+                      <span>Known</span>
+                      <strong>{allSavedFlashcards.filter((item) => item.card.difficulty === "known").length}</strong>
+                    </div>
+                  </div>
+
+                  {!activeQueueItem ? (
+                    <div className="queue-empty">
+                      <strong>No saved flashcards yet</strong>
+                      <p>Generate cards from Review or AI mode, save them to a note, and they will appear here when due.</p>
+                    </div>
+                  ) : (
+                    <section className="queue-session-card">
+                      <div className="queue-session-head">
+                        <div>
+                          <span>{dueFlashcards.length > 0 ? "active due card" : "next scheduled card"}</span>
+                          <strong>{activeQueueItem.noteTitle}</strong>
+                        </div>
+                        <button type="button" onClick={jumpToQueueSource}>open source</button>
+                      </div>
+                      <div className="queue-question">
+                        <span>{activeQueueItem.card.difficulty} · due {formatShortDate(activeQueueItem.card.dueAt)} · reviewed {activeQueueItem.card.reviewCount}</span>
+                        <strong>{activeQueueItem.card.question}</strong>
+                      </div>
+                      {queueRevealed ? (
+                        <div className="queue-answer">
+                          <p>{activeQueueItem.card.answer}</p>
+                          <em>{activeQueueItem.card.source}</em>
+                        </div>
+                      ) : (
+                        <button className="queue-reveal" type="button" onClick={() => setQueueRevealed(true)}>reveal answer</button>
+                      )}
+                      <div className="queue-actions">
+                        <button type="button" onClick={() => reviewQueueCard("again")}>again</button>
+                        <button type="button" onClick={() => reviewQueueCard("learning")}>learning</button>
+                        <button type="button" onClick={() => reviewQueueCard("known")}>known</button>
+                      </div>
+                    </section>
+                  )}
+
+                  <section className="queue-upcoming">
+                    <div className="ask-note-head">
+                      <span>Upcoming Review Load</span>
+                      <strong>{allSavedFlashcards.length} cards tracked</strong>
+                    </div>
+                    {allSavedFlashcards.length === 0 ? (
+                      <div className="kanban-empty">// no cards saved yet</div>
+                    ) : (
+                      <div className="queue-upcoming-list">
+                        {allSavedFlashcards.slice(0, 8).map((item) => (
+                          <button type="button" onClick={() => {
+                            setActiveNoteId(item.noteId);
+                            setMode("ai");
+                          }} key={`${item.noteId}-${item.card.id}`}>
+                            <span>{formatShortDate(item.card.dueAt)}</span>
+                            <strong>{item.card.question}</strong>
+                            <em>{item.noteTitle}</em>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              ) : (
+                <div className="ai-study-console">
+                  <div className="ai-study-head">
+                    <div>
+                      <span>AI Study Console</span>
+                      <strong>{activeNote.title}</strong>
+                    </div>
+                    <div className="ai-study-actions">
+                      <button type="button" onClick={() => setAiResult(buildLocalAiStudyAnalysis(activeNote))}>analyze note</button>
+                      <button type="button" onClick={() => saveGeneratedFlashcards()}>save cards</button>
+                    </div>
+                  </div>
+                  <section className="ask-note-panel">
+                    <div className="ask-note-head">
+                      <span>Ask Note</span>
+                      <strong>{askHistory.length} exchanges</strong>
+                    </div>
+                    <div className="ask-note-input">
+                      <input
+                        value={askInput}
+                        onChange={(event) => setAskInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            askActiveNote();
+                          }
+                        }}
+                        placeholder="// ask this note or document"
+                      />
+                      <button type="button" onClick={askActiveNote}>ask</button>
+                    </div>
+                    <div className="ask-suggestions">
+                      {["Summarize this for an exam", "What should I memorize?", "Make practice questions"].map((prompt) => (
+                        <button type="button" onClick={() => setAskInput(prompt)} key={prompt}>{prompt}</button>
+                      ))}
+                    </div>
+                    <div className="ask-history">
+                      {askHistory.length === 0 ? (
+                        <div className="kanban-empty">// ask a question to generate a study answer from this note</div>
+                      ) : (
+                        askHistory.slice(-4).reverse().map((message) => (
+                          <article key={message.id}>
+                            <span>{formatActivityTime(message.createdAt)}</span>
+                            <strong>{message.question}</strong>
+                            <p>{message.answer}</p>
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                  {!aiResult ? (
+                    <div className="ai-empty-state">
+                      <strong>Ready to analyze</strong>
+                      <p>Generate summary, key terms, weak areas, flashcards, quiz questions, and action items from this note or uploaded document text.</p>
+                    </div>
+                  ) : (
+                    <div className="ai-study-grid">
+                      <section>
+                        <span>Summary</span>
+                        <p>{aiResult.summary}</p>
+                      </section>
+                      <section>
+                        <span>Key Terms</span>
+                        <div className="ai-chip-list">{aiResult.keyTerms.map((term) => <em key={term}>{term}</em>)}</div>
+                      </section>
+                      <section>
+                        <span>Weak Areas</span>
+                        <ul>{aiResult.weakAreas.map((item) => <li key={item}>{item}</li>)}</ul>
+                      </section>
+                      <section>
+                        <span>Action Items</span>
+                        <ul>{aiResult.actions.map((item) => <li key={item}>{item}</li>)}</ul>
+                      </section>
+                      <section className="ai-wide">
+                        <span>Flashcards</span>
+                        <div className="ai-flashcards">
+                          {aiResult.flashcards.map((card) => (
+                            <details key={card.question}>
+                              <summary>{card.question}</summary>
+                              <p>{card.answer}</p>
+                            </details>
+                          ))}
+                        </div>
+                      </section>
+                      <section className="ai-wide">
+                        <span>Quiz</span>
+                        <ol>{aiResult.quiz.map((question) => <li key={question}>{question}</li>)}</ol>
+                      </section>
+                      <div className="ai-save-row">
+                        <button className="ai-save-output" type="button" onClick={() => updateActive({ body: `${activeNote.body}\n\n${formatAiStudyAnalysis(aiResult)}` })}>save analysis to note</button>
+                        <button className="ai-save-output" type="button" onClick={() => saveGeneratedFlashcards(aiResult.flashcards)}>save flashcards to deck</button>
+                      </div>
+                    </div>
+                  )}
+                  <section className="saved-flashcards-panel">
+                    <div className="ask-note-head">
+                      <span>Saved Flashcards</span>
+                      <strong>{savedFlashcards.length} cards</strong>
+                    </div>
+                    {savedFlashcards.length === 0 ? (
+                      <div className="kanban-empty">// save generated cards to start a review deck</div>
+                    ) : (
+                      <div className="saved-flashcards-grid">
+                        {savedFlashcards.map((card) => (
+                          <details className={`saved-flashcard ${card.difficulty}`} key={card.id}>
+                            <summary>
+                              <span>{card.difficulty}</span>
+                              <strong>{card.question}</strong>
+                            </summary>
+                            <p>{card.answer}</p>
+                            <div className="flashcard-controls">
+                              <button type="button" onClick={() => updateFlashcard(card.id, { difficulty: "learning", reviewCount: card.reviewCount + 1, dueAt: addDaysIso(1) })}>learning</button>
+                              <button type="button" onClick={() => updateFlashcard(card.id, { difficulty: "known", reviewCount: card.reviewCount + 1, dueAt: addDaysIso(4) })}>known</button>
+                              <button type="button" onClick={() => deleteFlashcard(card.id)}>delete</button>
+                            </div>
+                            <em>{card.source} · due {formatShortDate(card.dueAt)} · reviewed {card.reviewCount}</em>
+                          </details>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              )}
+
+              <footer className="notes-status">
+                <span>{getWordCount(activeNote.body)} words</span>
+                <span>{activeNote.kind}</span>
+                <span>saved {formatActivityTime(activeNote.updatedAt)}</span>
+              </footer>
+            </>
+          ) : (
+            <div className="kanban-empty">// create a note or upload a study document</div>
+          )}
+        </HudCard>
+      </section>
+      <SystemTrace label="Study notes online" />
+    </>
+  );
+}
+
+function sortStudyNotes(notes: StudyNote[]) {
+  return [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function getAllSavedFlashcards(notes: StudyNote[]) {
+  return notes
+    .flatMap((note) =>
+      (note.flashcards ?? []).map((card) => ({
+        noteId: note.id,
+        noteTitle: note.title || "Untitled note",
+        card,
+      })),
+    )
+    .sort((a, b) => new Date(a.card.dueAt).getTime() - new Date(b.card.dueAt).getTime());
+}
+
+function getDueFlashcards(items: ReturnType<typeof getAllSavedFlashcards>) {
+  const now = Date.now();
+  return items.filter((item) => new Date(item.card.dueAt).getTime() <= now);
+}
+
+function getNextScheduledFlashcard(items: ReturnType<typeof getAllSavedFlashcards>) {
+  const now = Date.now();
+  return items.find((item) => new Date(item.card.dueAt).getTime() > now);
+}
+
+function getWeakStudyNotes(notes: StudyNote[]) {
+  const now = Date.now();
+  return notes
+    .map((note) => {
+      const cards = note.flashcards ?? [];
+      const overdue = cards.filter((card) => new Date(card.dueAt).getTime() <= now && card.difficulty !== "known").length;
+      const learning = cards.filter((card) => card.difficulty === "learning").length;
+      const structureGaps = getHeadingCount(note.body) < 2 || getChecklistCount(note.body) < 2;
+      const reason = overdue > 0
+        ? `${overdue} overdue learning card${overdue === 1 ? "" : "s"}`
+        : learning > 2
+          ? `${learning} cards still learning`
+          : structureGaps
+            ? "low structure for review"
+            : "";
+      const score = overdue * 3 + learning + (structureGaps ? 1 : 0);
+      return { note, reason, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.note.updatedAt.localeCompare(a.note.updatedAt));
+}
+
+function PdfDocumentViewer({ title, dataUrl }: { title: string; dataUrl: string }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [status, setStatus] = useState("rendering pdf...");
+
+  useEffect(() => {
+    let cancelled = false;
+    const container = containerRef.current;
+    if (!container) return;
+    const renderTarget = container;
+    renderTarget.innerHTML = "";
+    setStatus("rendering pdf...");
+
+    async function renderPdf() {
+      try {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        const bytes = await dataUrlToUint8Array(dataUrl);
+        const pdfDocument = await pdfjsLib.getDocument({ data: bytes }).promise;
+        if (cancelled) return;
+        const targetWidth = Math.min(renderTarget.clientWidth - 32, 980);
+
+        for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+          const page = await pdfDocument.getPage(pageNumber);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const scale = Math.max(0.7, targetWidth / baseViewport.width);
+          const viewport = page.getViewport({ scale });
+          const pageShell = document.createElement("div");
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          if (!context) continue;
+          pageShell.className = "pdf-page-shell";
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          canvas.style.width = `${Math.floor(viewport.width)}px`;
+          canvas.style.height = `${Math.floor(viewport.height)}px`;
+          pageShell.appendChild(canvas);
+          if (!cancelled) renderTarget.appendChild(pageShell);
+          await page.render({ canvas, canvasContext: context, viewport }).promise;
+          if (cancelled) return;
+        }
+        setStatus(`${pdfDocument.numPages} page${pdfDocument.numPages === 1 ? "" : "s"} rendered`);
+      } catch (error) {
+        if (!cancelled) setStatus(error instanceof Error ? error.message : "PDF render failed");
+      }
+    }
+
+    void renderPdf();
+    return () => {
+      cancelled = true;
+      renderTarget.innerHTML = "";
+    };
+  }, [dataUrl]);
+
+  return (
+    <div className="pdf-document-viewer" aria-label={title}>
+      <div className="pdf-render-status">{status}</div>
+      <div className="pdf-pages" ref={containerRef} />
+    </div>
+  );
+}
+
+function isRecentNote(note: StudyNote) {
+  return Date.now() - new Date(note.updatedAt).getTime() < 1000 * 60 * 60 * 24 * 7;
+}
+
+function getWordCount(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function getReadingMinutes(value: string) {
+  return Math.max(1, Math.ceil(getWordCount(value) / 220));
+}
+
+function getHeadingCount(value: string) {
+  return value.split("\n").filter((line) => /^#{1,6}\s/.test(line.trim())).length;
+}
+
+function getChecklistCount(value: string) {
+  return value.split("\n").filter((line) => /^[-*]\s/.test(line.trim())).length;
+}
+
+function buildStudyReviewCards(note?: StudyNote) {
+  if (!note) return [];
+  const source = stripMarkdown(`${note.body}\n\n${note.extractedText ?? ""}`);
+  const sentences = source
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 45 && sentence.length < 260);
+  const headings = note.body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^#{1,4}\s/.test(line))
+    .map((line) => line.replace(/^#{1,4}\s/, ""));
+  const bullets = note.body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s/.test(line))
+    .map((line) => line.replace(/^[-*]\s/, ""));
+
+  const cards = [
+    ...headings.slice(0, 8).map((heading) => ({
+      question: `Explain "${heading}" without looking.`,
+      answer: findBestSupportingSentence(heading, sentences) || "Use your notes to answer, then tighten this section if it feels vague.",
+      source: "heading recall",
+    })),
+    ...bullets.slice(0, 8).map((bullet) => ({
+      question: `Why does this matter: ${truncateText(bullet, 72)}?`,
+      answer: bullet,
+      source: "bullet recall",
+    })),
+    ...sentences.slice(0, 8).map((sentence) => ({
+      question: `What is the key takeaway from: ${truncateText(sentence, 76)}?`,
+      answer: sentence,
+      source: note.extractedText?.includes(sentence) ? "document text" : "note text",
+    })),
+  ];
+
+  const seen = new Set<string>();
+  return cards.filter((card) => {
+    const key = slugify(card.question);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 14);
+}
+
+function buildLocalAiStudyAnalysis(note: StudyNote) {
+  const source = stripMarkdown(`${note.body}\n\n${note.extractedText ?? ""}`);
+  const sentences = source
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 35);
+  const keyTerms = extractKeyTerms(source).slice(0, 10);
+  const flashcards = buildStudyReviewCards(note).slice(0, 8).map((card) => ({ question: card.question, answer: card.answer }));
+  const summary = sentences.slice(0, 3).join(" ") || "Add more notes or extracted document text to generate a stronger summary.";
+  const weakAreas = [
+    getHeadingCount(note.body) < 2 ? "Add clearer headings so the note has a study structure." : "",
+    getChecklistCount(note.body) < 3 ? "Add more bullet-point takeaways for faster review." : "",
+    flashcards.length < 4 ? "Add definitions, examples, or summary sections to create stronger recall cards." : "",
+  ].filter(Boolean);
+  return {
+    summary,
+    keyTerms,
+    weakAreas: weakAreas.length ? weakAreas : ["Structure looks usable. Next improvement: add examples and self-test questions."],
+    actions: [
+      "Write a 3 sentence summary in your own words.",
+      "Mark 3 concepts you could explain without looking.",
+      "Turn unclear sections into questions before the next review.",
+    ],
+    flashcards,
+    quiz: flashcards.slice(0, 6).map((card) => card.question),
+  };
+}
+
+function answerStudyQuestion(note: StudyNote, question: string) {
+  const source = stripMarkdown(`${note.body}\n\n${note.extractedText ?? ""}`);
+  const sentences = source
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 30 && sentence.length < 320);
+  const questionTerms = question
+    .toLowerCase()
+    .match(/\b[a-z][a-z0-9-]{3,}\b/g)
+    ?.filter((term) => !["what", "when", "where", "which", "should", "could", "would", "this", "that", "from"].includes(term)) ?? [];
+  const ranked = sentences
+    .map((sentence) => ({
+      sentence,
+      score: questionTerms.reduce((total, term) => total + (sentence.toLowerCase().includes(term) ? 2 : 0), 0) + (sentence.includes("?") ? -1 : 0),
+    }))
+    .sort((a, b) => b.score - a.score);
+  const strongest = ranked.filter((item) => item.score > 0).slice(0, 4).map((item) => item.sentence);
+  const fallback = sentences.slice(0, 4);
+  const evidence = strongest.length ? strongest : fallback;
+  if (evidence.length === 0) {
+    return "I need more note text or extracted document content before I can answer this well. Add a summary, paste a section, or upload a readable document.";
+  }
+  const keyTerms = extractKeyTerms(evidence.join(" ")).slice(0, 5);
+  const directAnswer = evidence.join(" ");
+  return [
+    truncateText(directAnswer, 720),
+    keyTerms.length ? `Focus terms: ${keyTerms.join(", ")}.` : "",
+    "Study move: turn this answer into one flashcard and one example you can explain without looking.",
+  ].filter(Boolean).join("\n\n");
+}
+
+function addDaysIso(days: number) {
+  const next = new Date();
+  next.setDate(next.getDate() + days);
+  return next.toISOString();
+}
+
+function addMinutesIso(minutes: number) {
+  const next = new Date();
+  next.setMinutes(next.getMinutes() + minutes);
+  return next.toISOString();
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
+function isToday(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+}
+
+function extractKeyTerms(value: string) {
+  const stop = new Set(["this", "that", "with", "from", "have", "will", "your", "about", "which", "their", "there", "when", "what", "where", "these", "those", "into", "notes", "study", "document"]);
+  const counts = new Map<string, number>();
+  value.toLowerCase().match(/\b[a-z][a-z0-9-]{3,}\b/g)?.forEach((word) => {
+    if (stop.has(word)) return;
+    counts.set(word, (counts.get(word) ?? 0) + 1);
+  });
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([word]) => word);
+}
+
+function formatAiStudyAnalysis(analysis: ReturnType<typeof buildLocalAiStudyAnalysis>) {
+  return [
+    "## AI Study Analysis",
+    "",
+    "### Summary",
+    analysis.summary,
+    "",
+    "### Key Terms",
+    ...analysis.keyTerms.map((term) => `- ${term}`),
+    "",
+    "### Weak Areas",
+    ...analysis.weakAreas.map((area) => `- ${area}`),
+    "",
+    "### Action Items",
+    ...analysis.actions.map((action) => `- ${action}`),
+    "",
+    "### Flashcards",
+    ...analysis.flashcards.map((card) => `- Q: ${card.question}\n  A: ${card.answer}`),
+    "",
+  ].join("\n");
+}
+
+function findBestSupportingSentence(topic: string, sentences: string[]) {
+  const terms = topic.toLowerCase().split(/\s+/).filter((term) => term.length > 3);
+  return sentences
+    .map((sentence) => ({
+      sentence,
+      score: terms.reduce((total, term) => total + (sentence.toLowerCase().includes(term) ? 1 : 0), 0),
+    }))
+    .sort((a, b) => b.score - a.score)[0]?.sentence;
+}
+
+function stripMarkdown(value: string) {
+  return value
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/[#>*_~\-[\]]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateText(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1).trim()}...` : value;
+}
+
+async function readStudyFile(file: File) {
+  const extension = getFileExtension(file.name);
+  if (extension === "pdf" || file.type === "application/pdf") {
+    const [fileDataUrl, extractedText] = await Promise.all([readFileAsDataUrl(file), extractPdfPlainText(file)]);
+    return {
+      kind: "pdf",
+      extracted: true,
+      mimeType: "application/pdf",
+      fileDataUrl,
+      extractedText,
+      body: createPdfDocumentBody(file.name, extractedText),
+    };
+  }
+  if (extension === "docx" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    const extractedText = await extractDocxPlainText(file);
+    return {
+      kind: "docx",
+      extracted: true,
+      mimeType: file.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      extractedText,
+      body: createExtractedDocumentBody(file.name, extractedText, []),
+    };
+  }
+  const textLike = file.type.startsWith("text/") || /\.(md|markdown|txt|csv|json|html|css|js|ts|tsx)$/i.test(file.name);
+  if (!textLike) {
+    return {
+      kind: extension || "document",
+      extracted: false,
+      mimeType: file.type,
+      body: createUnsupportedDocumentBody(file.name, "Preview extraction is available for PDF, DOCX, text, and markdown files right now."),
+    };
+  }
+  const text = await file.text();
+  return {
+    kind: extension || "text",
+    extracted: true,
+    mimeType: file.type || "text/plain",
+    extractedText: text,
+    body: createExtractedDocumentBody(file.name, text, []),
+  };
+}
+
+async function extractPdfPlainText(file: File) {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+  const buffer = await file.arrayBuffer();
+  const document = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const pageTexts: string[] = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const text = content.items
+      .map((item) => ("str" in item ? item.str : ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) pageTexts.push(`### Page ${pageNumber}\n${text}`);
+  }
+  return pageTexts.join("\n\n");
+}
+
+async function extractDocxPlainText(file: File) {
+  const mammoth = await import("mammoth/mammoth.browser");
+  const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  return result.value.trim();
+}
+
+function createPdfDocumentBody(fileName: string, extractedText: string) {
+  const searchNote = extractedText ? `\n\n<!-- Search text extracted from PDF and stored separately. -->` : "";
+  return `# ${fileName}\n\n## Study Notes\n\n- \n\n## Summary\n\nWrite a short summary here.${searchNote}`;
+}
+
+function createExtractedDocumentBody(fileName: string, text: string, messages: string[]) {
+  const cleanText = text.trim();
+  const warnings = messages.length ? `\n\n## Extraction Notes\n${messages.map((message) => `- ${message}`).join("\n")}` : "";
+  return `# ${fileName}\n\n## Study Notes\n\n- \n\n## Summary\n\nWrite a short summary here.\n\n## Extracted Text\n\n${cleanText || "_No readable text was found in this document._"}${warnings}`;
+}
+
+function createUnsupportedDocumentBody(fileName: string, reason: string) {
+  return `# ${fileName}\n\nDocument uploaded for reading.\n\n> ${reason}\n\n## Study Notes\n\n- \n\n## Summary\n\nAdd your reading summary here.\n\n## Manual Highlights\n\n- `;
+}
+
+function getFileExtension(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("File read failed."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function dataUrlToUint8Array(dataUrl: string) {
+  const response = await fetch(dataUrl);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function renderMarkdownPreview(markdown: string) {
+  const lines = markdown.split("\n");
+  const blocks: JSX.Element[] = [];
+  let listItems: string[] = [];
+
+  function flushList() {
+    if (listItems.length === 0) return;
+    blocks.push(
+      <ul key={`list-${blocks.length}`}>
+        {listItems.map((item) => (
+          <li dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(item) }} key={item} />
+        ))}
+      </ul>,
+    );
+    listItems = [];
+  }
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ")) {
+      listItems.push(trimmed.slice(2));
+      return;
+    }
+    flushList();
+    if (!trimmed) return;
+    if (trimmed === "---") {
+      blocks.push(<hr key={`hr-${index}`} />);
+    } else if (trimmed.startsWith("### ")) {
+      blocks.push(<h3 dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(trimmed.slice(4)) }} key={index} />);
+    } else if (trimmed.startsWith("## ")) {
+      blocks.push(<h2 dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(trimmed.slice(3)) }} key={index} />);
+    } else if (trimmed.startsWith("# ")) {
+      blocks.push(<h1 dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(trimmed.slice(2)) }} key={index} />);
+    } else if (trimmed.startsWith("> ")) {
+      blocks.push(<blockquote dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(trimmed.slice(2)) }} key={index} />);
+    } else {
+      blocks.push(<p dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(trimmed) }} key={index} />);
+    }
+  });
+  flushList();
+  return blocks;
+}
+
+function renderInlineMarkdown(value: string) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>");
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function CalendarView({
+  events,
+}: {
+  events: CalendarEvent[];
+}) {
+  const [selectedDay, setSelectedDay] = useState(12);
+  const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<CalendarEvent["kind"]>("meeting");
+  const [time, setTime] = useState("09:00");
+  const [eventDate, setEventDate] = useState(() => toDateInputValue(makeCalendarDate(12)));
+  const selectedDate = makeCalendarDate(selectedDay);
+  const activeDate = parseDateInput(eventDate) ?? selectedDate;
+  const selectedEvents = events.filter((event) => getEventDate(event).toDateString() === activeDate.toDateString());
+
+  function addEvent() {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    const resolvedDate = parseDateInput(eventDate) ?? selectedDate;
+    void calendarCrud.add({
+      id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      date: toDateInputValue(resolvedDate),
+      day: resolvedDate.getDate(),
+      title: cleanTitle,
+      kind,
+      time,
+    });
+    setTitle("");
+  }
+
+  return (
+    <>
+      <section className="calendar-layout">
+        <HudCard className="calendar-card">
+          <div className="calendar-toolbar">
+            <div>
+              <button type="button">‹</button>
+              <button type="button">›</button>
+              <strong>May 2026</strong>
+            </div>
+            <span>{events.length} events</span>
+          </div>
+          <div className="calendar-weekdays">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+          <div className="calendar-grid">
+            {Array.from({ length: 4 }, (_, index) => (
+              <span className="calendar-empty" key={`empty-${index}`} />
+            ))}
+            {Array.from({ length: 31 }, (_, index) => {
+              const day = index + 1;
+              const gridDate = makeCalendarDate(day);
+              const dayEvents = events.filter((event) => getEventDate(event).toDateString() === gridDate.toDateString());
+              const activity = Math.abs(Math.sin(day * 7.9)) % 1;
+              const eventKinds = Array.from(new Set(dayEvents.map((event) => event.kind)));
+              return (
+                <button
+                  className={`calendar-day ${day === selectedDay ? "active" : ""} ${dayEvents.length ? "has-events" : ""}`}
+                  key={day}
+                  style={{ "--intensity": activity } as CSSProperties}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDay(day);
+                    setEventDate(toDateInputValue(makeCalendarDate(day)));
+                  }}
+                >
+                  <span className="calendar-day-number">{day}</span>
+                  {dayEvents.length > 0 && <em className="calendar-event-count">{dayEvents.length}</em>}
+                  {eventKinds.length > 0 && (
+                    <div className="calendar-event-markers" aria-label={`${dayEvents.length} events`}>
+                      {eventKinds.slice(0, 5).map((eventKind) => (
+                        <i className={eventKind} key={eventKind} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="calendar-event-preview">
+                    {dayEvents.slice(0, 2).map((event) => (
+                      <small className={event.kind} key={event.id}>
+                        {event.title}
+                      </small>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="calendar-legend">
+            {["meeting", "deadline", "appointment", "project", "personal"].map((item) => (
+              <span key={item}><i className={item} />{item}</span>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="selected-day-card">
+          <CardHeader title="Selected Day" meta={formatUpcomingDate(activeDate)} />
+          <div className="selected-events">
+            {selectedEvents.length === 0 ? (
+              <p>// no events scheduled</p>
+            ) : (
+              selectedEvents.map((event) => (
+                <div className="selected-event" key={event.id}>
+                  <span>{event.time}</span>
+                  <strong>{event.title}</strong>
+                  <em>{event.kind}</em>
+                  <button
+                    type="button"
+                    onClick={() => void calendarCrud.delete(event.id)}
+                    aria-label={`Delete ${event.title}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="event-form">
+            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="// new event title..." />
+            <select value={kind} onChange={(event) => setKind(event.target.value as CalendarEvent["kind"])}>
+              <option value="meeting">Meeting</option>
+              <option value="deadline">Deadline</option>
+              <option value="appointment">Appointment</option>
+              <option value="project">Project</option>
+              <option value="personal">Personal</option>
+            </select>
+            <input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
+            <input value={time} onChange={(event) => setTime(event.target.value)} placeholder="HH:MM" />
+            <button type="button" onClick={addEvent}>+ Add Event</button>
+          </div>
+        </HudCard>
+      </section>
+      <SystemTrace label="Calendar online" />
+    </>
+  );
+}
+
+function ProgressView() {
+  return (
+    <>
+      <section className="metric-grid">
+        <MetricPanel title="7-Day Streak" value="23" suffix="days">
+          Longest streak yet. Keep momentum - three habits left tonight.
+        </MetricPanel>
+        <MetricPanel title="Focus Time" value="4.2" suffix="h today">
+          Down 0.6h vs. weekly average. Try a second 90-min block after dinner.
+        </MetricPanel>
+        <MetricPanel title="Momentum" value="+12" suffix="%">
+          Overall completion rate up vs. last month.
+        </MetricPanel>
+      </section>
+      <SystemTrace label="Progress metrics online" />
+    </>
+  );
+}
+
+function InsightsView() {
+  return (
+    <>
+      <section className="metric-grid">
+        <MetricPanel title="Best Day" value="Tue" suffix="89% avg">
+          You complete the most habits on Tuesdays. Saturdays are weakest - lighten the list.
+        </MetricPanel>
+        <MetricPanel title="Drop-Off" value="Read" suffix="54%">
+          Skipped 14 of 30 days. Anchor it after dinner instead of pre-bed.
+        </MetricPanel>
+        <MetricPanel title="Top Pair" value="Run ▸ Deep" suffix="89%">
+          When you run, your deep-work completion jumps. Keep stacking them.
+        </MetricPanel>
+      </section>
+      <SystemTrace label="Pattern analysis online" />
+    </>
+  );
+}
+
+const agentProfiles: Array<{ id: AgentId; name: string; signal: string; description: string }> = [
+  { id: "planner", name: "Planner Agent", signal: "Daily execution", description: "Breaks goals and project tabs into next actions." },
+  { id: "reviewer", name: "Reviewer Agent", signal: "Weak spots", description: "Finds vague tasks, thin notes, and unfinished loops." },
+  { id: "motivation", name: "Motivation Agent", signal: "Recovery", description: "Creates recovery prompts when momentum drops." },
+  { id: "project", name: "Project Agent", signal: "Portfolio", description: "Suggests buildable portfolio moves from current goals." },
+  { id: "discipline", name: "Discipline Agent", signal: "Drift watch", description: "Flags overdue cards, missed habits, and stale priorities." },
+];
+
+function AgentsView({
+  goals,
+  habits,
+  projects,
+  dashboardTasks,
+  calendarEvents,
+  kanbanCards,
+  recommendations,
+}: {
+  goals: Goal[];
+  habits: Habit[];
+  projects: TaskProject[];
+  dashboardTasks: ReturnType<typeof getDashboardTasks>;
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  recommendations: AgentRecommendation[];
+}) {
+  const sortedRecommendations = [...recommendations].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const pendingRecommendations = sortedRecommendations.filter((recommendation) => recommendation.status === "pending");
+  const acceptedCount = recommendations.filter((recommendation) => recommendation.status === "accepted").length;
+  const dismissedCount = recommendations.filter((recommendation) => recommendation.status === "dismissed").length;
+
+  function runAgents() {
+    const generated = generateAgentRecommendations({
+      goals,
+      habits,
+      projects,
+      dashboardTasks,
+      calendarEvents,
+      kanbanCards,
+      existing: pendingRecommendations,
+    });
+    generated.forEach((recommendation) => void agentRecommendationCrud.add(recommendation));
+  }
+
+  async function acceptRecommendation(recommendation: AgentRecommendation) {
+    if (recommendation.action) {
+      await executeAgentAction(recommendation.action);
+    }
+    await agentRecommendationCrud.update(recommendation.id, { status: "accepted" });
+  }
+
+  return (
+    <>
+      <section className="agents-overview">
+        <HudCard className="agent-command-card" active>
+          <CardHeader title="Autonomous Coach Agents" meta={`${pendingRecommendations.length} pending`} />
+          <div className="agent-command-copy">
+            <strong>{recommendations.length}</strong>
+            <span>total recommendations</span>
+            <p>Agents read your live goals, habits, task tabs, calendar, and Kanban history. They write recommendations first; you decide what becomes real work.</p>
+          </div>
+          <div className="agent-actions">
+            <button type="button" onClick={runAgents}>Run Agents Now</button>
+            <span>{acceptedCount} accepted</span>
+            <span>{dismissedCount} dismissed</span>
+          </div>
+        </HudCard>
+
+        <div className="agent-roster">
+          {agentProfiles.map((agent) => {
+            const count = pendingRecommendations.filter((recommendation) => recommendation.agentId === agent.id).length;
+            return (
+              <HudCard className="agent-roster-card" key={agent.id}>
+                <CardHeader title={agent.name} meta={count ? `${count} active` : "standby"} />
+                <strong>{agent.signal}</strong>
+                <p>{agent.description}</p>
+              </HudCard>
+            );
+          })}
+        </div>
+      </section>
+
+      <HudCard className="agent-recommendations-card">
+        <CardHeader title="Agent Reports" meta={`${pendingRecommendations.length} actionable`} />
+        <div className="agent-report-list">
+          {sortedRecommendations.length === 0 ? (
+            <div className="kanban-empty">// run agents to generate coach reports</div>
+          ) : (
+            sortedRecommendations.map((recommendation) => (
+              <article className={`agent-report ${recommendation.severity} ${recommendation.status}`} key={recommendation.id}>
+                <div className="agent-report-head">
+                  <span>{recommendation.agentName}</span>
+                  <PriorityChip level={agentSeverityToPriority(recommendation.severity)} />
+                  <em>{formatActivityTime(recommendation.createdAt)}</em>
+                </div>
+                <strong>{recommendation.title}</strong>
+                <p>{recommendation.body}</p>
+                <div className="agent-report-meta">
+                  <span>{recommendation.source}</span>
+                  {typeof recommendation.score === "number" && <span>score {recommendation.score}</span>}
+                  {typeof recommendation.confidence === "number" && <span>{recommendation.confidence}% confidence</span>}
+                  {recommendation.action && <span>{recommendation.action.label}</span>}
+                  <span>{recommendation.status}</span>
+                </div>
+                {recommendation.evidence && recommendation.evidence.length > 0 && (
+                  <ul className="agent-evidence">
+                    {recommendation.evidence.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                )}
+                {recommendation.status === "pending" && (
+                  <div className="agent-report-actions">
+                    {recommendation.action && (
+                      <button type="button" onClick={() => void acceptRecommendation(recommendation)}>
+                        Accept
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void agentRecommendationCrud.update(recommendation.id, { status: "dismissed" })}>
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))
+          )}
+        </div>
+      </HudCard>
+      <SystemTrace label="Agent command online" />
+    </>
+  );
+}
+
+function MetricPanel({
+  title,
+  value,
+  suffix,
+  children,
+}: {
+  title: string;
+  value: string;
+  suffix: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <HudCard className="metric-panel">
+      <CardHeader title={title} />
+      <div className="metric-value">
+        <strong>{value}</strong>
+        <span>{suffix}</span>
+      </div>
+      <p>{children}</p>
+    </HudCard>
+  );
+}
+
+function SystemTrace({ label }: { label: string }) {
+  return (
+    <>
+      <svg className="bottom-scan" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true">
+        <polyline points="0,24 42,21 88,23 132,20 178,25 222,19 268,24 312,18 356,22 402,16 448,21 490,17 536,23 578,20 624,24 668,18 714,22 760,17 804,25 850,21 896,23 940,18 986,24 1032,21 1076,19 1122,23 1168,20 1200,22" />
+      </svg>
+      <footer className="sysline">
+        <span>// System synchronized</span>
+        <strong>All nodes operational</strong>
+        <span>{label}</span>
+      </footer>
+    </>
+  );
+}
+
+function ProjectCreateForm({
+  compact = false,
+  name,
+  startDate,
+  endDate,
+  onNameChange,
+  onStartDateChange,
+  onEndDateChange,
+  onSubmit,
+}: {
+  compact?: boolean;
+  name: string;
+  startDate: string;
+  endDate: string;
+  onNameChange: (value: string) => void;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  const rangeDays = getDateRangeDays(startDate, endDate);
+
+  return (
+    <form
+      className={compact ? "project-create compact" : "project-create"}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <input value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="New objective tab" />
+      <input
+        type="date"
+        value={startDate}
+        onChange={(event) => onStartDateChange(event.target.value)}
+        aria-label="Start date"
+      />
+      <input
+        type="date"
+        value={endDate}
+        onChange={(event) => onEndDateChange(event.target.value)}
+        aria-label="End date"
+      />
+      <span className="project-range">{rangeDays}d</span>
+      <button type="submit">+</button>
+    </form>
+  );
+}
+
+function MetricBadge({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function MonthlyGoals({
+  projects,
+  objectives,
+}: {
+  projects: TaskProject[];
+  objectives: ReturnType<typeof getCurrentObjectives>;
+}) {
+  return (
+    <HudCard className="monthly-card">
+      <CardHeader title="Current Objectives" meta={`${projects.length} tabs`} />
+      <div className="monthly-list">
+        {objectives.length === 0 ? (
+          <div className="empty-calendar-band">// create a task tab to populate this panel</div>
+        ) : (
+          objectives.map((objective) => (
+          <div className={`monthly-row ${objective.done ? "done" : ""}`} key={objective.id}>
+            <span className="checkbox">{objective.done && <Check />}</span>
+            <span>{objective.name}</span>
+            <strong>{objective.value}</strong>
+          </div>
+          ))
+        )}
+      </div>
+      <CommandLink>View Task Protocol</CommandLink>
+    </HudCard>
+  );
+}
+
+function YearlyGoals({ goals }: { goals: Goal[] }) {
+  const circumference = 2 * Math.PI * 64;
+  const averageProgress = Math.round(goals.reduce((total, goal) => total + goal.progress, 0) / Math.max(goals.length, 1));
+  const completed = goals.filter((goal) => goal.progress >= 100).length;
+  const remaining = Math.max(goals.length - completed, 0);
+  const offset = circumference * (1 - averageProgress / 100);
+
+  return (
+    <HudCard className="yearly-card">
+      <CardHeader title="Goal System" meta={`${goals.length} active`} />
+      <div className="yearly-body">
+        <div className="yearly-ring">
+          <svg viewBox="0 0 160 160">
+            <circle className="ring-track" cx="80" cy="80" r="64" />
+            <circle
+              className="ring-value"
+              cx="80"
+              cy="80"
+              r="64"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+            />
+          </svg>
+          <div>
+            <strong>{averageProgress}<span>%</span></strong>
+            <em>{completed} / {goals.length}</em>
+          </div>
+        </div>
+        <div className="yearly-stats">
+          <span>Completed</span>
+          <strong>{completed}</strong>
+          <span>Remaining</span>
+          <strong className="violet">{remaining}</strong>
+        </div>
+      </div>
+      <CommandLink>View Goal Registry</CommandLink>
+    </HudCard>
+  );
+}
+
+function TimelineCard({
+  goals,
+  events,
+}: {
+  goals: Goal[];
+  events: ReturnType<typeof getUpcomingEvents>;
+}) {
+  const timeline = getDashboardTimeline(goals, events);
+
+  return (
+    <HudCard className="timeline-card">
+      <CardHeader title="Timeline" meta={`${timeline.length} signals`} />
+      <div className="timeline-list">
+        {timeline.map((item) => (
+          <div className="timeline-row" key={`${item.date}-${item.name}`}>
+            <div className="timeline-date">
+              <strong>{item.month}</strong>
+              <span>{item.year}</span>
+            </div>
+            <div className="timeline-rail">
+              <i className={item.tone} />
+            </div>
+            <div>
+              <strong>{item.name}</strong>
+              <span>{item.status}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <CommandLink>Open Calendar</CommandLink>
+    </HudCard>
+  );
+}
+
+function ReflectionCard({ reflection }: { reflection: ReturnType<typeof getDashboardReflection> }) {
+  return (
+    <HudCard className="reflection-card">
+      <CardHeader title="Daily Readout" />
+      <button className="add-note" aria-label="Add note">+</button>
+      <p>{reflection.body}</p>
+      <div className="reflection-author">- FOCUS//OS <span>{reflection.stamp}</span></div>
+      <div className="reflection-tags">
+        {reflection.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
+      </div>
+    </HudCard>
+  );
+}
+
+function Sidebar({
+  activeView,
+  goalsCount,
+  habitsDone,
+  habitsTotal,
+  taskProjectCount,
+  onNavigate,
+}: {
+  activeView: View;
+  goalsCount: number;
+  habitsDone: number;
+  habitsTotal: number;
+  taskProjectCount: number;
+  onNavigate: (view: View) => void;
+}) {
+  return (
+    <aside className="sidebar" aria-label="Primary navigation">
+      <HudCard className="brand-card">
+        <div className="brand-mark" />
+        <div>
+          <strong>FOCUS//OS</strong>
+          <span>v0.1.0</span>
+        </div>
+      </HudCard>
+
+      <HudCard className="avatar-card">
+        <div className="avatar-frame">ZF</div>
+        <strong>ZIFTINITY</strong>
+        <span>Level 7 - Focus Mode</span>
+        <div className="avatar-meter">
+          <ProgressBar value={72} />
+          <em>72%</em>
+        </div>
+      </HudCard>
+
+      <HudCard className="nav-card">
+        <nav>
+          {navItems.map(({ Icon, ...item }) => (
+            <button
+              className={item.id === activeView ? "active" : ""}
+              key={item.label}
+              onClick={() => {
+                if (isView(item.id)) {
+                  onNavigate(item.id);
+                }
+              }}
+            >
+              <Icon />
+              <span>{item.label}</span>
+              {(item.id === "goals" || item.id === "habits" || item.id === "tasks" || item.count) && (
+                <em>
+                  {item.id === "goals"
+                    ? goalsCount
+                    : item.id === "habits"
+                      ? `${habitsDone}/${habitsTotal}`
+                      : item.id === "tasks"
+                        ? taskProjectCount
+                        : item.count}
+                </em>
+              )}
+            </button>
+          ))}
+        </nav>
+      </HudCard>
+
+      <HudCard className="status-card">
+        <div className="status-row">
+          <span>System Status</span>
+          <strong>Optimal</strong>
+        </div>
+        <svg viewBox="0 0 120 24" preserveAspectRatio="none">
+          <polyline
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1"
+            points="0,18 8,16 16,17 24,12 32,14 40,10 48,12 56,8 64,11 72,6 80,9 88,4 96,8 104,6 112,3 120,5"
+          />
+        </svg>
+      </HudCard>
+
+      <HudCard className="focus-card">
+        <span>&gt;_</span>
+        <strong>Stay Focused</strong>
+      </HudCard>
+    </aside>
+  );
+}
+
+function HudCard({
+  children,
+  className = "",
+  active = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  active?: boolean;
+}) {
+  return (
+    <div className={`hud-wrap ${active ? "active" : ""}`}>
+      <div className={`hud ${className}`}>
+        <div className="brackets" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CardHeader({ title, meta }: { title: string; meta?: string }) {
+  return (
+    <div className="card-header">
+      <span>{title}</span>
+      {meta && <em>{meta}</em>}
+    </div>
+  );
+}
+
+function LegendItem({
+  color,
+  label,
+  value,
+}: {
+  color: "cyan" | "violet" | "dim";
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <i className={color} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="progress-bar" aria-hidden="true">
+      <i style={{ width: `${value}%` }} />
+    </div>
+  );
+}
+
+function PriorityChip({ level }: { level: Priority }) {
+  return <span className={`chip ${level}`}>{level === "ziftinity" ? "Ziftinity" : level}</span>;
+}
+
+function CommandLink({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <button className="command-link" type="button" onClick={onClick}>
+      <span>{children}</span>
+      <Sparkles />
+    </button>
+  );
+}
+
+function GoalCard({ goal }: { goal: Goal }) {
+  const Icon = iconMap[goal.iconKey] ?? Target;
+
+  return (
+    <HudCard className="goal-card">
+      <div className="goal-top">
+        <div className="goal-icon">
+          <Icon />
+        </div>
+        <div>
+          <strong>{goal.title}</strong>
+          <span>{goal.due}</span>
+        </div>
+      </div>
+      <PriorityChip level={goal.level} />
+      <div className="goal-percent">{goal.progress}%</div>
+      <p>{goal.meta}</p>
+      <MiniChart type={goal.chart} progress={goal.progress} />
+    </HudCard>
+  );
+}
+
+function MiniChart({ type, progress }: { type: Goal["chart"]; progress: number }) {
+  if (type === "bars") {
+    const bars = [24, 52, 38, 44, 50, 32, 56, 42, 36, 48, 28, 46, 40, 34, 45, 26];
+    return (
+      <div className="mini-bars">
+        {bars.map((bar, index) => (
+          <i key={index} style={{ height: `${bar}%` }} />
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "dots") {
+    return (
+      <div className="dot-grid">
+        {Array.from({ length: 30 }, (_, index) => (
+          <i key={index} className={index < 24 ? (index === 23 ? "today" : "on") : ""} />
+        ))}
+      </div>
+    );
+  }
+
+  if (type === "blocks") {
+    return (
+      <div className="block-chart">
+        <ProgressBar value={progress} />
+        <div>{Array.from({ length: 12 }, (_, index) => <i key={index} />)}</div>
+      </div>
+    );
+  }
+
+  return (
+    <svg className="mini-line" viewBox="0 0 160 40" preserveAspectRatio="none">
+      <path d="M0 31 C20 24 36 22 55 25 S91 31 111 23 S139 13 160 17" />
+    </svg>
+  );
+}
+
+function makeNoise() {
+  const alphabet = "0123456789ABCDEF";
+  return Array.from({ length: 80 }, () =>
+    Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join(""),
+  ).join("  ");
+}
+
+function sortGoals(items: Goal[]) {
+  return [...items].sort((a, b) => priorityRank[a.level] - priorityRank[b.level] || b.progress - a.progress);
+}
+
+function sortHabits(items: Habit[]) {
+  return [...items].sort((a, b) => a.time.localeCompare(b.time));
+}
+
+function normalizeTaskProject(project: TaskProject): TaskProject {
+  const fallbackStart = parseDateInput(project.startDate) ?? new Date(2026, 4, 1);
+  const fallbackDays = Math.max(1, Math.min(365, Math.round(project.deadlineDays || 1)));
+  const fallbackEnd = parseDateInput(project.endDate) ?? addDays(fallbackStart, fallbackDays - 1);
+  const startDate = toDateInputValue(fallbackStart);
+  const endDate = toDateInputValue(fallbackEnd >= fallbackStart ? fallbackEnd : fallbackStart);
+  const deadlineDays = getDateRangeDays(startDate, endDate);
+  const currentDay = Math.min(Math.max(Math.round(project.currentDay || 1), 1), deadlineDays);
+
+  return {
+    ...project,
+    startDate,
+    endDate,
+    deadlineDays,
+    currentDay,
+    tasksByDay: project.tasksByDay ?? {},
+  };
+}
+
+function createProject(name: string, startDateValue: string, endDateValue: string): TaskProject | null {
+  const cleanName = name.trim();
+  if (!cleanName) return null;
+  const start = parseDateInput(startDateValue) ?? new Date();
+  const endInput = parseDateInput(endDateValue);
+  const end = endInput && endInput >= start ? endInput : start;
+  const days = getDateRangeDays(toDateInputValue(start), toDateInputValue(end));
+
+  return {
+    id: `${Date.now()}-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    name: cleanName,
+    startDate: toDateInputValue(start),
+    endDate: toDateInputValue(end),
+    deadlineDays: days,
+    currentDay: 1,
+    tasksByDay: {},
+  };
+}
+
+function resetProjectDates(setStartDate: (value: string) => void, setEndDate: (value: string) => void) {
+  const start = new Date();
+  setStartDate(toDateInputValue(start));
+  setEndDate(toDateInputValue(addDays(start, 39)));
+}
+
+function getProjectStartDate(project: TaskProject) {
+  return parseDateInput(project.startDate) ?? new Date();
+}
+
+function getProjectEndDate(project: TaskProject) {
+  const fallback = addDays(getProjectStartDate(project), Math.max(project.deadlineDays, 1) - 1);
+  return parseDateInput(project.endDate) ?? fallback;
+}
+
+function getProjectDeadlineDays(project: TaskProject) {
+  return getDateRangeDays(toDateInputValue(getProjectStartDate(project)), toDateInputValue(getProjectEndDate(project)));
+}
+
+function getDateRangeDays(startDateValue: string, endDateValue: string) {
+  const start = parseDateInput(startDateValue) ?? new Date();
+  const endInput = parseDateInput(endDateValue);
+  const end = endInput && endInput >= start ? endInput : start;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(1, Math.min(365, Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1));
+}
+
+function formatKanbanDate(value: string) {
+  const date = parseDateInput(value);
+  return date ? formatTaskDate(date) : value;
+}
+
+function normalizeKanbanCard(card: KanbanCard): KanbanCard {
+  return {
+    ...card,
+    labels: card.labels ?? [],
+    subtasks: card.subtasks ?? [],
+    attachments: card.attachments ?? [],
+    comments: card.comments ?? [],
+    tags: card.tags ?? [],
+    trackedMinutes: card.trackedMinutes ?? 0,
+  };
+}
+
+function loadKanbanColumns(): KanbanColumnConfig[] {
+  try {
+    const rawColumns = window.localStorage.getItem("ziftinity-kanban-columns");
+    if (!rawColumns) return defaultKanbanColumns;
+    const parsed = JSON.parse(rawColumns) as Partial<KanbanColumnConfig>[];
+    const normalized = parsed
+      .filter((column): column is Partial<KanbanColumnConfig> & { id: string; title: string } => Boolean(column.id && column.title))
+      .map((column) => ({
+        id: column.id,
+        title: column.title,
+        signal: column.signal ?? "Custom",
+        wipLimit: Math.max(1, Number(column.wipLimit) || 5),
+        collapsed: Boolean(column.collapsed),
+      }));
+
+    return normalized.length ? normalized : defaultKanbanColumns;
+  } catch {
+    return defaultKanbanColumns;
+  }
+}
+
+function sortKanbanCards(cards: KanbanCard[], sortMode: KanbanSortMode) {
+  const ordered = [...cards];
+  if (sortMode === "priority") {
+    return ordered.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority] || a.order - b.order || a.title.localeCompare(b.title));
+  }
+  if (sortMode === "due") {
+    return ordered.sort((a, b) => {
+      const aTime = parseDateInput(a.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime = parseDateInput(b.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aTime - bTime || priorityRank[a.priority] - priorityRank[b.priority] || a.title.localeCompare(b.title);
+    });
+  }
+  if (sortMode === "title") {
+    return ordered.sort((a, b) => a.title.localeCompare(b.title));
+  }
+  return ordered.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+}
+
+function getSwimlaneGroups(cards: KanbanCard[], mode: KanbanSwimlaneMode, projects: TaskProject[]) {
+  if (mode === "none") return [{ id: "all", title: "All Cards", cards }];
+
+  const groups = new Map<string, { id: string; title: string; cards: KanbanCard[] }>();
+  cards.forEach((card) => {
+    const key = getSwimlaneKey(card, mode, projects);
+    if (!groups.has(key.id)) groups.set(key.id, { ...key, cards: [] });
+    groups.get(key.id)?.cards.push(card);
+  });
+
+  return Array.from(groups.values()).sort((a, b) => {
+    if (mode === "priority") {
+      return priorityRank[a.id as Priority] - priorityRank[b.id as Priority];
+    }
+    return a.title.localeCompare(b.title);
+  });
+}
+
+function getSwimlaneKey(card: KanbanCard, mode: Exclude<KanbanSwimlaneMode, "none">, projects: TaskProject[]) {
+  if (mode === "priority") return { id: card.priority, title: `${priorityLabel[card.priority]} Priority` };
+  if (mode === "tag") {
+    const tag = card.tags[0] ?? "untagged";
+    return { id: tag, title: tag === "untagged" ? "Untagged" : `#${tag}` };
+  }
+  const projectName = getProjectName(projects, card.linkedTaskProjectId);
+  return { id: card.linkedTaskProjectId ?? "unlinked", title: projectName === "Task link" ? "Unlinked Cards" : projectName };
+}
+
+function getCardDoneTime(card: KanbanCard, activity: KanbanActivity[]) {
+  return activity
+    .filter((event) => event.cardId === card.id && event.action === "moved" && event.toColumnId === "done")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.createdAt;
+}
+
+function filterKanbanCards(
+  cards: KanbanCard[],
+  filters: {
+    searchQuery: string;
+    filterPriority: Priority | "all";
+    filterTag: string;
+    filterDue: KanbanDueFilter;
+    focusMode: boolean;
+  },
+) {
+  const query = filters.searchQuery.trim().toLowerCase();
+  return cards.filter((card) => {
+    const dueState = getDueState(card.dueDate);
+    const matchesSearch = !query || getKanbanSearchText(card).includes(query);
+    const matchesPriority = filters.filterPriority === "all" || card.priority === filters.filterPriority;
+    const matchesTag = !filters.filterTag || card.tags.includes(filters.filterTag);
+    const matchesDue =
+      filters.filterDue === "all" ||
+      (filters.filterDue === "none" && !card.dueDate) ||
+      (filters.filterDue === "today" && dueState === "due-today") ||
+      (filters.filterDue === "overdue" && dueState === "overdue") ||
+      (filters.filterDue === "scheduled" && dueState === "scheduled");
+    const matchesFocus = !filters.focusMode || card.priority === "ziftinity" || card.priority === "high" || dueState === "due-today" || dueState === "overdue";
+    return matchesSearch && matchesPriority && matchesTag && matchesDue && matchesFocus;
+  });
+}
+
+function getKanbanSearchText(card: KanbanCard) {
+  return [
+    card.title,
+    card.description,
+    card.priority,
+    card.dueDate,
+    card.blockedBy,
+    ...card.tags,
+    ...card.labels.map((label) => label.name),
+    ...card.subtasks.map((subtask) => subtask.title),
+    ...card.comments.map((comment) => comment.body),
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function isKanbanSearchMatch(card: KanbanCard, searchQuery: string) {
+  const query = searchQuery.trim().toLowerCase();
+  return Boolean(query && getKanbanSearchText(card).includes(query));
+}
+
+function getKanbanBoardStats(cards: KanbanCard[], activity: KanbanActivity[]) {
+  const total = cards.length;
+  const done = cards.filter((card) => card.columnId === "done").length;
+  const overdue = cards.filter((card) => getDueState(card.dueDate) === "overdue").length;
+  const focusCount = cards.filter((card) => card.priority === "ziftinity" || card.priority === "high" || ["overdue", "due-today"].includes(getDueState(card.dueDate))).length;
+  const cycles = cards
+    .map((card) => getCardCycleHours(card, activity))
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const avgCycleHours = cycles.length ? cycles.reduce((totalHours, value) => totalHours + value, 0) / cycles.length : 0;
+  return {
+    total,
+    donePercent: Math.round((done / Math.max(total, 1)) * 100),
+    overdue,
+    focusCount,
+    avgCycle: avgCycleHours ? `${avgCycleHours < 24 ? avgCycleHours.toFixed(1) : (avgCycleHours / 24).toFixed(1)}${avgCycleHours < 24 ? "h" : "d"}` : "n/a",
+  };
+}
+
+function getCardCycleHours(card: KanbanCard, activity: KanbanActivity[]) {
+  const created = activity
+    .filter((event) => event.cardId === card.id && event.action === "created")
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0]?.createdAt;
+  const done = getCardDoneTime(card, activity);
+  if (!created || !done) return undefined;
+  return Math.max(0, (new Date(done).getTime() - new Date(created).getTime()) / 36e5);
+}
+
+function getColumnCycleScore(columnId: KanbanColumnId, cards: KanbanCard[], activity: KanbanActivity[]) {
+  const cardCount = cards.filter((card) => card.columnId === columnId).length;
+  const moveCount = activity.filter((event) => event.toColumnId === columnId).length;
+  return Math.min(100, cardCount * 18 + moveCount * 6);
+}
+
+function getSubtaskProgress(card: KanbanCard) {
+  if (card.subtasks.length === 0) return 0;
+  return Math.round((card.subtasks.filter((subtask) => subtask.done).length / card.subtasks.length) * 100);
+}
+
+function getDueState(value?: string) {
+  const date = parseDateInput(value);
+  if (!date) return "";
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (date < start) return "overdue";
+  if (date.toDateString() === start.toDateString()) return "due-today";
+  return "scheduled";
+}
+
+function formatMinutes(minutes: number) {
+  const hours = minutes / 60;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
+}
+
+function getAttachmentName(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url.slice(0, 28);
+  }
+}
+
+function logKanbanActivity({
+  card,
+  action,
+  fromColumnId,
+  toColumnId,
+}: {
+  card: KanbanCard;
+  action: KanbanActivity["action"];
+  fromColumnId?: KanbanColumnId;
+  toColumnId?: KanbanColumnId;
+}) {
+  void kanbanActivityCrud.add({
+    id: `${Date.now()}-${card.id}-${action}`,
+    cardId: card.id,
+    cardTitle: card.title,
+    action,
+    fromColumnId,
+    toColumnId,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+function formatKanbanActivity(event: KanbanActivity) {
+  if (event.action === "moved") {
+    return `${getKanbanColumnTitle(event.fromColumnId)} -> ${getKanbanColumnTitle(event.toColumnId)}`;
+  }
+  if (event.action === "created") return `created in ${getKanbanColumnTitle(event.toColumnId)}`;
+  return `deleted from ${getKanbanColumnTitle(event.fromColumnId)}`;
+}
+
+function getKanbanColumnTitle(columnId?: KanbanColumnId) {
+  const defaultTitle = defaultKanbanColumns.find((column) => column.id === columnId)?.title;
+  if (defaultTitle) return defaultTitle;
+  if (!columnId) return "Unknown";
+  return columnId
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatActivityTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function getProjectName(projects: TaskProject[], projectId?: string) {
+  if (!projectId) return "Task link";
+  return projects.find((project) => project.id === projectId)?.name ?? "Task link";
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function formatTaskDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function getDashboardTasks(projects: TaskProject[]) {
+  return projects.flatMap((project) =>
+    (project.tasksByDay[project.currentDay] ?? []).map((task) => ({
+      ...task,
+      projectId: project.id,
+      projectName: project.name,
+      day: project.currentDay,
+    })),
+  );
+}
+
+function generateAgentRecommendations({
+  goals,
+  habits,
+  projects,
+  dashboardTasks,
+  calendarEvents,
+  kanbanCards,
+  existing,
+}: {
+  goals: Goal[];
+  habits: Habit[];
+  projects: TaskProject[];
+  dashboardTasks: ReturnType<typeof getDashboardTasks>;
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  existing: AgentRecommendation[];
+}) {
+  const now = new Date();
+  const context = buildAgentContext({ goals, habits, projects, dashboardTasks, calendarEvents, kanbanCards, now });
+  const recommendations = [
+    ...runPlannerAgent(context),
+    ...runReviewerAgent(context),
+    ...runMotivationAgent(context),
+    ...runProjectAgent(context),
+    ...runDisciplineAgent(context),
+  ];
+
+  const existingKeys = new Set(existing.map((recommendation) => getAgentRecommendationKey(recommendation)));
+  return recommendations
+    .filter((recommendation) => recommendation.score >= 35)
+    .filter((recommendation) => !existingKeys.has(getAgentRecommendationKey(recommendation)))
+    .sort((a, b) => b.score - a.score || b.confidence - a.confidence)
+    .slice(0, 8)
+    .map((recommendation, index) => ({
+      ...recommendation,
+      id: `${Date.now()}-${index}-${recommendation.agentId}-${slugify(recommendation.title)}`,
+      status: "pending" as const,
+      createdAt: now.toISOString(),
+    }));
+}
+
+type AgentDraft = Omit<AgentRecommendation, "id" | "createdAt" | "status"> & {
+  score: number;
+  confidence: number;
+  evidence: string[];
+};
+
+type AgentContext = {
+  now: Date;
+  goals: Goal[];
+  projects: TaskProject[];
+  dashboardTasks: ReturnType<typeof getDashboardTasks>;
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  topGoal?: Goal;
+  activeProject?: TaskProject;
+  overdueCards: KanbanCard[];
+  dueSoonCards: KanbanCard[];
+  highOpenCards: KanbanCard[];
+  blockedCards: KanbanCard[];
+  staleCards: KanbanCard[];
+  upcomingEvents: ReturnType<typeof getUpcomingEvents>;
+  incompleteTasks: ReturnType<typeof getDashboardTasks>;
+  missedHabits: Habit[];
+  habitCompletion: number;
+  dailyTaskCompletion: number;
+  avgGoalProgress: number;
+  projectPressure: number;
+  calendarPressure: number;
+  kanbanPressure: number;
+  driftScore: number;
+  executionLoad: number;
+};
+
+function buildAgentContext({
+  goals,
+  habits,
+  projects,
+  dashboardTasks,
+  calendarEvents,
+  kanbanCards,
+  now,
+}: {
+  goals: Goal[];
+  habits: Habit[];
+  projects: TaskProject[];
+  dashboardTasks: ReturnType<typeof getDashboardTasks>;
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  now: Date;
+}): AgentContext {
+  const openCards = kanbanCards.filter((card) => card.columnId !== "done" && !card.archivedAt);
+  const overdueCards = openCards.filter((card) => getDueState(card.dueDate) === "overdue");
+  const dueSoonCards = openCards.filter((card) => {
+    const due = parseDateInput(card.dueDate);
+    return due ? daysBetween(now, due) >= 0 && daysBetween(now, due) <= 3 : false;
+  });
+  const highOpenCards = openCards.filter((card) => ["ziftinity", "high"].includes(card.priority));
+  const blockedCards = openCards.filter((card) => Boolean(card.blockedBy));
+  const staleCards = openCards.filter((card) => card.subtasks.length > 0 && getSubtaskProgress(card) === 0 && ["planned", "in-progress", "review"].includes(card.columnId));
+  const incompleteTasks = dashboardTasks.filter((task) => !task.done);
+  const missedHabits = habits.filter((habit) => !habit.done);
+  const upcomingEvents = getUpcomingEvents(calendarEvents, now);
+  const avgGoalProgress = goals.reduce((total, goal) => total + goal.progress, 0) / Math.max(goals.length, 1);
+  const habitCompletion = ((habits.length - missedHabits.length) / Math.max(habits.length, 1)) * 100;
+  const dailyTaskCompletion = ((dashboardTasks.length - incompleteTasks.length) / Math.max(dashboardTasks.length, 1)) * 100;
+  const projectPressure = projects.reduce((total, project) => total + getProjectPressure(project, now), 0) / Math.max(projects.length, 1);
+  const calendarPressure = clamp(upcomingEvents.length * 8 + dueSoonCards.length * 12, 0, 100);
+  const kanbanPressure = clamp(overdueCards.length * 24 + blockedCards.length * 18 + highOpenCards.length * 10 + staleCards.length * 8, 0, 100);
+  const executionLoad = clamp(incompleteTasks.length * 12 + missedHabits.length * 8 + openCards.length * 5 + upcomingEvents.length * 4, 0, 100);
+  const driftScore = clamp((100 - dailyTaskCompletion) * 0.28 + (100 - habitCompletion) * 0.32 + kanbanPressure * 0.28 + Math.max(0, projectPressure - avgGoalProgress) * 0.12, 0, 100);
+
+  return {
+    now,
+    goals,
+    projects,
+    dashboardTasks,
+    calendarEvents,
+    kanbanCards,
+    topGoal: sortGoals(goals)[0],
+    activeProject: projects.map((project) => ({ project, pressure: getProjectPressure(project, now) })).sort((a, b) => b.pressure - a.pressure)[0]?.project,
+    overdueCards,
+    dueSoonCards,
+    highOpenCards,
+    blockedCards,
+    staleCards,
+    upcomingEvents,
+    incompleteTasks,
+    missedHabits,
+    habitCompletion,
+    dailyTaskCompletion,
+    avgGoalProgress,
+    projectPressure,
+    calendarPressure,
+    kanbanPressure,
+    driftScore,
+    executionLoad,
+  };
+}
+
+function runPlannerAgent(context: AgentContext): AgentDraft[] {
+  const { activeProject, topGoal, incompleteTasks, projectPressure, dailyTaskCompletion, executionLoad } = context;
+  if (!activeProject || !topGoal) return [];
+  const dayTasks = activeProject.tasksByDay[activeProject.currentDay] ?? [];
+  const dayHasGoalTask = dayTasks.some((task) => task.name.toLowerCase().includes(topGoal.title.toLowerCase().split(" ")[0] ?? ""));
+  const score = weightedScore([
+    [projectPressure, 0.36],
+    [100 - dailyTaskCompletion, 0.26],
+    [executionLoad, 0.18],
+    [dayHasGoalTask ? 10 : 78, 0.2],
+  ]);
+
+  return [
+    {
+      agentId: "planner",
+      agentName: "Planner Agent",
+      title: `Convert ${topGoal.title} into today's execution block`,
+      body: `Planning score is high because schedule pressure and unfinished daily work are converging. Create one measurable D${activeProject.currentDay} action so the goal moves from intent to execution.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([projectPressure, 100 - dailyTaskCompletion, executionLoad]),
+      source: `${Math.round(projectPressure)} project pressure`,
+      evidence: [
+        `${activeProject.name}: D${activeProject.currentDay}/${activeProject.deadlineDays}`,
+        `${Math.round(dailyTaskCompletion)}% daily task completion`,
+        `${incompleteTasks.length} open task${incompleteTasks.length === 1 ? "" : "s"} today`,
+      ],
+      action: {
+        type: "create_task",
+        label: "Create weighted next action",
+        projectId: activeProject.id,
+        day: activeProject.currentDay,
+        taskName: `Advance ${topGoal.title}: 25-minute measurable block`,
+      },
+    },
+  ];
+}
+
+function runReviewerAgent(context: AgentContext): AgentDraft[] {
+  const fuzzyTasks = context.incompleteTasks
+    .map((task) => ({ task, score: getTaskAmbiguityScore(task.name) }))
+    .filter(({ score }) => score >= 35)
+    .sort((a, b) => b.score - a.score);
+  const staleCard = context.staleCards.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority])[0];
+  const drafts: AgentDraft[] = [];
+
+  if (fuzzyTasks[0]) {
+    const { task, score: ambiguity } = fuzzyTasks[0];
+    const score = weightedScore([[ambiguity, 0.5], [100 - context.dailyTaskCompletion, 0.22], [context.executionLoad, 0.28]]);
+    drafts.push({
+      agentId: "reviewer",
+      agentName: "Reviewer Agent",
+      title: `Decompose ambiguous task: ${task.name}`,
+      body: `This task reads like a direction, not a finishable unit. Split it into a concrete verb, artifact, and completion test before it burns attention.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([ambiguity, context.executionLoad, 100 - context.dailyTaskCompletion]),
+      source: `${task.projectName} - D${task.day}`,
+      evidence: [`ambiguity index ${Math.round(ambiguity)}`, `${context.incompleteTasks.length} unfinished daily tasks`, `load index ${Math.round(context.executionLoad)}`],
+      action: {
+        type: "create_kanban",
+        label: "Create decomposition card",
+        title: `Decompose: ${task.name}`,
+        description: `Rewrite ${task.name} as: verb + artifact + finish condition. Then attach the smallest next subtask.`,
+        priority: score >= 70 ? "high" : "medium",
+        tags: ["review", "decompose"],
+      },
+    });
+  }
+
+  if (staleCard) {
+    const score = weightedScore([[context.kanbanPressure, 0.45], [100 - getSubtaskProgress(staleCard), 0.35], [priorityToScore(staleCard.priority), 0.2]]);
+    drafts.push({
+      agentId: "reviewer",
+      agentName: "Reviewer Agent",
+      title: `Inspect stalled card: ${staleCard.title}`,
+      body: `The card is active but its checklist has not moved. Review the definition of done and decide whether the next step is unclear, blocked, or too large.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([context.kanbanPressure, priorityToScore(staleCard.priority), 100 - getSubtaskProgress(staleCard)]),
+      source: getKanbanColumnTitle(staleCard.columnId),
+      evidence: [`${getSubtaskProgress(staleCard)}% subtask completion`, `${priorityLabel[staleCard.priority]} priority`, `${getKanbanColumnTitle(staleCard.columnId)} column`],
+      action: {
+        type: "create_kanban",
+        label: "Create review checkpoint",
+        title: `Review stalled card: ${staleCard.title}`,
+        description: `Audit blockers, completion criteria, and the next smallest action for ${staleCard.title}.`,
+        priority: staleCard.priority,
+        tags: ["review", "stalled"],
+      },
+    });
+  }
+
+  return drafts;
+}
+
+function runMotivationAgent(context: AgentContext): AgentDraft[] {
+  const recoveryNeed = weightedScore([
+    [100 - context.habitCompletion, 0.42],
+    [100 - context.dailyTaskCompletion, 0.24],
+    [context.executionLoad, 0.2],
+    [context.calendarPressure, 0.14],
+  ]);
+  if (context.missedHabits.length === 0 && recoveryNeed < 35) return [];
+  const easiestHabit = context.missedHabits.sort((a, b) => getHabitFriction(a) - getHabitFriction(b))[0];
+
+  return [
+    {
+      agentId: "motivation",
+      agentName: "Motivation Agent",
+      title: easiestHabit ? `Recovery ladder: start with ${easiestHabit.name}` : "Protect momentum before the day fragments",
+      body: `The recovery model is choosing the lowest-friction win first. Complete one small loop, then re-open the heavier work after the system sees proof of motion.`,
+      severity: severityFromScore(recoveryNeed),
+      score: recoveryNeed,
+      confidence: confidenceFromSignals([100 - context.habitCompletion, context.executionLoad, context.missedHabits.length * 18]),
+      source: `${Math.round(context.habitCompletion)}% habit completion`,
+      evidence: [
+        `${context.missedHabits.length} missed habit${context.missedHabits.length === 1 ? "" : "s"}`,
+        `${Math.round(context.executionLoad)} execution load`,
+        easiestHabit ? `${easiestHabit.time} suggested start` : "habit loop stable",
+      ],
+    },
+  ];
+}
+
+function runProjectAgent(context: AgentContext): AgentDraft[] {
+  const publicProofGap = context.goals
+    .map((goal) => ({
+      goal,
+      score: weightedScore([[priorityToScore(goal.level), 0.34], [goal.progress, 0.22], [hasPortfolioCard(context.kanbanCards, goal) ? 0 : 100, 0.44]]),
+    }))
+    .sort((a, b) => b.score - a.score)[0];
+  if (!publicProofGap) return [];
+
+  return [
+    {
+      agentId: "project",
+      agentName: "Project Agent",
+      title: `Turn ${publicProofGap.goal.title} into proof of work`,
+      body: `Portfolio value is high because this objective has priority weight but not enough visible artifact coverage. Ship a small proof unit: demo, case note, repo entry, or before/after snapshot.`,
+      severity: severityFromScore(publicProofGap.score),
+      score: publicProofGap.score,
+      confidence: confidenceFromSignals([priorityToScore(publicProofGap.goal.level), publicProofGap.goal.progress, 70]),
+      source: "artifact gap model",
+      evidence: [
+        `${priorityLabel[publicProofGap.goal.level]} goal priority`,
+        `${publicProofGap.goal.progress}% goal progress`,
+        hasPortfolioCard(context.kanbanCards, publicProofGap.goal) ? "portfolio card already exists" : "no matching portfolio card found",
+      ],
+      action: {
+        type: "create_kanban",
+        label: "Create proof artifact",
+        title: `Proof artifact: ${publicProofGap.goal.title}`,
+        description: `Create a visible artifact for ${publicProofGap.goal.title}: demo, write-up, repo update, or measurable progress snapshot.`,
+        priority: publicProofGap.goal.level === "low" ? "medium" : publicProofGap.goal.level,
+        tags: ["portfolio", "proof", "artifact"],
+        dueDate: toDateInputValue(addDays(context.now, 7)),
+      },
+    },
+  ];
+}
+
+function runDisciplineAgent(context: AgentContext): AgentDraft[] {
+  const drafts: AgentDraft[] = [];
+  const riskyCard = [...context.overdueCards, ...context.blockedCards, ...context.highOpenCards].sort(
+    (a, b) => getCardRiskScore(b, context.now) - getCardRiskScore(a, context.now),
+  )[0];
+
+  if (riskyCard) {
+    const risk = getCardRiskScore(riskyCard, context.now);
+    const score = weightedScore([[risk, 0.5], [context.driftScore, 0.3], [context.kanbanPressure, 0.2]]);
+    drafts.push({
+      agentId: "discipline",
+      agentName: "Discipline Agent",
+      title: `Intervention required: ${riskyCard.title}`,
+      body: `The drift model sees priority, due-date pressure, and board congestion crossing the intervention threshold. Decide whether this card gets finished, reduced, delegated, or removed from active attention.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([risk, context.driftScore, context.kanbanPressure]),
+      source: `${Math.round(context.driftScore)} drift score`,
+      evidence: [
+        `${priorityLabel[riskyCard.priority]} priority`,
+        riskyCard.dueDate ? `${getDueState(riskyCard.dueDate) || "scheduled"} due state` : "no due date",
+        riskyCard.blockedBy ? `blocked by ${riskyCard.blockedBy}` : `${getKanbanColumnTitle(riskyCard.columnId)} column`,
+      ],
+      action: {
+        type: "create_calendar",
+        label: "Schedule intervention",
+        title: `Intervention: ${riskyCard.title}`,
+        date: toDateInputValue(context.now),
+        time: "18:00",
+        kind: "project",
+      },
+    });
+  }
+
+  if (context.upcomingEvents.length === 0 && context.activeProject) {
+    const score = weightedScore([[context.projectPressure, 0.45], [100 - context.calendarPressure, 0.35], [context.executionLoad, 0.2]]);
+    drafts.push({
+      agentId: "discipline",
+      agentName: "Discipline Agent",
+      title: `Add accountability checkpoint for ${context.activeProject.name}`,
+      body: `The calendar is not applying pressure to the most active project. A checkpoint creates an external review moment before drift becomes invisible.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([context.projectPressure, 100 - context.calendarPressure, context.executionLoad]),
+      source: "calendar-pressure model",
+      evidence: [`0 events in next 14 days`, `${Math.round(context.projectPressure)} project pressure`, `${context.activeProject.deadlineDays - context.activeProject.currentDay} days remaining`],
+      action: {
+        type: "create_calendar",
+        label: "Create accountability checkpoint",
+        title: `Checkpoint: ${context.activeProject.name}`,
+        date: toDateInputValue(addDays(context.now, 3)),
+        time: "09:00",
+        kind: "project",
+      },
+    });
+  }
+
+  return drafts;
+}
+
+async function executeAgentAction(action: NonNullable<AgentRecommendation["action"]>) {
+  if (action.type === "create_task") {
+    const task: ProjectTask = {
+      id: `${Date.now()}-${action.taskName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      name: action.taskName,
+      done: false,
+    };
+    await taskProjectCrud.addTask(action.projectId, action.day, task);
+    return;
+  }
+
+  if (action.type === "create_kanban") {
+    const card: KanbanCard = {
+      id: `${Date.now()}-${action.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title: action.title,
+      description: action.description,
+      columnId: "backlog",
+      priority: action.priority,
+      tags: action.tags,
+      labels: action.tags.slice(0, 2).map((tag) => ({ name: tag, color: "cyan" })),
+      subtasks: [],
+      trackedMinutes: 0,
+      attachments: [],
+      comments: [],
+      dueDate: action.dueDate,
+      order: Date.now(),
+    };
+    await kanbanCrud.add(card);
+    logKanbanActivity({ card, action: "created", toColumnId: card.columnId });
+    return;
+  }
+
+  await calendarCrud.add({
+    id: `${Date.now()}-${action.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    date: action.date,
+    day: parseDateInput(action.date)?.getDate() ?? new Date().getDate(),
+    title: action.title,
+    kind: action.kind,
+    time: action.time,
+  });
+}
+
+function agentSeverityToPriority(severity: AgentRecommendation["severity"]): Priority {
+  if (severity === "critical") return "ziftinity";
+  if (severity === "warning") return "high";
+  if (severity === "notice") return "medium";
+  return "low";
+}
+
+function weightedScore(parts: Array<[number, number]>) {
+  const weight = parts.reduce((total, [, itemWeight]) => total + itemWeight, 0) || 1;
+  return Math.round(clamp(parts.reduce((total, [value, itemWeight]) => total + clamp(value, 0, 100) * itemWeight, 0) / weight, 0, 100));
+}
+
+function confidenceFromSignals(signals: number[]) {
+  if (signals.length === 0) return 50;
+  const average = signals.reduce((total, signal) => total + clamp(signal, 0, 100), 0) / signals.length;
+  const spread = Math.max(...signals) - Math.min(...signals);
+  return Math.round(clamp(52 + average * 0.38 - spread * 0.12 + signals.length * 4, 35, 96));
+}
+
+function severityFromScore(score: number): AgentRecommendation["severity"] {
+  if (score >= 82) return "critical";
+  if (score >= 65) return "warning";
+  if (score >= 48) return "notice";
+  return "info";
+}
+
+function priorityToScore(priority: Priority) {
+  if (priority === "ziftinity") return 100;
+  if (priority === "high") return 78;
+  if (priority === "medium") return 52;
+  return 28;
+}
+
+function getProjectPressure(project: TaskProject, now: Date) {
+  const start = getProjectStartDate(project);
+  const end = getProjectEndDate(project);
+  const totalDays = Math.max(getDateRangeDays(toDateInputValue(start), toDateInputValue(end)), 1);
+  const elapsedDays = clamp(daysBetween(start, now) + 1, 1, totalDays);
+  const expectedProgress = (elapsedDays / totalDays) * 100;
+  const actualProgress = getProjectCompletion(project);
+  const remainingRatio = 100 - (daysBetween(now, end) / totalDays) * 100;
+  return clamp((expectedProgress - actualProgress) * 0.62 + remainingRatio * 0.26 + getOpenProjectTasks(project) * 4, 0, 100);
+}
+
+function getProjectCompletion(project: TaskProject) {
+  const tasks = Object.values(project.tasksByDay ?? {}).flat();
+  if (tasks.length === 0) return 0;
+  return (tasks.filter((task) => task.done).length / tasks.length) * 100;
+}
+
+function getOpenProjectTasks(project: TaskProject) {
+  return Object.values(project.tasksByDay ?? {}).flat().filter((task) => !task.done).length;
+}
+
+function getTaskAmbiguityScore(name: string) {
+  const words = name.toLowerCase().split(/\s+/).filter(Boolean);
+  const weakVerbs = ["work", "fix", "handle", "do", "make", "improve", "update", "review", "start", "continue"];
+  const measurableTerms = ["submit", "publish", "ship", "write", "record", "send", "create", "finish", "test", "deploy", "call", "book"];
+  const hasWeakVerb = words.some((word) => weakVerbs.includes(word));
+  const hasMeasurableTerm = words.some((word) => measurableTerms.includes(word));
+  const lengthPenalty = words.length <= 2 ? 24 : words.length >= 8 ? -8 : 8;
+  return clamp(42 + (hasWeakVerb ? 24 : 0) + (hasMeasurableTerm ? -20 : 12) + lengthPenalty, 0, 100);
+}
+
+function getHabitFriction(habit: Habit) {
+  const time = Number(habit.time.split(":")[0] ?? 12);
+  const durationText = habit.duration.toLowerCase();
+  const durationPenalty = durationText.includes("min") ? Number(durationText.match(/\d+/)?.[0] ?? 15) : durationText.includes("reflection") ? 12 : 20;
+  return durationPenalty + (time >= 20 ? 8 : 0) + (habit.name.length > 18 ? 6 : 0);
+}
+
+function hasPortfolioCard(cards: KanbanCard[], goal: Goal) {
+  const goalTokens = goal.title.toLowerCase().split(/\s+/).filter((token) => token.length > 2);
+  return cards.some((card) => {
+    const haystack = `${card.title} ${card.description} ${card.tags.join(" ")}`.toLowerCase();
+    return haystack.includes("portfolio") || haystack.includes("artifact") || goalTokens.some((token) => haystack.includes(token));
+  });
+}
+
+function getCardRiskScore(card: KanbanCard, now: Date) {
+  const due = parseDateInput(card.dueDate);
+  const duePressure = due ? clamp(70 - daysBetween(now, due) * 12, 0, 100) : 24;
+  const blockedPressure = card.blockedBy ? 86 : 0;
+  const progressPressure = card.subtasks.length ? 100 - getSubtaskProgress(card) : 36;
+  const columnPressure = card.columnId === "in-progress" ? 72 : card.columnId === "review" ? 58 : card.columnId === "planned" ? 46 : 32;
+  return weightedScore([
+    [priorityToScore(card.priority), 0.24],
+    [duePressure, 0.28],
+    [blockedPressure, 0.2],
+    [progressPressure, 0.16],
+    [columnPressure, 0.12],
+  ]);
+}
+
+function getAgentRecommendationKey(recommendation: Pick<AgentRecommendation, "agentId" | "title" | "source">) {
+  return `${recommendation.agentId}:${slugify(recommendation.title)}:${slugify(recommendation.source)}`;
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "signal";
+}
+
+function daysBetween(start: Date, end: Date) {
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+  return Math.round((endDay - startDay) / 86400000);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getCurrentObjectives(projects: TaskProject[]) {
+  return projects
+    .map((project) => {
+      const allTasks = Object.values(project.tasksByDay ?? {}).flat();
+      const complete = allTasks.filter((task) => task.done).length;
+      const progress = Math.round((complete / Math.max(allTasks.length, 1)) * 100);
+      return {
+        id: project.id,
+        name: project.name,
+        value: `D${project.currentDay} / ${project.deadlineDays}`,
+        done: progress >= 100,
+        progress,
+      };
+    })
+    .sort((a, b) => b.progress - a.progress || a.name.localeCompare(b.name))
+    .slice(0, 4);
+}
+
+function getDashboardTimeline(goals: Goal[], events: ReturnType<typeof getUpcomingEvents>) {
+  const goalItems = goals.map((goal) => {
+    const dueDate = parseGoalDueDate(goal.due);
+    return {
+      date: dueDate,
+      month: dueDate ? new Intl.DateTimeFormat("en-US", { month: "short" }).format(dueDate) : "Goal",
+      year: dueDate ? String(dueDate.getFullYear()) : "",
+      name: goal.title,
+      status: `${goal.progress}% - ${priorityLabel[goal.level]}`,
+      tone: goal.level === "ziftinity" || goal.level === "high" ? "violet" : "cyan",
+    };
+  });
+
+  const eventItems = events.map(({ event, date }) => ({
+    date,
+    month: new Intl.DateTimeFormat("en-US", { month: "short" }).format(date),
+    year: String(date.getFullYear()),
+    name: event.title,
+    status: `${event.kind} - ${event.time}`,
+    tone: event.kind === "deadline" || event.kind === "project" ? "violet" : "cyan",
+  }));
+
+  return [...eventItems, ...goalItems]
+    .sort((a, b) => (a.date?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.date?.getTime() ?? Number.MAX_SAFE_INTEGER))
+    .slice(0, 4);
+}
+
+function getDashboardReflection({
+  goals,
+  habits,
+  dashboardTasks,
+  upcomingEvents,
+}: {
+  goals: Goal[];
+  habits: Habit[];
+  dashboardTasks: ReturnType<typeof getDashboardTasks>;
+  upcomingEvents: ReturnType<typeof getUpcomingEvents>;
+}) {
+  const completedHabits = habits.filter((habit) => habit.done).length;
+  const completedTasks = dashboardTasks.filter((task) => task.done).length;
+  const averageGoal = Math.round(goals.reduce((total, goal) => total + goal.progress, 0) / Math.max(goals.length, 1));
+  const nextEvent = upcomingEvents[0];
+  const body = [
+    `${completedHabits}/${habits.length} habits are complete`,
+    `${completedTasks}/${dashboardTasks.length} daily tasks are cleared`,
+    `goal momentum is at ${averageGoal}%`,
+    nextEvent ? `next signal: ${nextEvent.event.title} on ${formatUpcomingDate(nextEvent.date)}` : "no calendar pressure in the next 14 days",
+  ].join(". ");
+
+  return {
+    body: `${body}.`,
+    stamp: new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date()),
+    tags: [
+      completedHabits === habits.length ? "Habits Clear" : "Habits Open",
+      completedTasks === dashboardTasks.length ? "Tasks Clear" : "Tasks Open",
+      averageGoal >= 70 ? "Momentum" : "Recalibrate",
+    ],
+  };
+}
+
+function parseGoalDueDate(value: string) {
+  const withYear = /\d{4}/.test(value) ? value : `${value}, ${new Date().getFullYear()}`;
+  const date = new Date(withYear);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function makeCalendarDate(day: number) {
+  return new Date(calendarYear, calendarMonth, day);
+}
+
+function toDateInputValue(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function parseDateInput(value?: string) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function getEventDate(event: CalendarEvent) {
+  if (event.date) {
+    const [year, month, day] = event.date.split("-").map(Number);
+    if (year && month && day) return new Date(year, month - 1, day);
+  }
+  return makeCalendarDate(event.day);
+}
+
+function getUpcomingEvents(events: CalendarEvent[], now: Date) {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start);
+  end.setDate(start.getDate() + 14);
+
+  return events
+    .map((event) => ({ event, date: getEventDate(event) }))
+    .filter(({ date }) => date >= start && date <= end)
+    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.event.time.localeCompare(b.event.time));
+}
+
+function formatUpcomingDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+export default App;
