@@ -2065,7 +2065,8 @@ button {
 }
 
 .load-forecast-hero p,
-.load-forecast-signals p {
+.load-forecast-signals p,
+.load-forecast-mitigation p {
   margin: 0;
   color: var(--ink-2);
   font-size: 12px;
@@ -2078,7 +2079,8 @@ button {
 }
 
 .load-forecast-metrics span,
-.load-forecast-signals section {
+.load-forecast-signals section,
+.load-forecast-mitigation {
   border: 1px solid var(--hair-soft);
   background: rgba(2, 7, 15, 0.34);
   padding: 10px;
@@ -2183,6 +2185,70 @@ button.load-forecast-day:hover {
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.load-forecast-mitigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-top: 12px;
+  border-left: 2px solid var(--violet);
+  background: rgba(170, 114, 255, 0.07);
+}
+
+.load-forecast-mitigation > div {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.load-forecast-mitigation span {
+  color: var(--violet);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.load-forecast-mitigation strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.load-forecast-mitigation button {
+  height: 34px;
+  border: 1px solid var(--violet);
+  color: var(--violet);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.13em;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.load-forecast-mitigation button:hover:not(:disabled) {
+  background: rgba(170, 114, 255, 0.12);
+}
+
+.load-forecast-mitigation button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.load-forecast-status {
+  margin-top: 10px;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid var(--lime);
+  background: rgba(136, 255, 92, 0.07);
+  color: var(--lime);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 10px 12px;
+  text-transform: uppercase;
 }
 
 .load-forecast-actions {
@@ -8013,6 +8079,7 @@ button.load-forecast-day:hover {
   .load-forecast-strip,
   .load-forecast-card.compact .load-forecast-strip,
   .load-forecast-signals,
+  .load-forecast-mitigation,
   .weekly-review-hero,
   .weekly-review-grid,
   .weekly-day-strip,

@@ -1873,6 +1873,7 @@ function TodayView({
   const now = new Date();
   const todayKey = toDateInputValue(now);
   const [protocolStatus, setProtocolStatus] = useState("");
+  const [forecastStatus, setForecastStatus] = useState("");
   const todayLabel = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "short",
@@ -2131,6 +2132,76 @@ function TodayView({
     });
   }
 
+  async function stabilizeForecastLoad(forecast: ReturnType<typeof getLoadForecast>) {
+    const { mitigation } = forecast;
+    if (!mitigation.hasAction) {
+      setForecastStatus("Forecast is already balanced enough; no mitigation action is queued.");
+      return;
+    }
+
+    const writes: Promise<unknown>[] = [];
+    const movedLabels: string[] = [];
+
+    const taskMove = mitigation.task;
+    if (taskMove) {
+      const project = projects.find((item) => item.id === taskMove.projectId);
+      const task = project?.tasksByDay[taskMove.fromDay]?.find((item) => item.id === taskMove.taskId);
+      if (project && task && !task.done && taskMove.fromDay !== taskMove.toDay) {
+        writes.push(
+          taskProjectCrud
+            .deleteTask(project.id, taskMove.fromDay, task.id)
+            .then(() => taskProjectCrud.addTask(project.id, taskMove.toDay, task)),
+        );
+        movedLabels.push(`${task.name} to D${taskMove.toDay}`);
+        logActivityEvent({
+          domain: "task",
+          action: "deferred",
+          entityId: task.id,
+          entityTitle: task.name,
+          source: "Forecast load balancer",
+          metadata: {
+            projectId: project.id,
+            projectName: project.name,
+            fromDay: taskMove.fromDay,
+            toDay: taskMove.toDay,
+            peakDate: forecast.peakDay.key,
+            targetDate: taskMove.toDate,
+          },
+        });
+      }
+    }
+
+    const cardMove = mitigation.card;
+    if (cardMove) {
+      const card = kanbanCards.find((item) => item.id === cardMove.cardId);
+      if (card && card.dueDate !== cardMove.toDate) {
+        writes.push(kanbanCrud.update(card.id, { dueDate: cardMove.toDate }));
+        movedLabels.push(`${card.title} due ${formatShortDate(cardMove.toDate)}`);
+        logActivityEvent({
+          domain: "kanban",
+          action: "deferred",
+          entityId: card.id,
+          entityTitle: card.title,
+          source: "Forecast load balancer",
+          metadata: {
+            oldDueDate: card.dueDate,
+            newDueDate: cardMove.toDate,
+            priority: card.priority,
+            peakDate: forecast.peakDay.key,
+          },
+        });
+      }
+    }
+
+    if (writes.length === 0) {
+      setForecastStatus("No movable task or board card was available for this peak day.");
+      return;
+    }
+
+    await Promise.all(writes);
+    setForecastStatus(`Balanced ${movedLabels.join(" and ")}.`);
+  }
+
   return (
     <>
       <section className="today-command-grid">
@@ -2177,7 +2248,12 @@ function TodayView({
         </HudCard>
       </section>
 
-      <LoadForecastPanel forecast={context.loadForecast} onNavigate={onNavigate} />
+      <LoadForecastPanel
+        forecast={context.loadForecast}
+        mitigationStatus={forecastStatus}
+        onMitigate={(forecast) => void stabilizeForecastLoad(forecast)}
+        onNavigate={onNavigate}
+      />
 
       {protocolPacket && (
         <HudCard className="today-protocol-card" active>
@@ -2510,10 +2586,14 @@ function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: n
 
 function LoadForecastPanel({
   forecast,
+  mitigationStatus,
+  onMitigate,
   onNavigate,
   compact = false,
 }: {
   forecast: ReturnType<typeof getLoadForecast>;
+  mitigationStatus?: string;
+  onMitigate?: (forecast: ReturnType<typeof getLoadForecast>) => void;
   onNavigate?: (view: View) => void;
   compact?: boolean;
 }) {
@@ -2584,11 +2664,24 @@ function LoadForecastPanel({
           <p>{forecast.nextActionBody}</p>
         </section>
       </div>
-      {onNavigate && (
+      <div className="load-forecast-mitigation">
+        <div>
+          <span>Balancer</span>
+          <strong>{forecast.mitigation.title}</strong>
+          <p>{forecast.mitigation.summary}</p>
+        </div>
+        {onMitigate && (
+          <button type="button" disabled={!forecast.mitigation.hasAction} onClick={() => onMitigate(forecast)}>
+            {forecast.mitigation.buttonLabel}
+          </button>
+        )}
+      </div>
+      {mitigationStatus && <div className="load-forecast-status">{mitigationStatus}</div>}
+      {(onNavigate || onMitigate) && (
         <div className="load-forecast-actions">
-          <button type="button" onClick={() => onNavigate("calendar")}>Open Calendar</button>
-          <button type="button" onClick={() => onNavigate("tasks")}>Open Tasks</button>
-          <button type="button" onClick={() => onNavigate("kanban")}>Open Board</button>
+          {onNavigate && <button type="button" onClick={() => onNavigate("calendar")}>Open Calendar</button>}
+          {onNavigate && <button type="button" onClick={() => onNavigate("tasks")}>Open Tasks</button>}
+          {onNavigate && <button type="button" onClick={() => onNavigate("kanban")}>Open Board</button>}
         </div>
       )}
     </HudCard>
@@ -8266,6 +8359,13 @@ type LoadForecastProjectSignal = {
   day: number;
   openTaskCount: number;
   totalTaskCount: number;
+  openTasks: Array<{ id: string; name: string }>;
+};
+type LoadForecastCardSignal = {
+  cardId: string;
+  title: string;
+  priority: Priority;
+  dueDate?: string;
 };
 type LoadForecastDay = {
   key: string;
@@ -8282,7 +8382,30 @@ type LoadForecastDay = {
   dueCardCount: number;
   scheduledCount: number;
   projectSignals: LoadForecastProjectSignal[];
+  cardSignals: LoadForecastCardSignal[];
   topSignals: string[];
+};
+type LoadForecastMitigation = {
+  hasAction: boolean;
+  title: string;
+  summary: string;
+  buttonLabel: string;
+  task?: {
+    projectId: string;
+    projectName: string;
+    taskId: string;
+    taskName: string;
+    fromDay: number;
+    toDay: number;
+    fromDate: string;
+    toDate: string;
+  };
+  card?: {
+    cardId: string;
+    cardTitle: string;
+    fromDate?: string;
+    toDate: string;
+  };
 };
 
 function getLoadForecast({
@@ -8317,6 +8440,7 @@ function getLoadForecast({
           day,
           openTaskCount: openTasks.length,
           totalTaskCount: tasks.length,
+          openTasks: openTasks.map((task) => ({ id: task.id, name: task.name })),
         };
       })
       .filter((signal): signal is LoadForecastProjectSignal => Boolean(signal));
@@ -8340,6 +8464,12 @@ function getLoadForecast({
     const load = Math.round(clamp(taskWeight + eventWeight + cardWeight, 0, 100));
     const tone = getLoadForecastTone(load);
     const primaryView: View = cardWeight > taskWeight && cardWeight >= eventWeight ? "kanban" : eventWeight > taskWeight ? "calendar" : "tasks";
+    const cardSignals = dueCards.map((card) => ({
+      cardId: card.id,
+      title: card.title,
+      priority: card.priority,
+      dueDate: card.dueDate,
+    }));
     const topSignals = [
       openTaskCount ? `${openTaskCount} open task${openTaskCount === 1 ? "" : "s"}` : "",
       dayEvents.length ? `${dayEvents.length} calendar signal${dayEvents.length === 1 ? "" : "s"}` : "",
@@ -8362,6 +8492,7 @@ function getLoadForecast({
       dueCardCount: dueCards.length,
       scheduledCount: openTaskCount + dayEvents.length + dueCards.length,
       projectSignals,
+      cardSignals,
       topSignals: topSignals.length ? topSignals : ["maintenance window"],
     };
   });
@@ -8375,6 +8506,7 @@ function getLoadForecast({
   const openTaskCount = days.reduce((total, day) => total + day.openTaskCount, 0);
   const scheduledCount = days.reduce((total, day) => total + day.eventCount + day.dueCardCount, 0);
   const headline = getLoadForecastHeadline(peakDay, collisionDays, averageLoad);
+  const mitigation = getLoadForecastMitigation(days, normalizedProjects, peakDay, recoveryDay);
   const nextActionTitle =
     peakDay.load >= 75
       ? `Pre-clear ${peakDay.dayLabel}`
@@ -8398,6 +8530,7 @@ function getLoadForecast({
     scheduledCount,
     headline,
     directive: getLoadForecastDirective(peakDay, collisionDays, averageLoad),
+    mitigation,
     nextActionTitle,
     nextActionBody,
   };
@@ -8419,8 +8552,94 @@ function makeEmptyForecastDay(date: Date): LoadForecastDay {
     dueCardCount: 0,
     scheduledCount: 0,
     projectSignals: [],
+    cardSignals: [],
     topSignals: ["maintenance window"],
   };
+}
+
+function getLoadForecastMitigation(
+  days: LoadForecastDay[],
+  projects: TaskProject[],
+  peakDay: LoadForecastDay,
+  recoveryDay: LoadForecastDay,
+): LoadForecastMitigation {
+  const projectById = new Map(projects.map((project) => [project.id, project]));
+  const taskCandidate = [...peakDay.projectSignals]
+    .filter((signal) => signal.openTasks.length > 0)
+    .sort((a, b) => b.openTaskCount - a.openTaskCount || b.totalTaskCount - a.totalTaskCount)[0];
+  const taskTarget = taskCandidate
+    ? getForecastTaskTargetDay(days, projectById.get(taskCandidate.projectId), peakDay, recoveryDay)
+    : null;
+  const task =
+    taskCandidate && taskTarget
+      ? {
+          projectId: taskCandidate.projectId,
+          projectName: taskCandidate.projectName,
+          taskId: taskCandidate.openTasks[0].id,
+          taskName: taskCandidate.openTasks[0].name,
+          fromDay: taskCandidate.day,
+          toDay: taskTarget.projectDay,
+          fromDate: peakDay.key,
+          toDate: taskTarget.day.key,
+        }
+      : undefined;
+  const cardTarget = getForecastCardTargetDay(days, peakDay, recoveryDay);
+  const cardSignal = peakDay.cardSignals[0];
+  const card =
+    cardSignal && cardTarget
+      ? {
+          cardId: cardSignal.cardId,
+          cardTitle: cardSignal.title,
+          fromDate: cardSignal.dueDate,
+          toDate: cardTarget.key,
+        }
+      : undefined;
+  const hasAction = Boolean(task || card);
+  const title = hasAction
+    ? `Stabilize ${peakDay.dayLabel}`
+    : "No load move needed";
+  const summary = task && card
+    ? `Move "${task.taskName}" to D${task.toDay} and shift "${card.cardTitle}" to ${formatShortDate(card.toDate)}.`
+    : task
+      ? `Move "${task.taskName}" from D${task.fromDay} to D${task.toDay}, the lowest-load project day in range.`
+      : card
+        ? `Shift "${card.cardTitle}" to ${formatShortDate(card.toDate)} to reduce the peak day board pressure.`
+        : "The current forecast has no flexible task or due card available for automatic balancing.";
+
+  return {
+    hasAction,
+    title,
+    summary,
+    buttonLabel: hasAction ? "Stabilize Peak" : "No Move",
+    task,
+    card,
+  };
+}
+
+function getForecastTaskTargetDay(
+  days: LoadForecastDay[],
+  project: TaskProject | undefined,
+  peakDay: LoadForecastDay,
+  recoveryDay: LoadForecastDay,
+) {
+  if (!project) return null;
+  const candidates = days
+    .filter((day) => day.key !== peakDay.key)
+    .map((day) => ({ day, projectDay: getProjectDayForDate(project, day.date) }))
+    .filter((item): item is { day: LoadForecastDay; projectDay: number } => Boolean(item.projectDay))
+    .sort((a, b) => {
+      const aIsRecovery = a.day.key === recoveryDay.key ? -10 : 0;
+      const bIsRecovery = b.day.key === recoveryDay.key ? -10 : 0;
+      return a.day.load + aIsRecovery - (b.day.load + bIsRecovery) || Math.abs(daysBetween(peakDay.date, a.day.date)) - Math.abs(daysBetween(peakDay.date, b.day.date));
+    });
+  return candidates.find((item) => item.day.load <= Math.max(peakDay.load - 20, 35)) ?? candidates[0] ?? null;
+}
+
+function getForecastCardTargetDay(days: LoadForecastDay[], peakDay: LoadForecastDay, recoveryDay: LoadForecastDay) {
+  const futureCandidates = days
+    .filter((day) => day.key !== peakDay.key && day.date > peakDay.date)
+    .sort((a, b) => a.load - b.load || a.date.getTime() - b.date.getTime());
+  return futureCandidates.find((day) => day.load <= Math.max(peakDay.load - 18, 35)) ?? recoveryDay;
 }
 
 function getProjectDayForDate(project: TaskProject, date: Date) {
