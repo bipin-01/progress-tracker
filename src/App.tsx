@@ -1239,6 +1239,8 @@ function App() {
             <ProgressView
               events={activityEvents}
               projects={taskProjects}
+              calendarEvents={calendarEvents}
+              kanbanCards={kanbanCards}
               onNavigate={navigateTo}
               onOpenProject={(projectId) => {
                 setActiveTaskProjectId(projectId);
@@ -7375,11 +7377,15 @@ function CalendarView({
 function ProgressView({
   events,
   projects,
+  calendarEvents,
+  kanbanCards,
   onNavigate,
   onOpenProject,
 }: {
   events: ActivityEvent[];
   projects: TaskProject[];
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
   onNavigate: (view: View) => void;
   onOpenProject: (projectId: string) => void;
 }) {
@@ -7418,16 +7424,12 @@ function ProgressView({
   async function commitWeeklyProtocol() {
     const projectName = `Weekly Protocol - ${review.weekLabel}`;
     const existing = projects.find((project) => project.name === projectName);
-    if (existing) {
-      setReviewStatus(`${projectName} already exists. Opening Tasks.`);
-      onOpenProject(existing.id);
-      return;
-    }
-
     const now = new Date();
     const timestamp = Date.now();
-    const id = `${timestamp}-weekly-protocol-${slugify(review.weekLabel)}`;
-    const tasksByDay: Record<number, ProjectTask[]> = {
+    const id = existing?.id ?? `${timestamp}-weekly-protocol-${slugify(review.weekLabel)}`;
+    const startDate = parseDateInput(existing?.startDate) ?? now;
+    const endDate = parseDateInput(existing?.endDate) ?? addDays(startDate, 6);
+    const generatedTasksByDay: Record<number, ProjectTask[]> = {
       1: review.nextActions.map((action, index) => ({
         id: `${id}-d1-${index + 1}`,
         name: action,
@@ -7440,32 +7442,113 @@ function ProgressView({
       6: [{ id: `${id}-d6-cleanup`, name: "Clear stale work from Today, Kanban, or Notes.", done: false }],
       7: [{ id: `${id}-d7-review`, name: "Run the next weekly review and save a reflection note.", done: false }],
     };
-    const project: TaskProject = {
-      id,
-      name: projectName,
-      outcome: review.headline,
-      startDate: toDateInputValue(now),
-      endDate: toDateInputValue(addDays(now, 6)),
-      deadlineDays: 7,
-      currentDay: 1,
-      tasksByDay,
-    };
-
-    await taskProjectCrud.add(project);
-    logActivityEvent({
-      domain: "task",
-      action: "generated",
-      entityId: project.id,
-      entityTitle: project.name,
-      source: "Weekly review engine",
-      metadata: {
-        score: review.score,
-        weekLabel: review.weekLabel,
-        dayCount: project.deadlineDays,
-        taskCount: Object.values(tasksByDay).reduce((total, tasks) => total + tasks.length, 0),
-      },
+    const tasksByDay = existing?.tasksByDay ?? generatedTasksByDay;
+    const project: TaskProject =
+      existing ?? {
+        id,
+        name: projectName,
+        outcome: review.headline,
+        startDate: toDateInputValue(startDate),
+        endDate: toDateInputValue(endDate),
+        deadlineDays: 7,
+        currentDay: 1,
+        tasksByDay,
+      };
+    const protocolEvents: CalendarEvent[] = Array.from({ length: 7 }, (_, index) => {
+      const day = index + 1;
+      const date = addDays(parseDateInput(project.startDate) ?? startDate, index);
+      const dayTasks = tasksByDay[day] ?? [];
+      const focus = dayTasks[0]?.name ?? "Run the weekly execution protocol.";
+      return {
+        id: `${id}-calendar-d${day}`,
+        date: toDateInputValue(date),
+        day: date.getDate(),
+        title: `Protocol D${day}: ${focus}`,
+        kind: day === 7 ? "deadline" : "project",
+        time: day === 7 ? "17:30" : "08:30",
+      };
     });
-    setReviewStatus(`${projectName} committed to Tasks.`);
+    const boardCard: KanbanCard = {
+      id: `${id}-control-card`,
+      title: `${projectName} control card`,
+      description: `${review.headline}\n\n${review.summary}\n\nThis card tracks the weekly operating packet generated from the activity ledger. Use the linked task project for daily execution and the calendar anchors for scheduled follow-through.`,
+      columnId: "planned",
+      priority: review.score < 42 ? "ziftinity" : review.frictionCount > 2 ? "high" : "medium",
+      linkedTaskProjectId: project.id,
+      linkedDay: 1,
+      dueDate: project.endDate,
+      tags: ["weekly-protocol", "activity-ledger", "review"],
+      labels: [
+        { name: "Weekly Protocol", color: "violet" },
+        { name: "Activity Ledger", color: "cyan" },
+      ],
+      subtasks: Object.entries(tasksByDay).flatMap(([day, tasks]) =>
+        tasks.map((task) => ({
+          id: `${id}-board-d${day}-${task.id}`,
+          title: `D${day}: ${task.name}`,
+          done: false,
+        })),
+      ),
+      estimateMinutes: 7 * 45,
+      trackedMinutes: 0,
+      attachments: [],
+      comments: [
+        {
+          id: `${id}-comment-origin`,
+          body: `Generated from Weekly Review Engine with review score ${review.score}.`,
+          createdAt: now.toISOString(),
+        },
+      ],
+      order: kanbanCards.filter((card) => card.columnId === "planned" && !card.archivedAt).length + 1,
+    };
+    const missingEvents = protocolEvents.filter((event) => !calendarEvents.some((item) => item.id === event.id));
+    const hasBoardCard = kanbanCards.some((card) => card.id === boardCard.id);
+    const writes: Promise<unknown>[] = [];
+
+    if (!existing) writes.push(taskProjectCrud.add(project));
+    writes.push(...missingEvents.map((event) => calendarCrud.add(event)));
+    if (!hasBoardCard) writes.push(kanbanCrud.add(boardCard));
+
+    await Promise.all(writes);
+    if (!existing || missingEvents.length > 0 || !hasBoardCard) {
+      logActivityEvent({
+        domain: "task",
+        action: existing ? "updated" : "generated",
+        entityId: project.id,
+        entityTitle: project.name,
+        source: "Weekly review engine",
+        metadata: {
+          score: review.score,
+          weekLabel: review.weekLabel,
+          dayCount: project.deadlineDays,
+          taskCount: Object.values(tasksByDay).reduce((total, tasks) => total + tasks.length, 0),
+          sidecarSync: Boolean(existing),
+        },
+      });
+    }
+    if (missingEvents.length > 0) {
+      logActivityEvent({
+        domain: "calendar",
+        action: "generated",
+        entityId: `${project.id}-calendar-anchors`,
+        entityTitle: `${project.name} calendar anchors`,
+        source: "Weekly review engine",
+        metadata: {
+          weekLabel: review.weekLabel,
+          eventCount: missingEvents.length,
+          startDate: project.startDate,
+          endDate: project.endDate,
+        },
+      });
+    }
+    if (!hasBoardCard) logKanbanActivity({ card: boardCard, action: "created", toColumnId: boardCard.columnId });
+
+    const destinations = [
+      existing ? "existing task project" : "task project",
+      missingEvents.length > 0 ? `${missingEvents.length} calendar anchors` : "",
+      !hasBoardCard ? "Kanban control card" : "",
+    ].filter(Boolean);
+    setReviewStatus(destinations.length ? `${projectName} synced to ${destinations.join(", ")}.` : `${projectName} is already fully synced.`);
     onOpenProject(project.id);
   }
 
