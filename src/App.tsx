@@ -1111,7 +1111,9 @@ function App() {
               dashboardTasks={dashboardTasks}
               calendarEvents={calendarEvents}
               kanbanCards={kanbanCards}
+              notes={activeStudyNotes}
               recommendations={agentRecommendations}
+              onQuickCapture={openQuickCapture}
               onNavigate={navigateTo}
             />
           ) : activeView === "planner" ? (
@@ -1708,6 +1710,42 @@ type TodayFocusItem = {
   view: View;
 };
 
+type DashboardTask = ProjectTask & {
+  projectId: string;
+  projectName: string;
+  day: number;
+};
+
+type TodayLane = "morning" | "midday" | "evening" | "anytime";
+
+type TodayQueueKind = "task" | "habit" | "event" | "kanban" | "study" | "agent" | "goal";
+
+type SavedFlashcardSignal = {
+  noteId: string;
+  noteTitle: string;
+  card: NonNullable<StudyNote["flashcards"]>[number];
+};
+
+type TodayQueueItem = {
+  id: string;
+  kind: TodayQueueKind;
+  title: string;
+  source: string;
+  meta: string;
+  score: number;
+  priority: Priority;
+  lane: TodayLane;
+  view: View;
+  timeLabel?: string;
+  progress?: number;
+  task?: DashboardTask;
+  habit?: Habit;
+  event?: CalendarEvent;
+  card?: KanbanCard;
+  flashcard?: SavedFlashcardSignal;
+  recommendation?: AgentRecommendation;
+};
+
 function TodayView({
   goals,
   habits,
@@ -1715,16 +1753,20 @@ function TodayView({
   dashboardTasks,
   calendarEvents,
   kanbanCards,
+  notes,
   recommendations,
+  onQuickCapture,
   onNavigate,
 }: {
   goals: Goal[];
   habits: Habit[];
   projects: TaskProject[];
-  dashboardTasks: ReturnType<typeof getDashboardTasks>;
+  dashboardTasks: DashboardTask[];
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  notes: StudyNote[];
   recommendations: AgentRecommendation[];
+  onQuickCapture: () => void;
   onNavigate: (view: View) => void;
 }) {
   const now = new Date();
@@ -1766,13 +1808,61 @@ function TodayView({
     () => recommendations.filter((item) => item.status === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3),
     [recommendations],
   );
+  const queueItems = useMemo(
+    () =>
+      getTodayQueueItems({
+        context,
+        goals,
+        habits,
+        todayEvents,
+        notes,
+        recommendations,
+        now,
+      }),
+    [context, goals, habits, notes, recommendations, todayEvents, todayKey],
+  );
+  const laneMap = useMemo(() => groupTodayQueue(queueItems), [queueItems]);
   const readiness = getTodayReadiness(context);
   const readinessLabel = getTodayReadinessLabel(readiness);
   const directive = getTodayDirective(context, focusItems[0], todayEvents.length);
   const completedTasks = dashboardTasks.filter((task) => task.done).length;
+  const activeQueue = queueItems.filter((item) => item.kind !== "event" || item.score >= 55);
+  const topQueueItems = activeQueue.slice(0, 7);
+  const primaryItem = topQueueItems[0];
+  const blockedCount = context.blockedCards.length;
+  const dueStudyCount = queueItems.filter((item) => item.kind === "study").length;
+  const carryForward = queueItems
+    .filter((item) => item.kind !== "event" && item.kind !== "habit")
+    .slice(0, 3);
 
-  function toggleTask(task: ReturnType<typeof getDashboardTasks>[number]) {
+  function completeTask(task: DashboardTask) {
+    void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({ ...item, done: true }));
+  }
+
+  function toggleTask(task: DashboardTask) {
     void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({ ...item, done: !item.done }));
+  }
+
+  function deferTask(task: DashboardTask) {
+    const project = projects.find((item) => item.id === task.projectId);
+    if (!project || task.day >= project.deadlineDays) return;
+    const deferred: ProjectTask = {
+      id: `${Date.now()}-defer-${slugify(task.name)}`,
+      name: task.name,
+      done: false,
+    };
+    void taskProjectCrud.addTask(task.projectId, task.day + 1, deferred).then(() => taskProjectCrud.deleteTask(task.projectId, task.day, task.id));
+  }
+
+  function deferCard(card: KanbanCard) {
+    void kanbanCrud.update(card.id, { dueDate: toDateInputValue(addDays(now, 1)) });
+  }
+
+  async function acceptRecommendation(recommendation: AgentRecommendation) {
+    if (recommendation.action) {
+      await executeAgentAction(recommendation.action);
+    }
+    await agentRecommendationCrud.update(recommendation.id, { status: "accepted" });
   }
 
   return (
@@ -1789,15 +1879,23 @@ function TodayView({
               <span className="today-eyebrow">Operating plan</span>
               <strong>{getTodayHeadline(context, todayEvents.length)}</strong>
               <p>{directive}</p>
+              {primaryItem && (
+                <div className="today-next-action">
+                  <span>next best action</span>
+                  <strong>{primaryItem.title}</strong>
+                  <em>{primaryItem.source} - score {Math.round(primaryItem.score)}</em>
+                </div>
+              )}
             </div>
           </div>
           <div className="today-signal-row">
             <span><strong>{context.incompleteTasks.length}</strong> tasks open</span>
             <span><strong>{context.missedHabits.length}</strong> habits left</span>
             <span><strong>{todayEvents.length}</strong> events today</span>
-            <span><strong>{context.overdueCards.length}</strong> overdue cards</span>
+            <span><strong>{context.overdueCards.length}</strong> board risks</span>
           </div>
           <div className="today-command-actions">
+            <button type="button" onClick={onQuickCapture}>Quick Capture</button>
             <button type="button" onClick={() => onNavigate("tasks")}>Open Tasks</button>
             <button type="button" onClick={() => onNavigate("kanban")}>Open Board</button>
             <button type="button" onClick={() => onNavigate("agents")}>Open Agents</button>
@@ -1813,74 +1911,41 @@ function TodayView({
         </HudCard>
       </section>
 
-      <section className="today-main-grid">
-        <HudCard className="today-focus-card">
-          <CardHeader title="Top Focus Targets" meta={`${focusItems.length} signals`} />
-          <div className="today-focus-list">
-            {focusItems.length === 0 ? (
-              <div className="kanban-empty">// no urgent focus targets detected</div>
+      <section className="today-command-center-grid">
+        <HudCard className="today-queue-card">
+          <CardHeader title="Unified Today Queue" meta={`${topQueueItems.length} ranked actions`} />
+          <div className="today-queue-list">
+            {topQueueItems.length === 0 ? (
+              <div className="kanban-empty">// nothing urgent in the queue</div>
             ) : (
-              focusItems.map((item, index) => (
-                <button className={`today-focus-item ${item.priority}`} type="button" onClick={() => onNavigate(item.view)} key={item.id}>
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <em>{item.source} - {item.meta}</em>
-                    {typeof item.progress === "number" && <ProgressBar value={item.progress} />}
-                  </div>
-                  <PriorityChip level={item.priority} />
-                </button>
+              topQueueItems.map((item, index) => (
+                <TodayQueueRow
+                  item={item}
+                  rank={index + 1}
+                  key={item.id}
+                  onNavigate={onNavigate}
+                  onCompleteTask={completeTask}
+                  onDeferTask={deferTask}
+                  onToggleHabit={(habit) => void habitCrud.toggle(habit.id)}
+                  onDeferCard={deferCard}
+                  onAcceptRecommendation={(recommendation) => void acceptRecommendation(recommendation)}
+                />
               ))
             )}
           </div>
         </HudCard>
 
-        <HudCard className="today-timeline-card">
-          <CardHeader title="Schedule Signals" meta={`${todayEvents.length + habits.length} entries`} />
-          <div className="today-timeline-list">
-            {sortHabits(habits).map((habit) => (
-              <button className={`today-timeline-row habit ${habit.done ? "done" : ""}`} type="button" onClick={() => void habitCrud.toggle(habit.id)} key={habit.id}>
-                <span>{habit.time}</span>
-                <div>
-                  <strong>{habit.name}</strong>
-                  <em>{habit.duration}</em>
-                </div>
-                <i>{habit.done ? "done" : "open"}</i>
-              </button>
+        <HudCard className="today-lanes-card">
+          <CardHeader title="Time Lanes" meta="morning / midday / evening" />
+          <div className="today-lane-grid">
+            {todayLaneOrder.map((lane) => (
+              <TodayLaneStack
+                lane={lane}
+                items={laneMap[lane]}
+                key={lane}
+                onNavigate={onNavigate}
+              />
             ))}
-            {todayEvents.map(({ event }) => (
-              <div className={`today-timeline-row event ${event.kind}`} key={event.id}>
-                <span>{event.time}</span>
-                <div>
-                  <strong>{event.title}</strong>
-                  <em>{event.kind}</em>
-                </div>
-                <i>{event.kind}</i>
-              </div>
-            ))}
-          </div>
-        </HudCard>
-
-        <HudCard className="today-risk-card">
-          <CardHeader title="Risk Radar" meta={`${pendingReports.length} agent reports`} />
-          <div className="today-risk-stack">
-            {context.blockedCards.slice(0, 2).map((card) => (
-              <button type="button" onClick={() => onNavigate("kanban")} key={card.id}>
-                <span>Blocked</span>
-                <strong>{card.title}</strong>
-                <em>{card.blockedBy}</em>
-              </button>
-            ))}
-            {pendingReports.map((report) => (
-              <button type="button" onClick={() => onNavigate("agents")} key={report.id}>
-                <span>{report.agentName}</span>
-                <strong>{report.title}</strong>
-                <em>{report.severity} - {report.confidence}% confidence</em>
-              </button>
-            ))}
-            {context.blockedCards.length === 0 && pendingReports.length === 0 && (
-              <div className="kanban-empty">// no high-risk blockers detected</div>
-            )}
           </div>
         </HudCard>
       </section>
@@ -1899,6 +1964,45 @@ function TodayView({
                   <span className="task-source">{task.projectName} - D{task.day}</span>
                 </button>
               ))
+            )}
+          </div>
+        </HudCard>
+
+        <HudCard className="today-risk-card">
+          <CardHeader title="Risk Radar" meta={`${blockedCount + pendingReports.length} live signals`} />
+          <div className="today-risk-stack">
+            <div className="today-risk-summary">
+              <span><strong>{blockedCount}</strong> blocked</span>
+              <span><strong>{dueStudyCount}</strong> study due</span>
+              <span><strong>{carryForward.length}</strong> carry forward</span>
+            </div>
+            {context.blockedCards.slice(0, 2).map((card) => (
+              <button type="button" onClick={() => onNavigate("kanban")} key={card.id}>
+                <span>Blocked</span>
+                <strong>{card.title}</strong>
+                <em>{card.blockedBy}</em>
+              </button>
+            ))}
+            {pendingReports.map((report) => (
+              <button type="button" onClick={() => onNavigate("agents")} key={report.id}>
+                <span>{report.agentName}</span>
+                <strong>{report.title}</strong>
+                <em>{report.severity} - {report.confidence}% confidence</em>
+              </button>
+            ))}
+            {carryForward.length > 0 && (
+              <div className="today-carry-forward">
+                <span>Shutdown carry-forward</span>
+                {carryForward.map((item) => (
+                  <button type="button" onClick={() => onNavigate(item.view)} key={`carry-${item.id}`}>
+                    <strong>{item.title}</strong>
+                    <em>{item.source}</em>
+                  </button>
+                ))}
+              </div>
+            )}
+            {context.blockedCards.length === 0 && pendingReports.length === 0 && carryForward.length === 0 && (
+              <div className="kanban-empty">// no high-risk blockers detected</div>
             )}
           </div>
         </HudCard>
@@ -1928,6 +2032,149 @@ function TodayView({
   );
 }
 
+const todayLaneOrder: TodayLane[] = ["morning", "midday", "evening", "anytime"];
+
+const todayLaneLabels: Record<TodayLane, string> = {
+  morning: "Morning",
+  midday: "Midday",
+  evening: "Evening",
+  anytime: "Anytime",
+};
+
+function TodayQueueRow({
+  item,
+  rank,
+  onNavigate,
+  onCompleteTask,
+  onDeferTask,
+  onToggleHabit,
+  onDeferCard,
+  onAcceptRecommendation,
+}: {
+  item: TodayQueueItem;
+  rank: number;
+  onNavigate: (view: View) => void;
+  onCompleteTask: (task: DashboardTask) => void;
+  onDeferTask: (task: DashboardTask) => void;
+  onToggleHabit: (habit: Habit) => void;
+  onDeferCard: (card: KanbanCard) => void;
+  onAcceptRecommendation: (recommendation: AgentRecommendation) => void;
+}) {
+  const task = item.task;
+  const card = item.card;
+
+  function runPrimary() {
+    if (task) {
+      onCompleteTask(task);
+      return;
+    }
+    if (item.habit) {
+      onToggleHabit(item.habit);
+      return;
+    }
+    if (item.recommendation?.action) {
+      onAcceptRecommendation(item.recommendation);
+      return;
+    }
+    onNavigate(item.view);
+  }
+
+  return (
+    <article
+      className={`today-queue-item ${item.kind} ${item.priority}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onNavigate(item.view)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onNavigate(item.view);
+        }
+      }}
+    >
+      <div className="today-queue-rank">
+        <strong>{String(rank).padStart(2, "0")}</strong>
+        <span>{Math.round(item.score)}</span>
+      </div>
+      <div className="today-queue-body">
+        <div className="today-queue-head">
+          <span className={`today-kind ${item.kind}`}>{getTodayKindLabel(item.kind)}</span>
+          <PriorityChip level={item.priority} />
+          {item.timeLabel && <em>{item.timeLabel}</em>}
+        </div>
+        <strong>{item.title}</strong>
+        <p>{item.source} - {item.meta}</p>
+        {typeof item.progress === "number" && <ProgressBar value={item.progress} />}
+      </div>
+      <div className="today-queue-actions">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            runPrimary();
+          }}
+        >
+          {getTodayPrimaryActionLabel(item)}
+        </button>
+        {task && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeferTask(task);
+            }}
+          >
+            defer
+          </button>
+        )}
+        {card && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeferCard(card);
+            }}
+          >
+            +1d
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function TodayLaneStack({
+  lane,
+  items,
+  onNavigate,
+}: {
+  lane: TodayLane;
+  items: TodayQueueItem[];
+  onNavigate: (view: View) => void;
+}) {
+  return (
+    <div className={`today-lane ${lane}`}>
+      <div className="today-lane-head">
+        <span>{todayLaneLabels[lane]}</span>
+        <strong>{items.length}</strong>
+      </div>
+      <div className="today-lane-list">
+        {items.length === 0 ? (
+          <div className="today-lane-empty">// clear</div>
+        ) : (
+          items.slice(0, 4).map((item) => (
+            <button className={`today-lane-item ${item.kind}`} type="button" onClick={() => onNavigate(item.view)} key={`${lane}-${item.id}`}>
+              <span>{item.timeLabel ?? getTodayKindLabel(item.kind)}</span>
+              <strong>{item.title}</strong>
+              <em>{item.source}</em>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: number; tone?: "risk" | "good" }) {
   return (
     <div className={`today-risk-row ${tone}`}>
@@ -1938,6 +2185,235 @@ function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: n
       <ProgressBar value={value} />
     </div>
   );
+}
+
+function getTodayQueueItems({
+  context,
+  goals,
+  habits,
+  todayEvents,
+  notes,
+  recommendations,
+  now,
+}: {
+  context: AgentContext;
+  goals: Goal[];
+  habits: Habit[];
+  todayEvents: Array<{ event: CalendarEvent; date: Date }>;
+  notes: StudyNote[];
+  recommendations: AgentRecommendation[];
+  now: Date;
+}): TodayQueueItem[] {
+  const taskItems: TodayQueueItem[] = context.incompleteTasks.map((task, index) => {
+    const project = context.projects.find((item) => item.id === task.projectId);
+    const pressure = project ? getProjectPressure(project, now) : context.projectPressure;
+    const daysLeft = project ? Math.max(project.deadlineDays - task.day, 0) : 0;
+    const score = clamp(72 + pressure * 0.16 + Math.max(0, 5 - index) * 2, 35, 98);
+    return {
+      id: `queue-task-${task.projectId}-${task.day}-${task.id}`,
+      kind: "task",
+      title: task.name,
+      source: `${task.projectName} - D${task.day}`,
+      meta: `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`,
+      score,
+      priority: pressure >= 80 ? "ziftinity" : pressure >= 58 ? "high" : "medium",
+      lane: index < 2 ? "morning" : index < 5 ? "midday" : "anytime",
+      view: "tasks",
+      task,
+    };
+  });
+
+  const habitItems: TodayQueueItem[] = sortHabits(habits)
+    .filter((habit) => !habit.done)
+    .map((habit) => {
+      const late = isTodayTimePast(habit.time, now);
+      return {
+        id: `queue-habit-${habit.id}`,
+        kind: "habit",
+        title: habit.name,
+        source: "Habit protocol",
+        meta: late ? `${habit.duration} - overdue window` : habit.duration,
+        score: clamp(54 + getHabitFriction(habit) * 0.8 + (late ? 14 : 0), 35, 88),
+        priority: late ? "high" : "medium",
+        lane: getTodayLaneFromTime(habit.time),
+        view: "habits",
+        timeLabel: habit.time,
+        habit,
+      } satisfies TodayQueueItem;
+    });
+
+  const eventItems: TodayQueueItem[] = todayEvents.map(({ event }) => ({
+    id: `queue-event-${event.id}`,
+    kind: "event",
+    title: event.title,
+    source: "Calendar",
+    meta: event.kind,
+    score: getTodayEventScore(event, now),
+    priority: getTodayEventPriority(event),
+    lane: getTodayLaneFromTime(event.time),
+    view: "calendar",
+    timeLabel: event.time,
+    event,
+  }));
+
+  const seenCards = new Set<string>();
+  const pressureCards = [...context.overdueCards, ...context.dueSoonCards, ...context.highOpenCards]
+    .filter((card) => {
+      if (seenCards.has(card.id)) return false;
+      seenCards.add(card.id);
+      return true;
+    })
+    .slice(0, 7);
+  const cardItems: TodayQueueItem[] = pressureCards.map((card) => {
+    const dueState = getDueState(card.dueDate);
+    return {
+      id: `queue-card-${card.id}`,
+      kind: "kanban",
+      title: card.title,
+      source: getKanbanColumnTitle(card.columnId),
+      meta: getTodayCardMeta(card),
+      score: clamp(getTodayCardScore(card, now), 35, 100),
+      priority: card.priority,
+      lane: dueState === "overdue" ? "morning" : dueState === "due-today" ? "midday" : "anytime",
+      view: "kanban",
+      progress: card.subtasks.length ? getSubtaskProgress(card) : undefined,
+      card,
+    };
+  });
+
+  const dueFlashcards = getDueFlashcards(getAllSavedFlashcards(notes))
+    .filter((item) => item.card.difficulty !== "known")
+    .slice(0, 6);
+  const studyItems: TodayQueueItem[] = dueFlashcards.map((item) => {
+    const hoursOverdue = Math.max(0, (now.getTime() - new Date(item.card.dueAt).getTime()) / 36e5);
+    const score = clamp(58 + hoursOverdue * 1.2 + (item.card.difficulty === "learning" ? 14 : 7), 40, 94);
+    return {
+      id: `queue-study-${item.noteId}-${item.card.id}`,
+      kind: "study",
+      title: item.card.question,
+      source: item.noteTitle,
+      meta: `${item.card.difficulty} recall - ${item.card.source}`,
+      score,
+      priority: score >= 82 ? "high" : "medium",
+      lane: "evening",
+      view: "notes",
+      flashcard: item,
+    };
+  });
+
+  const agentItems: TodayQueueItem[] = recommendations
+    .filter((recommendation) => recommendation.status === "pending")
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5)
+    .map((recommendation) => {
+      const priority = agentSeverityToPriority(recommendation.severity);
+      return {
+        id: `queue-agent-${recommendation.id}`,
+        kind: "agent",
+        title: recommendation.title,
+        source: recommendation.agentName,
+        meta: `${recommendation.confidence ?? 0}% confidence - ${recommendation.source}`,
+        score: clamp((recommendation.score ?? 55) + priorityToScore(priority) * 0.1, 35, 98),
+        priority,
+        lane: priority === "ziftinity" || priority === "high" ? "morning" : "anytime",
+        view: "agents",
+        recommendation,
+      };
+    });
+
+  const goalItems: TodayQueueItem[] = sortGoals(goals)
+    .filter((goal) => goal.progress < 100)
+    .slice(0, 3)
+    .map((goal) => ({
+      id: `queue-goal-${goal.id}`,
+      kind: "goal",
+      title: goal.title,
+      source: `${priorityLabel[goal.level]} goal`,
+      meta: `${goal.progress}% complete`,
+      score: clamp(priorityToScore(goal.level) * 0.52 + (100 - goal.progress) * 0.24 + context.projectPressure * 0.18, 30, 88),
+      priority: goal.level,
+      lane: "anytime",
+      view: "goals",
+      progress: goal.progress,
+    }));
+
+  return [...taskItems, ...habitItems, ...eventItems, ...cardItems, ...studyItems, ...agentItems, ...goalItems]
+    .sort((a, b) => b.score - a.score || priorityRank[a.priority] - priorityRank[b.priority] || a.title.localeCompare(b.title))
+    .slice(0, 28);
+}
+
+function groupTodayQueue(items: TodayQueueItem[]) {
+  const groups = todayLaneOrder.reduce<Record<TodayLane, TodayQueueItem[]>>((result, lane) => {
+    result[lane] = [];
+    return result;
+  }, { morning: [], midday: [], evening: [], anytime: [] });
+
+  items.forEach((item) => {
+    groups[item.lane].push(item);
+  });
+
+  todayLaneOrder.forEach((lane) => {
+    groups[lane] = groups[lane].sort((a, b) => getTodayLaneSortValue(a) - getTodayLaneSortValue(b) || b.score - a.score);
+  });
+
+  return groups;
+}
+
+function getTodayLaneSortValue(item: TodayQueueItem) {
+  const minutes = getTimeMinutes(item.timeLabel);
+  if (typeof minutes === "number") return minutes;
+  return 1500 - item.score;
+}
+
+function getTodayLaneFromTime(time?: string): TodayLane {
+  const minutes = getTimeMinutes(time);
+  if (typeof minutes !== "number") return "anytime";
+  if (minutes < 12 * 60) return "morning";
+  if (minutes < 17 * 60) return "midday";
+  return "evening";
+}
+
+function getTimeMinutes(value?: string) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value ?? "");
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function isTodayTimePast(time: string, now: Date) {
+  const minutes = getTimeMinutes(time);
+  if (typeof minutes !== "number") return false;
+  return now.getHours() * 60 + now.getMinutes() > minutes;
+}
+
+function getTodayEventScore(event: CalendarEvent, now: Date) {
+  const minutes = getTimeMinutes(event.time);
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const timePressure = typeof minutes === "number" ? clamp(60 - Math.abs(minutes - currentMinutes) / 6, 0, 60) : 22;
+  const kindPressure = event.kind === "deadline" ? 34 : event.kind === "project" ? 26 : event.kind === "meeting" ? 22 : event.kind === "appointment" ? 18 : 12;
+  return clamp(38 + kindPressure + timePressure * 0.42, 35, 96);
+}
+
+function getTodayEventPriority(event: CalendarEvent): Priority {
+  if (event.kind === "deadline") return "high";
+  if (event.kind === "project" || event.kind === "meeting") return "medium";
+  return "low";
+}
+
+function getTodayKindLabel(kind: TodayQueueKind) {
+  if (kind === "kanban") return "board";
+  if (kind === "study") return "review";
+  return kind;
+}
+
+function getTodayPrimaryActionLabel(item: TodayQueueItem) {
+  if (item.kind === "task") return "complete";
+  if (item.kind === "habit") return "done";
+  if (item.kind === "study") return "review";
+  if (item.kind === "agent") return item.recommendation?.action ? "accept" : "open";
+  return "open";
 }
 
 function PlannerView({
