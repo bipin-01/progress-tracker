@@ -2149,8 +2149,9 @@ function TodayView({
   }
 
   async function acceptRecommendation(recommendation: AgentRecommendation) {
+    let outcome: AgentActionResult | undefined;
     if (recommendation.action) {
-      await executeAgentAction(recommendation.action);
+      outcome = await executeAgentAction(recommendation.action, recommendation);
     }
     await agentRecommendationCrud.update(recommendation.id, { status: "accepted" });
     logActivityEvent({
@@ -2159,7 +2160,15 @@ function TodayView({
       entityId: recommendation.id,
       entityTitle: recommendation.title,
       source: "Today queue",
-      metadata: { agent: recommendation.agentName, severity: recommendation.severity, actionType: recommendation.action?.type },
+      metadata: {
+        agent: recommendation.agentName,
+        agentId: recommendation.agentId,
+        severity: recommendation.severity,
+        actionType: recommendation.action?.type,
+        outcomeDomain: outcome?.domain,
+        outcomeEntityId: outcome?.entityId,
+        outcomeEntityTitle: outcome?.entityTitle,
+      },
     });
   }
 
@@ -2424,7 +2433,7 @@ function TodayView({
         </div>
         <div className="today-coach-metrics">
           <span><strong>{agentLearningMemory.strongest.name}</strong> strongest</span>
-          <span><strong>{agentLearningMemory.weakest.name}</strong> needs review</span>
+          <span><strong>{agentLearningMemory.impactRate}%</strong> outcome impact</span>
           <span><strong>{agentLearningMemory.pendingCount}</strong> pending</span>
           <span><strong>{agentLearningMemory.actionRate}%</strong> actioned</span>
         </div>
@@ -9167,6 +9176,7 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
   const agentEvents = activityEvents.filter((event) => event.domain === "agent");
   const runEvents = agentEvents.filter((event) => event.source === "Agents command" && event.action === "generated");
   const actionEvents = agentEvents.filter((event) => ["accepted", "dismissed"].includes(event.action));
+  const outcomeImpacts = getAgentOutcomeImpacts(activityEvents, now);
   const recentStart = startOfDay(addDays(now, -13));
 
   const rows = agentProfiles.map((profile) => {
@@ -9187,31 +9197,35 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
     const recentDismissed = recent.filter((recommendation) => recommendation.status === "dismissed").length;
     const acceptedSources = ownRecommendations.filter((recommendation) => recommendation.status === "accepted").map((recommendation) => recommendation.source);
     const topSource = [...countBy(acceptedSources, (source) => source).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? profile.signal;
+    const ownImpacts = outcomeImpacts.filter((impact) => impact.agentId === profile.id);
+    const deployed = ownImpacts.length;
+    const outcomes = ownImpacts.filter((impact) => impact.resolved).length;
+    const staleOutcomes = ownImpacts.filter((impact) => impact.stale).length;
+    const impactRate = deployed === 0 ? 50 : Math.round((outcomes / deployed) * 100);
     const recencyBoost = recent.length === 0 ? 0 : Math.min(recent.length * 5, 16);
     const noisePenalty = Math.max(0, dismissed - accepted) * 8 + Math.max(0, pending - 3) * 4;
+    const outcomeAdjustment = deployed === 0 ? 0 : (impactRate - 50) * 0.18 + Math.min(outcomes * 6, 18) - staleOutcomes * 9;
     const trustScore = ownRecommendations.length === 0
       ? 56
-      : Math.round(clamp(precision * 0.38 + avgConfidence * 0.2 + avgScore * 0.18 + recencyBoost + recentAccepted * 8 - recentDismissed * 7 - noisePenalty, 0, 100));
-    const state =
-      ownRecommendations.length === 0
-        ? "calibrating"
-        : trustScore >= 76
-          ? "trusted"
-          : pending >= 4
-            ? "queue heavy"
-            : trustScore < 42 && dismissed > accepted
-              ? "too noisy"
-              : "learning";
-    const tuning =
-      ownRecommendations.length === 0
-        ? "Needs a few runs before the model can judge signal quality."
-        : state === "trusted"
-          ? `Accepted signals cluster around ${topSource}; keep this agent active.`
-          : state === "queue heavy"
-            ? "Review or dismiss old reports before asking for more output."
-            : state === "too noisy"
-              ? "Tighten thresholds before this agent writes more work."
-              : "Keep watching acceptance and dismissal patterns.";
+      : Math.round(clamp(precision * 0.32 + avgConfidence * 0.18 + avgScore * 0.16 + impactRate * 0.16 + recencyBoost + recentAccepted * 8 - recentDismissed * 7 - noisePenalty + outcomeAdjustment, 0, 100));
+    const state = (() => {
+      if (ownRecommendations.length === 0) return "calibrating";
+      if (staleOutcomes > 0) return "follow-up debt";
+      if (outcomes > 0 && impactRate >= 75) return "outcome proven";
+      if (trustScore >= 76) return "trusted";
+      if (pending >= 4) return "queue heavy";
+      if (trustScore < 42 && dismissed > accepted) return "too noisy";
+      return "learning";
+    })();
+    const tuning = (() => {
+      if (ownRecommendations.length === 0) return "Needs a few runs before the model can judge signal quality.";
+      if (staleOutcomes > 0) return `${staleOutcomes} deployed action${staleOutcomes === 1 ? "" : "s"} need follow-through before trust should rise.`;
+      if (outcomes > 0 && impactRate >= 75) return `${outcomes} deployed action${outcomes === 1 ? "" : "s"} produced visible follow-through.`;
+      if (state === "trusted") return `Accepted signals cluster around ${topSource}; keep this agent active.`;
+      if (state === "queue heavy") return "Review or dismiss old reports before asking for more output.";
+      if (state === "too noisy") return "Tighten thresholds before this agent writes more work.";
+      return "Keep watching acceptance and dismissal patterns.";
+    })();
 
     return {
       id: profile.id,
@@ -9224,6 +9238,10 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
       precision,
       avgScore,
       avgConfidence,
+      deployed,
+      outcomes,
+      staleOutcomes,
+      impactRate,
       trustScore,
       state,
       tuning,
@@ -9235,6 +9253,10 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
   const actionedRecommendations = recommendations.filter((recommendation) => recommendation.status !== "pending");
   const acceptedCount = actionedRecommendations.filter((recommendation) => recommendation.status === "accepted").length;
   const dismissedCount = actionedRecommendations.filter((recommendation) => recommendation.status === "dismissed").length;
+  const deployedCount = outcomeImpacts.length;
+  const outcomeCount = outcomeImpacts.filter((impact) => impact.resolved).length;
+  const staleOutcomeCount = outcomeImpacts.filter((impact) => impact.stale).length;
+  const impactRate = deployedCount === 0 ? 0 : Math.round((outcomeCount / deployedCount) * 100);
   const totalTrust = Math.round(rows.reduce((total, row) => total + row.trustScore, 0) / Math.max(rows.length, 1));
   const strongest = [...rows].sort((a, b) => b.trustScore - a.trustScore || b.accepted - a.accepted)[0];
   const weakest = [...rows].sort((a, b) => a.trustScore - b.trustScore || b.dismissed - a.dismissed)[0];
@@ -9247,6 +9269,10 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
       label: `${formatActivityAction(event.action)} - ${event.entityTitle}`,
       meta: `${event.metadata?.agent ?? "Agent"} - ${formatActivityTime(event.timestamp)}`,
     }));
+  const recentOutcomes = outcomeImpacts
+    .filter((impact) => impact.resolved)
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, 5);
 
   return {
     rows,
@@ -9254,24 +9280,95 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
     runCount: runEvents.length,
     acceptedCount,
     dismissedCount,
+    deployedCount,
+    outcomeCount,
+    staleOutcomeCount,
+    impactRate,
     pendingCount: recommendations.filter((recommendation) => recommendation.status === "pending").length,
     actionRate: Math.round((actionedRecommendations.length / Math.max(recommendations.length, 1)) * 100),
     strongest,
     weakest,
     recentActions,
+    recentOutcomes,
     headline:
       recommendations.length === 0
         ? "Agent learning memory is waiting for the first run."
-        : totalTrust >= 72
-          ? "Agent output is becoming reliable enough to trust faster."
-          : totalTrust <= 42
-            ? "Agent output needs tighter review before automation expands."
-            : "Agent learning is active and still calibrating.",
+        : staleOutcomeCount > 0
+          ? "Accepted agent work needs visible follow-through."
+          : deployedCount > 0 && impactRate >= 70
+            ? "Agent advice is producing real execution outcomes."
+            : totalTrust >= 72
+              ? "Agent output is becoming reliable enough to trust faster."
+              : totalTrust <= 42
+                ? "Agent output needs tighter review before automation expands."
+                : "Agent learning is active and still calibrating.",
     summary:
       recommendations.length === 0
         ? "Run the agents, then accept or dismiss reports so the system learns which recommendations deserve weight."
-        : `${acceptedCount} accepted and ${dismissedCount} dismissed recommendations are shaping agent trust. ${strongest.name} is strongest; ${weakest.name} needs the most calibration.`,
+        : deployedCount > 0
+          ? `${acceptedCount} accepted reports created ${deployedCount} work item${deployedCount === 1 ? "" : "s"}, with ${impactRate}% showing follow-through. ${strongest.name} is strongest; ${weakest.name} needs the most calibration.`
+          : `${acceptedCount} accepted and ${dismissedCount} dismissed recommendations are shaping agent trust. ${strongest.name} is strongest; ${weakest.name} needs the most calibration.`,
   };
+}
+
+type AgentOutcomeImpact = {
+  id: string;
+  agentId: AgentId;
+  agentName: string;
+  title: string;
+  domain: ActivityEventDomain;
+  timestamp: string;
+  resolved: boolean;
+  stale: boolean;
+  outcomeLabel: string;
+  meta: string;
+};
+
+function getAgentOutcomeImpacts(events: ActivityEvent[], now: Date): AgentOutcomeImpact[] {
+  const sorted = sortActivityEvents(events).reverse();
+  return sorted
+    .filter((event) => event.source === "Agent action" && event.action === "created")
+    .map((event) => {
+      const agentId = String(event.metadata?.originAgentId ?? "");
+      const profile = agentProfiles.find((agent) => agent.id === agentId);
+      if (!profile) return undefined;
+      const createdAt = new Date(event.timestamp);
+      const outcome = sorted.find((candidate) => {
+        if (candidate.id === event.id || candidate.entityId !== event.entityId || candidate.domain !== event.domain) return false;
+        if (new Date(candidate.timestamp) <= createdAt) return false;
+        return isAgentOutcomeEvent(candidate);
+      });
+      const resolved = event.domain === "calendar" || Boolean(outcome);
+      const stale = !resolved && daysBetween(createdAt, now) >= 7;
+      const outcomeLabel = event.domain === "calendar"
+        ? "scheduled"
+        : outcome
+          ? formatActivityAction(outcome.action)
+          : stale
+            ? "stale"
+            : "waiting";
+
+      return {
+        id: event.id,
+        agentId: profile.id,
+        agentName: profile.name,
+        title: event.entityTitle,
+        domain: event.domain,
+        timestamp: outcome?.timestamp ?? event.timestamp,
+        resolved,
+        stale,
+        outcomeLabel,
+        meta: `${formatActivityDomain(event.domain)} - ${formatActivityTime(outcome?.timestamp ?? event.timestamp)}`,
+      } satisfies AgentOutcomeImpact;
+    })
+    .filter((impact): impact is AgentOutcomeImpact => Boolean(impact));
+}
+
+function isAgentOutcomeEvent(event: ActivityEvent) {
+  if (["completed", "reviewed", "accepted"].includes(event.action)) return true;
+  if (event.domain === "kanban" && event.action === "moved" && event.metadata?.toColumnId === "done") return true;
+  if (event.domain === "kanban" && event.action === "archived") return true;
+  return false;
 }
 
 function getTrustedCoachReport(recommendations: AgentRecommendation[], memory: ReturnType<typeof getAgentLearningMemory>) {
@@ -9369,8 +9466,9 @@ function AgentsView({
   }
 
   async function acceptRecommendation(recommendation: AgentRecommendation) {
+    let outcome: AgentActionResult | undefined;
     if (recommendation.action) {
-      await executeAgentAction(recommendation.action);
+      outcome = await executeAgentAction(recommendation.action, recommendation);
     }
     await agentRecommendationCrud.update(recommendation.id, { status: "accepted" });
     logActivityEvent({
@@ -9379,7 +9477,15 @@ function AgentsView({
       entityId: recommendation.id,
       entityTitle: recommendation.title,
       source: "Agents command",
-      metadata: { agent: recommendation.agentName, severity: recommendation.severity, actionType: recommendation.action?.type },
+      metadata: {
+        agent: recommendation.agentName,
+        agentId: recommendation.agentId,
+        severity: recommendation.severity,
+        actionType: recommendation.action?.type,
+        outcomeDomain: outcome?.domain,
+        outcomeEntityId: outcome?.entityId,
+        outcomeEntityTitle: outcome?.entityTitle,
+      },
     });
   }
 
@@ -9439,6 +9545,11 @@ function AgentsView({
             <p>Reports converted into real tasks, calendar items, or board cards.</p>
           </section>
           <section>
+            <span>Outcome Impact</span>
+            <strong>{learningMemory.impactRate}%</strong>
+            <p>{learningMemory.outcomeCount}/{learningMemory.deployedCount} deployed action{learningMemory.deployedCount === 1 ? "" : "s"} show follow-through.</p>
+          </section>
+          <section>
             <span>Runs</span>
             <strong>{learningMemory.runCount}</strong>
             <p>Agent command cycles recorded in the activity ledger.</p>
@@ -9458,12 +9569,23 @@ function AgentsView({
               <div className="agent-learning-meta">
                 <span>{row.state}</span>
                 <span>{row.precision}% precision</span>
+                <span>{row.impactRate}% impact</span>
                 <span>{row.avgConfidence}% confidence</span>
                 <span>{row.lastSignal}</span>
               </div>
             </article>
           ))}
         </div>
+        {learningMemory.recentOutcomes.length > 0 && (
+          <div className="agent-learning-outcomes">
+            {learningMemory.recentOutcomes.map((item) => (
+              <span key={item.id}>
+                <strong>{item.title}</strong>
+                <em>{item.agentName} - {item.outcomeLabel} - {item.meta}</em>
+              </span>
+            ))}
+          </div>
+        )}
         {learningMemory.recentActions.length > 0 && (
           <div className="agent-learning-actions">
             {learningMemory.recentActions.map((item) => (
@@ -11236,7 +11358,27 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
   return drafts;
 }
 
-async function executeAgentAction(action: NonNullable<AgentRecommendation["action"]>) {
+type AgentActionResult = {
+  domain: ActivityEventDomain;
+  entityId: string;
+  entityTitle: string;
+  actionType: NonNullable<AgentRecommendation["action"]>["type"];
+};
+
+function getAgentActionOriginMetadata(action: NonNullable<AgentRecommendation["action"]>, recommendation?: AgentRecommendation): ActivityEventMetadata {
+  return {
+    actionType: action.type,
+    originRecommendationId: recommendation?.id,
+    originRecommendationTitle: recommendation?.title,
+    originAgentId: recommendation?.agentId,
+    originAgentName: recommendation?.agentName,
+    originSeverity: recommendation?.severity,
+  };
+}
+
+async function executeAgentAction(action: NonNullable<AgentRecommendation["action"]>, recommendation?: AgentRecommendation): Promise<AgentActionResult> {
+  const originMetadata = getAgentActionOriginMetadata(action, recommendation);
+
   if (action.type === "create_task") {
     const task: ProjectTask = {
       id: `${Date.now()}-${action.taskName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -11250,9 +11392,9 @@ async function executeAgentAction(action: NonNullable<AgentRecommendation["actio
       entityId: task.id,
       entityTitle: task.name,
       source: "Agent action",
-      metadata: { projectId: action.projectId, day: action.day },
+      metadata: { ...originMetadata, projectId: action.projectId, day: action.day },
     });
-    return;
+    return { domain: "task", entityId: task.id, entityTitle: task.name, actionType: action.type };
   }
 
   if (action.type === "create_kanban") {
@@ -11273,7 +11415,15 @@ async function executeAgentAction(action: NonNullable<AgentRecommendation["actio
     };
     await kanbanCrud.add(card);
     logKanbanActivity({ card, action: "created", toColumnId: card.columnId });
-    return;
+    logActivityEvent({
+      domain: "kanban",
+      action: "created",
+      entityId: card.id,
+      entityTitle: card.title,
+      source: "Agent action",
+      metadata: { ...originMetadata, priority: card.priority, dueDate: card.dueDate, toColumnId: card.columnId },
+    });
+    return { domain: "kanban", entityId: card.id, entityTitle: card.title, actionType: action.type };
   }
 
   const event: CalendarEvent = {
@@ -11291,8 +11441,9 @@ async function executeAgentAction(action: NonNullable<AgentRecommendation["actio
     entityId: event.id,
     entityTitle: event.title,
     source: "Agent action",
-    metadata: { kind: event.kind, date: event.date, time: event.time },
+    metadata: { ...originMetadata, kind: event.kind, date: event.date, time: event.time },
   });
+  return { domain: "calendar", entityId: event.id, entityTitle: event.title, actionType: action.type };
 }
 
 function agentSeverityToPriority(severity: AgentRecommendation["severity"]): Priority {

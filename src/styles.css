@@ -8068,7 +8068,7 @@ button.load-forecast-day:hover {
 
 .agent-learning-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
   gap: 10px;
   margin-top: 16px;
 }
@@ -8088,6 +8088,10 @@ button.load-forecast-day:hover {
 
 .agent-learning-metrics section:nth-child(3) {
   border-left-color: var(--violet);
+}
+
+.agent-learning-metrics section:nth-child(4) {
+  border-left-color: var(--amber);
 }
 
 .agent-learning-metrics strong {
@@ -8125,9 +8129,20 @@ button.load-forecast-day:hover {
   border-color: rgba(255, 184, 76, 0.48);
 }
 
+.agent-learning-row.outcome-proven {
+  border-color: rgba(141, 255, 91, 0.52);
+  box-shadow: inset 0 0 18px rgba(141, 255, 91, 0.1);
+}
+
+.agent-learning-row.follow-up-debt {
+  border-color: rgba(255, 184, 76, 0.54);
+  box-shadow: inset 0 0 18px rgba(255, 184, 76, 0.08);
+}
+
 .agent-learning-row > div:first-child,
 .agent-learning-meta,
-.agent-learning-actions {
+.agent-learning-actions,
+.agent-learning-outcomes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -8163,21 +8178,36 @@ button.load-forecast-day:hover {
   padding: 4px 6px;
 }
 
-.agent-learning-actions {
+.agent-learning-actions,
+.agent-learning-outcomes {
   justify-content: flex-start;
   margin-top: 12px;
 }
 
-.agent-learning-actions span {
+.agent-learning-actions span,
+.agent-learning-outcomes span {
   display: grid;
   gap: 3px;
   border: 1px solid var(--hair-soft);
   padding: 8px 10px;
 }
 
-.agent-learning-actions strong {
+.agent-learning-outcomes span {
+  border-left: 2px solid var(--lime);
+}
+
+.agent-learning-actions strong,
+.agent-learning-outcomes strong {
   color: var(--ink);
   font-size: 11px;
+}
+
+.agent-learning-outcomes em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .agent-roster {
