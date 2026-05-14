@@ -240,6 +240,9 @@ const initialStudyNotes: StudyNote[] = [
 const initialStudyFolders: StudyFolder[] = [
   { id: "folder-all-study", name: "Study Inbox", color: "cyan", createdAt: "2026-05-11T12:00:00.000Z" },
   { id: "folder-certifications", name: "Certifications", color: "violet", createdAt: "2026-05-11T12:05:00.000Z" },
+  { id: "folder-network-plus", name: "Network+", color: "cyan", parentId: "folder-certifications", createdAt: "2026-05-11T12:06:00.000Z" },
+  { id: "folder-security-plus", name: "Security+", color: "red", parentId: "folder-certifications", createdAt: "2026-05-11T12:07:00.000Z" },
+  { id: "folder-prompt-engineering", name: "Prompt Engineering", color: "amber", parentId: "folder-certifications", createdAt: "2026-05-11T12:08:00.000Z" },
   { id: "folder-project-notes", name: "Project Notes", color: "lime", createdAt: "2026-05-11T12:10:00.000Z" },
 ];
 
@@ -2523,6 +2526,7 @@ function NotesView({
   const [activeTag, setActiveTag] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [folderInput, setFolderInput] = useState("");
+  const [folderParentId, setFolderParentId] = useState("root");
   const [uploadStatus, setUploadStatus] = useState("");
   const [libraryCollapsed, setLibraryCollapsed] = useState(false);
   const [notesFullscreen, setNotesFullscreen] = useState(false);
@@ -2548,9 +2552,16 @@ function NotesView({
   const reviewedToday = useMemo(() => allSavedFlashcards.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length, [allSavedFlashcards]);
   const recentStudyNotes = sortedNotes.slice(0, 4);
   const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags))).sort(), [notes]);
+  const folderTree = useMemo(() => getStudyFolderTree(folders, notes), [folders, notes]);
+  const activeFolderScope = useMemo(
+    () => (activeFolderId === "all" || activeFolderId === "uncategorized" ? [] : getStudyFolderBranchIds(folders, activeFolderId)),
+    [activeFolderId, folders],
+  );
   const filteredNotes = sortedNotes.filter((note) => {
     const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
-    const matchesFolder = activeFolderId === "all" || (activeFolderId === "uncategorized" ? !note.folderId : note.folderId === activeFolderId);
+    const matchesFolder =
+      activeFolderId === "all" ||
+      (activeFolderId === "uncategorized" ? !note.folderId : activeFolderScope.includes(note.folderId ?? ""));
     const matchesTag = !activeTag || note.tags.includes(activeTag);
     const haystack = `${note.title} ${note.body} ${note.extractedText ?? ""} ${note.tags.join(" ")}`.toLowerCase();
     return matchesFilter && matchesFolder && matchesTag && haystack.includes(query.trim().toLowerCase());
@@ -2559,6 +2570,24 @@ function NotesView({
   useEffect(() => {
     if (!activeNote && sortedNotes[0]) setActiveNoteId(sortedNotes[0].id);
   }, [activeNote, sortedNotes]);
+
+  useEffect(() => {
+    if (activeFolderId !== "all" && activeFolderId !== "uncategorized" && !folders.some((folder) => folder.id === activeFolderId)) {
+      setActiveFolderId("all");
+    }
+  }, [activeFolderId, folders]);
+
+  useEffect(() => {
+    if (activeFolderId !== "all" && activeFolderId !== "uncategorized") {
+      setFolderParentId(activeFolderId);
+    }
+  }, [activeFolderId]);
+
+  useEffect(() => {
+    if (folderParentId !== "root" && !folders.some((folder) => folder.id === folderParentId)) {
+      setFolderParentId("root");
+    }
+  }, [folderParentId, folders]);
 
   useEffect(() => {
     setDraftTitle(activeNote?.title ?? "");
@@ -2605,6 +2634,7 @@ function NotesView({
       id: `${Date.now()}-${slugify(cleanName)}`,
       name: cleanName,
       color: ["cyan", "violet", "lime", "amber", "red"][folders.length % 5] as KanbanLabelColor,
+      parentId: folderParentId === "root" ? undefined : folderParentId,
       createdAt: new Date().toISOString(),
     };
     await studyFolderCrud.add(folder);
@@ -2831,10 +2861,28 @@ function NotesView({
             <button className={activeFolderId === "all" ? "active" : ""} type="button" onClick={() => setActiveFolderId("all")}>
               <span className="folder-dot cyan" /> All Notes <em>{notes.length}</em>
             </button>
-            {folders.map((folder) => (
-              <button className={activeFolderId === folder.id ? "active" : ""} type="button" onClick={() => setActiveFolderId(folder.id)} key={folder.id}>
-                <span className={`folder-dot ${folder.color}`} /> {folder.name} <em>{notes.filter((note) => note.folderId === folder.id).length}</em>
-              </button>
+            {folderTree.map((folder) => (
+              <div className="folder-tree-row" style={{ "--depth": folder.depth } as CSSProperties} key={folder.id}>
+                <button className={activeFolderId === folder.id ? "active" : ""} type="button" onClick={() => setActiveFolderId(folder.id)}>
+                  <span className={`folder-dot ${folder.color}`} />
+                  <span>
+                    {folder.name}
+                    {folder.depth > 0 && <small>{folder.path}</small>}
+                  </span>
+                  <em>{folder.noteCount}</em>
+                </button>
+                <button
+                  className="folder-child-trigger"
+                  type="button"
+                  onClick={() => {
+                    setFolderParentId(folder.id);
+                    setActiveFolderId(folder.id);
+                  }}
+                  aria-label={`Add child directory under ${folder.name}`}
+                >
+                  +
+                </button>
+              </div>
             ))}
             <button className={activeFolderId === "uncategorized" ? "active" : ""} type="button" onClick={() => setActiveFolderId("uncategorized")}>
               <span className="folder-dot amber" /> Uncategorized <em>{notes.filter((note) => !note.folderId).length}</em>
@@ -2843,6 +2891,14 @@ function NotesView({
               <input value={folderInput} onChange={(event) => setFolderInput(event.target.value)} onKeyDown={(event) => {
                 if (event.key === "Enter") void createFolder();
               }} placeholder="new directory" />
+              <select value={folderParentId} onChange={(event) => setFolderParentId(event.target.value)}>
+                <option value="root">root</option>
+                {folderTree.map((folder) => (
+                  <option value={folder.id} key={folder.id}>
+                    {getStudyFolderOptionLabel(folder)}
+                  </option>
+                ))}
+              </select>
               <button type="button" onClick={() => void createFolder()}>add</button>
             </div>
           </div>
@@ -2927,8 +2983,8 @@ function NotesView({
                 <span>Directory</span>
                 <select value={activeNote.folderId ?? "uncategorized"} onChange={(event) => updateActive({ folderId: event.target.value === "uncategorized" ? undefined : event.target.value })}>
                   <option value="uncategorized">Uncategorized</option>
-                  {folders.map((folder) => (
-                    <option value={folder.id} key={folder.id}>{folder.name}</option>
+                  {folderTree.map((folder) => (
+                    <option value={folder.id} key={folder.id}>{getStudyFolderOptionLabel(folder)}</option>
                   ))}
                 </select>
               </div>
@@ -3348,6 +3404,67 @@ function NotesView({
       <SystemTrace label="Study notes online" />
     </>
   );
+}
+
+type StudyFolderTreeItem = StudyFolder & {
+  depth: number;
+  path: string;
+  noteCount: number;
+};
+
+function getStudyFolderTree(folders: StudyFolder[], notes: StudyNote[]): StudyFolderTreeItem[] {
+  const children = new Map<string, StudyFolder[]>();
+  const folderIds = new Set(folders.map((folder) => folder.id));
+  folders.forEach((folder) => {
+    const parentId = folder.parentId && folderIds.has(folder.parentId) ? folder.parentId : "root";
+    children.set(parentId, [...(children.get(parentId) ?? []), folder]);
+  });
+  children.forEach((items) => items.sort((a, b) => a.name.localeCompare(b.name) || a.createdAt.localeCompare(b.createdAt)));
+
+  const tree: StudyFolderTreeItem[] = [];
+  const visited = new Set<string>();
+
+  function walk(parentId: string, depth: number, ancestors: string[]) {
+    (children.get(parentId) ?? []).forEach((folder) => {
+      if (visited.has(folder.id)) return;
+      visited.add(folder.id);
+      const pathParts = [...ancestors, folder.name];
+      tree.push({
+        ...folder,
+        depth,
+        path: pathParts.join(" / "),
+        noteCount: getStudyFolderNoteCount(folders, notes, folder.id),
+      });
+      walk(folder.id, depth + 1, pathParts);
+    });
+  }
+
+  walk("root", 0, []);
+  return tree;
+}
+
+function getStudyFolderBranchIds(folders: StudyFolder[], folderId: string) {
+  const ids = new Set<string>([folderId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    folders.forEach((folder) => {
+      if (folder.parentId && ids.has(folder.parentId) && !ids.has(folder.id)) {
+        ids.add(folder.id);
+        changed = true;
+      }
+    });
+  }
+  return [...ids];
+}
+
+function getStudyFolderNoteCount(folders: StudyFolder[], notes: StudyNote[], folderId: string) {
+  const branchIds = new Set(getStudyFolderBranchIds(folders, folderId));
+  return notes.filter((note) => note.folderId && branchIds.has(note.folderId)).length;
+}
+
+function getStudyFolderOptionLabel(folder: StudyFolderTreeItem) {
+  return `${"  ".repeat(folder.depth)}${folder.depth ? "- " : ""}${folder.name}`;
 }
 
 function sortStudyNotes(notes: StudyNote[]) {

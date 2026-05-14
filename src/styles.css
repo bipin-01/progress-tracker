@@ -3459,7 +3459,8 @@ button {
   font-weight: 500;
 }
 
-.folder-system > button {
+.folder-system > button,
+.folder-tree-row > button:first-child {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto;
   gap: 8px;
@@ -3475,16 +3476,49 @@ button {
   text-transform: uppercase;
 }
 
+.folder-tree-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 6px;
+  margin-left: calc(var(--depth) * 14px);
+}
+
 .folder-system > button.active,
-.folder-system > button:hover {
+.folder-system > button:hover,
+.folder-tree-row > button:first-child.active,
+.folder-tree-row > button:first-child:hover,
+.folder-child-trigger:hover {
   border-color: var(--cyan-dim);
   background: rgba(53, 215, 255, 0.08);
   color: var(--cyan);
 }
 
-.folder-system > button em {
+.folder-system > button em,
+.folder-tree-row em {
   color: var(--muted);
   font-style: normal;
+}
+
+.folder-tree-row small {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--muted);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.folder-child-trigger {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hair-soft);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
 }
 
 .folder-dot {
@@ -3520,11 +3554,12 @@ button {
 
 .folder-create {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.55fr) auto;
   gap: 8px;
 }
 
 .folder-create input,
+.folder-create select,
 .note-directory-row select {
   min-width: 0;
   border: 1px solid var(--hair);
@@ -3537,6 +3572,12 @@ button {
 .folder-create input {
   height: 32px;
   padding: 0 9px;
+}
+
+.folder-create select {
+  height: 32px;
+  color: var(--cyan);
+  padding: 0 8px;
 }
 
 .folder-create button {
@@ -5617,6 +5658,15 @@ button {
 
   .today-score {
     width: 128px;
+  }
+
+  .folder-create {
+    grid-template-columns: 1fr;
+  }
+
+  .folder-tree-row {
+    grid-template-columns: minmax(0, 1fr) 28px;
+    margin-left: calc(var(--depth) * 8px);
   }
 
   .ring-layout {
