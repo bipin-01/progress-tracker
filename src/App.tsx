@@ -29,6 +29,7 @@ import {
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { CSSProperties, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  activityEventCrud,
   agentRecommendationCrud,
   calendarCrud,
   goalCrud,
@@ -40,6 +41,7 @@ import {
   taskProjectCrud,
   seedRemoteDatabase,
   useCalendarEventsData,
+  useActivityEventsData,
   useAgentRecommendationsData,
   useDataBackendLabel,
   useGoalsData,
@@ -55,7 +57,7 @@ import {
   signUpWithEmail,
 } from "./dataStore";
 import { seedDatabase } from "./database";
-import type { AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
+import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
   book: BookOpen,
@@ -573,6 +575,7 @@ function App() {
   const calendarEvents = useCalendarEventsData(initialCalendarEvents, remoteSeedVersion);
   const kanbanCards = useKanbanCardsData(initialKanbanCards, remoteSeedVersion);
   const kanbanActivity = useKanbanActivityData(remoteSeedVersion);
+  const activityEvents = useActivityEventsData(remoteSeedVersion);
   const agentRecommendations = useAgentRecommendationsData(remoteSeedVersion);
   const studyFolders = useStudyFoldersData(initialStudyFolders, remoteSeedVersion);
   const studyNotes = useStudyNotesData(initialStudyNotes, remoteSeedVersion);
@@ -677,12 +680,32 @@ function App() {
           createdAt: now.toISOString(),
           updatedAt: now.toISOString(),
         });
+        logActivityEvent({
+          domain: "notes",
+          action: "created",
+          entityId: id,
+          entityTitle: preview.title,
+          source: "Quick capture",
+          metadata: { intent: preview.intent, folderId: preview.folderId },
+        });
         openNotesMode("writing");
       } else if (preview.intent === "task" && preview.taskProjectId && preview.taskDay) {
         await taskProjectCrud.addTask(preview.taskProjectId, preview.taskDay, {
           id,
           name: preview.title,
           done: false,
+        });
+        logActivityEvent({
+          domain: "task",
+          action: "created",
+          entityId: id,
+          entityTitle: preview.title,
+          source: "Quick capture",
+          metadata: {
+            projectId: preview.taskProjectId,
+            projectName: taskProjects.find((project) => project.id === preview.taskProjectId)?.name,
+            day: preview.taskDay,
+          },
         });
         setActiveTaskProjectId(preview.taskProjectId);
         navigateTo("tasks");
@@ -699,6 +722,14 @@ function App() {
           title: preview.title,
           kind: preview.calendarKind,
           time: preview.time ?? "09:00",
+        });
+        logActivityEvent({
+          domain: "calendar",
+          action: "created",
+          entityId: id,
+          entityTitle: preview.title,
+          source: "Quick capture",
+          metadata: { kind: preview.calendarKind, date: toDateInputValue(date), time: preview.time ?? "09:00" },
         });
         navigateTo("calendar");
       } else if (preview.intent === "goal") {
@@ -717,6 +748,14 @@ function App() {
             ["Complete first visible milestone", false, 25],
             ["Review and close loop", false, 25],
           ]),
+        });
+        logActivityEvent({
+          domain: "goal",
+          action: "created",
+          entityId: id,
+          entityTitle: preview.title,
+          source: "Quick capture",
+          metadata: { priority: preview.priority, due: preview.date },
         });
         navigateTo("goals");
       } else {
@@ -1043,12 +1082,20 @@ function App() {
                   <button
                     className={`task-row ${task.done ? "done" : ""}`}
                     key={`${task.projectId}-${task.day}-${task.id}`}
-                    onClick={() =>
+                    onClick={() => {
                       void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({
                           ...item,
                           done: !item.done,
-                        }))
-                    }
+                        }));
+                      logActivityEvent({
+                        domain: "task",
+                        action: task.done ? "reopened" : "completed",
+                        entityId: task.id,
+                        entityTitle: task.name,
+                        source: "Dashboard daily tasks",
+                        metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day },
+                      });
+                    }}
                   >
                     <span className="checkbox">{task.done && <Check />}</span>
                     <span className="task-label">{task.name}</span>
@@ -1132,9 +1179,41 @@ function App() {
               projects={taskProjects}
               calendarEvents={calendarEvents}
               kanbanCards={kanbanCards}
-              onAddGoal={goalCrud.add}
-              onUpdateGoal={goalCrud.update}
-              onDeleteGoal={goalCrud.delete}
+              onAddGoal={(goal) => {
+                logActivityEvent({
+                  domain: "goal",
+                  action: "created",
+                  entityId: goal.id,
+                  entityTitle: goal.title,
+                  source: "Goals registry",
+                  metadata: { priority: goal.level, due: goal.due },
+                });
+                return goalCrud.add(goal);
+              }}
+              onUpdateGoal={(id, patch) => {
+                const goal = sortedGoals.find((item) => item.id === id);
+                logActivityEvent({
+                  domain: "goal",
+                  action: "updated",
+                  entityId: id,
+                  entityTitle: patch.title ?? goal?.title ?? "Goal",
+                  source: "Goals registry",
+                  metadata: { progress: patch.progress ?? goal?.progress, priority: patch.level ?? goal?.level },
+                });
+                return goalCrud.update(id, patch);
+              }}
+              onDeleteGoal={(id) => {
+                const goal = sortedGoals.find((item) => item.id === id);
+                logActivityEvent({
+                  domain: "goal",
+                  action: "deleted",
+                  entityId: id,
+                  entityTitle: goal?.title ?? "Goal",
+                  source: "Goals registry",
+                  metadata: { priority: goal?.level },
+                });
+                return goalCrud.delete(id);
+              }}
               onNavigate={navigateTo}
               onOpenProject={(projectId) => {
                 setActiveTaskProjectId(projectId);
@@ -1157,9 +1236,9 @@ function App() {
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
-            <ProgressView />
+            <ProgressView events={activityEvents} />
           ) : activeView === "insights" ? (
-            <InsightsView />
+            <InsightsView events={activityEvents} />
           ) : (
             <AgentsView
               goals={goals}
@@ -1168,6 +1247,7 @@ function App() {
               dashboardTasks={dashboardTasks}
               calendarEvents={calendarEvents}
               kanbanCards={kanbanCards}
+              activityEvents={activityEvents}
               recommendations={agentRecommendations}
             />
           )}
@@ -1837,10 +1917,26 @@ function TodayView({
 
   function completeTask(task: DashboardTask) {
     void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({ ...item, done: true }));
+    logActivityEvent({
+      domain: "task",
+      action: "completed",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Today queue",
+      metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day },
+    });
   }
 
   function toggleTask(task: DashboardTask) {
     void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({ ...item, done: !item.done }));
+    logActivityEvent({
+      domain: "task",
+      action: task.done ? "reopened" : "completed",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Today daily execution",
+      metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day },
+    });
   }
 
   function deferTask(task: DashboardTask) {
@@ -1852,10 +1948,26 @@ function TodayView({
       done: false,
     };
     void taskProjectCrud.addTask(task.projectId, task.day + 1, deferred).then(() => taskProjectCrud.deleteTask(task.projectId, task.day, task.id));
+    logActivityEvent({
+      domain: "task",
+      action: "deferred",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Today queue",
+      metadata: { projectId: task.projectId, projectName: task.projectName, fromDay: task.day, toDay: task.day + 1 },
+    });
   }
 
   function deferCard(card: KanbanCard) {
     void kanbanCrud.update(card.id, { dueDate: toDateInputValue(addDays(now, 1)) });
+    logActivityEvent({
+      domain: "kanban",
+      action: "deferred",
+      entityId: card.id,
+      entityTitle: card.title,
+      source: "Today queue",
+      metadata: { oldDueDate: card.dueDate, newDueDate: toDateInputValue(addDays(now, 1)), priority: card.priority },
+    });
   }
 
   async function acceptRecommendation(recommendation: AgentRecommendation) {
@@ -1863,6 +1975,14 @@ function TodayView({
       await executeAgentAction(recommendation.action);
     }
     await agentRecommendationCrud.update(recommendation.id, { status: "accepted" });
+    logActivityEvent({
+      domain: "agent",
+      action: "accepted",
+      entityId: recommendation.id,
+      entityTitle: recommendation.title,
+      source: "Today queue",
+      metadata: { agent: recommendation.agentName, severity: recommendation.severity, actionType: recommendation.action?.type },
+    });
   }
 
   return (
@@ -1926,7 +2046,17 @@ function TodayView({
                   onNavigate={onNavigate}
                   onCompleteTask={completeTask}
                   onDeferTask={deferTask}
-                  onToggleHabit={(habit) => void habitCrud.toggle(habit.id)}
+                  onToggleHabit={(habit) => {
+                    void habitCrud.toggle(habit.id);
+                    logActivityEvent({
+                      domain: "habit",
+                      action: habit.done ? "reopened" : "completed",
+                      entityId: habit.id,
+                      entityTitle: habit.name,
+                      source: "Today queue",
+                      metadata: { time: habit.time, duration: habit.duration },
+                    });
+                  }}
                   onDeferCard={deferCard}
                   onAcceptRecommendation={(recommendation) => void acceptRecommendation(recommendation)}
                 />
@@ -3072,13 +3202,30 @@ function HabitProtocol({ habits }: { habits: Habit[] }) {
 
     if (editingId) {
       void habitCrud.update(editingId, { name: cleanName, time, duration: duration.trim() || "scheduled" });
+      logActivityEvent({
+        domain: "habit",
+        action: "updated",
+        entityId: editingId,
+        entityTitle: cleanName,
+        source: "Habit protocol",
+        metadata: { time, duration: duration.trim() || "scheduled" },
+      });
     } else {
-      void habitCrud.add({
+      const habit: Habit = {
         id: `${Date.now()}-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
         name: cleanName,
         time,
         duration: duration.trim() || "scheduled",
         done: false,
+      };
+      void habitCrud.add(habit);
+      logActivityEvent({
+        domain: "habit",
+        action: "created",
+        entityId: habit.id,
+        entityTitle: habit.name,
+        source: "Habit protocol",
+        metadata: { time: habit.time, duration: habit.duration },
       });
     }
     resetForm();
@@ -3123,9 +3270,17 @@ function HabitProtocol({ habits }: { habits: Habit[] }) {
                   <button
                     className="checkbox"
                     type="button"
-                    onClick={() =>
-                      void habitCrud.toggle(habit.id)
-                    }
+                    onClick={() => {
+                      void habitCrud.toggle(habit.id);
+                      logActivityEvent({
+                        domain: "habit",
+                        action: habit.done ? "reopened" : "completed",
+                        entityId: habit.id,
+                        entityTitle: habit.name,
+                        source: "Habit protocol",
+                        metadata: { time: habit.time, duration: habit.duration },
+                      });
+                    }}
                     aria-label={`${habit.done ? "Mark incomplete" : "Mark complete"} ${habit.name}`}
                   >
                     {habit.done && <Check />}
@@ -3139,7 +3294,17 @@ function HabitProtocol({ habits }: { habits: Habit[] }) {
                   <button
                     className="delete-goal"
                     type="button"
-                    onClick={() => void habitCrud.delete(habit.id)}
+                    onClick={() => {
+                      void habitCrud.delete(habit.id);
+                      logActivityEvent({
+                        domain: "habit",
+                        action: "deleted",
+                        entityId: habit.id,
+                        entityTitle: habit.name,
+                        source: "Habit protocol",
+                        metadata: { time: habit.time },
+                      });
+                    }}
                     aria-label={`Delete ${habit.name}`}
                   >
                     <Trash2 />
@@ -3218,6 +3383,14 @@ function TaskProtocol({
     const project = createProject(projectName, startDate, endDate, projectGoalId || undefined, projectOutcome || undefined);
     if (!project) return;
     void taskProjectCrud.add(project);
+    logActivityEvent({
+      domain: "task",
+      action: "created",
+      entityId: project.id,
+      entityTitle: project.name,
+      source: "Task protocol",
+      metadata: { kind: "project", deadlineDays: project.deadlineDays, goalId: project.goalId },
+    });
     onActiveProjectChange(project.id);
     resetProjectForm();
   }
@@ -3262,6 +3435,14 @@ function TaskProtocol({
       onActiveProjectChange(next[0]?.id ?? "");
     }
     void taskProjectCrud.delete(projectId);
+    logActivityEvent({
+      domain: "task",
+      action: "deleted",
+      entityId: projectId,
+      entityTitle: normalizedProjects.find((project) => project.id === projectId)?.name ?? "Task project",
+      source: "Task protocol",
+      metadata: { kind: "project" },
+    });
   }
 
   function setActiveDay(day: number) {
@@ -3280,6 +3461,14 @@ function TaskProtocol({
       normalizedEnd,
       getDateRangeDays(normalizedStart, normalizedEnd),
     );
+    logActivityEvent({
+      domain: "task",
+      action: "updated",
+      entityId: activeProject.id,
+      entityTitle: activeProject.name,
+      source: "Task protocol",
+      metadata: { kind: "project_dates", startDate: normalizedStart, endDate: normalizedEnd },
+    });
   }
 
   function addTask() {
@@ -3291,6 +3480,14 @@ function TaskProtocol({
       done: false,
     };
     void taskProjectCrud.addTask(activeProject.id, activeDay, task);
+    logActivityEvent({
+      domain: "task",
+      action: "created",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Task protocol",
+      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay },
+    });
     setNewTask("");
   }
 
@@ -3416,12 +3613,20 @@ function TaskProtocol({
                 <button
                   className="checkbox"
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     void taskProjectCrud.updateTask(activeProject.id, activeDay, task.id, (item) => ({
                         ...item,
                         done: !item.done,
-                      }))
-                  }
+                      }));
+                    logActivityEvent({
+                      domain: "task",
+                      action: task.done ? "reopened" : "completed",
+                      entityId: task.id,
+                      entityTitle: task.name,
+                      source: "Task protocol",
+                      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay },
+                    });
+                  }}
                   aria-label={`${task.done ? "Mark incomplete" : "Mark complete"} ${task.name}`}
                 >
                   {task.done && <Check />}
@@ -3430,9 +3635,17 @@ function TaskProtocol({
                 <button
                   className="delete-goal"
                   type="button"
-                  onClick={() =>
-                    void taskProjectCrud.deleteTask(activeProject.id, activeDay, task.id)
-                  }
+                  onClick={() => {
+                    void taskProjectCrud.deleteTask(activeProject.id, activeDay, task.id);
+                    logActivityEvent({
+                      domain: "task",
+                      action: "deleted",
+                      entityId: task.id,
+                      entityTitle: task.name,
+                      source: "Task protocol",
+                      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay },
+                    });
+                  }}
                   aria-label={`Delete ${task.name}`}
                 >
                   <Trash2 />
@@ -3544,6 +3757,14 @@ function KanbanView({
         const doneAt = getCardDoneTime(card, activity);
         if (doneAt && new Date(doneAt).getTime() < cutoff) {
           void kanbanCrud.update(card.id, { archivedAt: new Date().toISOString() });
+          logActivityEvent({
+            domain: "kanban",
+            action: "archived",
+            entityId: card.id,
+            entityTitle: card.title,
+            source: "Kanban auto-archive",
+            metadata: { columnId: card.columnId, doneAt },
+          });
         }
       });
   }, [activity, archiveDays, sortedCards]);
@@ -3708,7 +3929,17 @@ function KanbanView({
   function archiveDoneNow() {
     sortedCards
       .filter((card) => card.columnId === "done" && !card.archivedAt)
-      .forEach((card) => void kanbanCrud.update(card.id, { archivedAt: new Date().toISOString() }));
+      .forEach((card) => {
+        void kanbanCrud.update(card.id, { archivedAt: new Date().toISOString() });
+        logActivityEvent({
+          domain: "kanban",
+          action: "archived",
+          entityId: card.id,
+          entityTitle: card.title,
+          source: "Kanban board",
+          metadata: { columnId: card.columnId },
+        });
+      });
   }
 
   function undoLastMove() {
@@ -3739,9 +3970,20 @@ function KanbanView({
   }
 
   function toggleSubtask(card: KanbanCard, subtaskId: string) {
+    const subtask = card.subtasks.find((item) => item.id === subtaskId);
     void kanbanCrud.update(card.id, {
       subtasks: card.subtasks.map((subtask) => subtask.id === subtaskId ? { ...subtask, done: !subtask.done } : subtask),
     });
+    if (subtask) {
+      logActivityEvent({
+        domain: "kanban",
+        action: subtask.done ? "reopened" : "completed",
+        entityId: subtask.id,
+        entityTitle: subtask.title,
+        source: "Kanban subtask",
+        metadata: { cardId: card.id, cardTitle: card.title },
+      });
+    }
   }
 
   function addSubtask(card: KanbanCard) {
@@ -3749,6 +3991,14 @@ function KanbanView({
     if (!title) return;
     void kanbanCrud.update(card.id, {
       subtasks: [...card.subtasks, { id: `${Date.now()}-subtask`, title, done: false }],
+    });
+    logActivityEvent({
+      domain: "kanban",
+      action: "created",
+      entityId: `${card.id}-${slugify(title)}`,
+      entityTitle: title,
+      source: "Kanban subtask",
+      metadata: { cardId: card.id, cardTitle: card.title },
     });
     setNewSubtask("");
   }
@@ -3759,6 +4009,14 @@ function KanbanView({
     void kanbanCrud.update(card.id, {
       attachments: [...card.attachments, { id: `${Date.now()}-attachment`, name: getAttachmentName(url), url }],
     });
+    logActivityEvent({
+      domain: "kanban",
+      action: "created",
+      entityId: `${card.id}-${slugify(url)}`,
+      entityTitle: getAttachmentName(url),
+      source: "Kanban attachment",
+      metadata: { cardId: card.id, cardTitle: card.title },
+    });
     setNewAttachment("");
   }
 
@@ -3767,6 +4025,14 @@ function KanbanView({
     if (!body) return;
     void kanbanCrud.update(card.id, {
       comments: [...card.comments, { id: `${Date.now()}-comment`, body, createdAt: new Date().toISOString() }],
+    });
+    logActivityEvent({
+      domain: "kanban",
+      action: "created",
+      entityId: `${card.id}-${Date.now()}-comment`,
+      entityTitle: `Comment on ${card.title}`,
+      source: "Kanban comment",
+      metadata: { cardId: card.id, cardTitle: card.title },
     });
     setNewComment("");
   }
@@ -4425,6 +4691,14 @@ function NotesView({
       updatedAt: now,
     };
     await studyNoteCrud.add(note);
+    logActivityEvent({
+      domain: "notes",
+      action: "created",
+      entityId: note.id,
+      entityTitle: note.title,
+      source: kind === "document" ? "Document upload" : "Study notes",
+      metadata: { kind: note.kind, folderId: note.folderId, sourceName: note.sourceName },
+    });
     setActiveNoteId(note.id);
     setMode(kind === "document" ? "reading" : "writing");
   }
@@ -4490,6 +4764,14 @@ function NotesView({
     setFolderCreateBusy(true);
     try {
       await studyFolderCrud.add(folder);
+      logActivityEvent({
+        domain: "notes",
+        action: "created",
+        entityId: folder.id,
+        entityTitle: folder.name,
+        source: "Notes directory",
+        metadata: { kind: "folder", parentId: folder.parentId },
+      });
       setFolderInput("");
       setActiveFolderId(folder.id);
       setFolderParentId(folder.id);
@@ -4527,6 +4809,14 @@ function NotesView({
       return;
     }
     await studyFolderCrud.update(activeManagedFolder.id, { name: cleanName });
+    logActivityEvent({
+      domain: "notes",
+      action: "updated",
+      entityId: activeManagedFolder.id,
+      entityTitle: cleanName,
+      source: "Notes directory",
+      metadata: { kind: "folder", previousName: activeManagedFolder.name },
+    });
     setFolderCreateStatus(`Renamed directory to ${cleanName}.`);
   }
 
@@ -4546,6 +4836,14 @@ function NotesView({
       return;
     }
     await studyFolderCrud.update(activeManagedFolder.id, { parentId: targetParentId });
+    logActivityEvent({
+      domain: "notes",
+      action: "moved",
+      entityId: activeManagedFolder.id,
+      entityTitle: activeManagedFolder.name,
+      source: "Notes directory",
+      metadata: { kind: "folder", fromParentId: activeManagedFolder.parentId, toParentId: targetParentId },
+    });
     if (targetParentId) expandFolderPath(targetParentId);
     setFolderCreateStatus(`Moved ${activeManagedFolder.name} to ${targetParentId ? folderIndex.itemById.get(targetParentId)?.path ?? "selected directory" : "library root"}.`);
   }
@@ -4562,6 +4860,14 @@ function NotesView({
     const note = liveNotes.find((item) => item.id === noteId);
     if (!note) return;
     await studyNoteCrud.update(note.id, { folderId });
+    logActivityEvent({
+      domain: "notes",
+      action: "moved",
+      entityId: note.id,
+      entityTitle: note.title || "Untitled note",
+      source: "Notes directory",
+      metadata: { kind: note.kind, fromFolderId: note.folderId, toFolderId: folderId },
+    });
     setDraggingNoteId("");
     setFolderCreateStatus(`Moved ${note.title || "Untitled note"} to ${folderId ? folderIndex.itemById.get(folderId)?.path ?? "directory" : "Uncategorized"}.`);
   }
@@ -4588,6 +4894,14 @@ function NotesView({
     try {
       await Promise.all(branchIds.map((folderId) => studyFolderCrud.update(folderId, { deletedAt })));
       await Promise.all(affectedNotes.map((note) => studyNoteCrud.update(note.id, { deletedAt })));
+      logActivityEvent({
+        domain: "notes",
+        action: "deleted",
+        entityId: folder.id,
+        entityTitle: folder.name,
+        source: "Notes directory",
+        metadata: { kind: "folder_trash", branchCount: branchIds.length, affectedNotes: affectedNotes.length },
+      });
       if (activeNote && affectedNotes.some((note) => note.id === activeNote.id)) {
         setActiveNoteId(liveNotes.find((note) => !affectedNotes.some((affectedNote) => affectedNote.id === note.id))?.id ?? "");
       }
@@ -4622,6 +4936,14 @@ function NotesView({
       }),
     );
     await Promise.all(notesToRestore.map((note) => studyNoteCrud.update(note.id, { deletedAt: undefined })));
+    logActivityEvent({
+      domain: "notes",
+      action: "updated",
+      entityId: folder.id,
+      entityTitle: folder.name,
+      source: "Notes trash",
+      metadata: { kind: "folder_restore", branchCount: branchIds.length, restoredNotes: notesToRestore.length },
+    });
     setActiveFolderId(folder.id);
     expandFolderPath(folder.id);
     setFolderCreateStatus(`Restored ${folder.name}.`);
@@ -4631,6 +4953,14 @@ function NotesView({
     await studyNoteCrud.update(note.id, {
       deletedAt: undefined,
       folderId: note.folderId && folderIndex.byId.has(note.folderId) ? note.folderId : undefined,
+    });
+    logActivityEvent({
+      domain: "notes",
+      action: "updated",
+      entityId: note.id,
+      entityTitle: note.title || "Untitled note",
+      source: "Notes trash",
+      metadata: { kind: "note_restore", folderId: note.folderId },
     });
     setActiveNoteId(note.id);
     setActiveFolderId(note.folderId && folderIndex.byId.has(note.folderId) ? note.folderId : STUDY_FOLDER_UNCATEGORIZED_ID);
@@ -4649,6 +4979,14 @@ function NotesView({
       .filter((id): id is string => Boolean(id));
     await Promise.all(trashedNotes.map((note) => studyNoteCrud.delete(note.id)));
     await Promise.all(trashedFolderIds.map((folderId) => studyFolderCrud.delete(folderId)));
+    logActivityEvent({
+      domain: "notes",
+      action: "deleted",
+      entityId: `trash-${Date.now()}`,
+      entityTitle: "Empty notes trash",
+      source: "Notes trash",
+      metadata: { itemCount, folderCount: trashedFolderIds.length, noteCount: trashedNotes.length },
+    });
     setFolderCreateStatus("Trash emptied.");
   }
 
@@ -4733,6 +5071,14 @@ function NotesView({
     if (!activeNote) return;
     if (!window.confirm(`Move "${activeNote.title}" to Trash? You can restore it later.`)) return;
     await studyNoteCrud.update(activeNote.id, { deletedAt: new Date().toISOString() });
+    logActivityEvent({
+      domain: "notes",
+      action: "deleted",
+      entityId: activeNote.id,
+      entityTitle: activeNote.title || "Untitled note",
+      source: "Study notes",
+      metadata: { kind: "note_trash", folderId: activeNote.folderId },
+    });
     setActiveNoteId(sortedNotes.find((note) => note.id !== activeNote.id)?.id ?? "");
   }
 
@@ -4755,13 +5101,32 @@ function NotesView({
       }));
     if (nextCards.length === 0) return;
     updateActive({ flashcards: [...existing, ...nextCards] });
+    logActivityEvent({
+      domain: "notes",
+      action: "generated",
+      entityId: activeNote.id,
+      entityTitle: activeNote.title || "Untitled note",
+      source: "Study flashcards",
+      metadata: { cardCount: nextCards.length },
+    });
   }
 
   function updateFlashcard(cardId: string, patch: Partial<NonNullable<StudyNote["flashcards"]>[number]>) {
     if (!activeNote) return;
+    const card = (activeNote.flashcards ?? []).find((item) => item.id === cardId);
     updateActive({
       flashcards: (activeNote.flashcards ?? []).map((card) => (card.id === cardId ? { ...card, ...patch } : card)),
     });
+    if (card && typeof patch.reviewCount === "number") {
+      logActivityEvent({
+        domain: "notes",
+        action: "reviewed",
+        entityId: card.id,
+        entityTitle: card.question,
+        source: "Study flashcards",
+        metadata: { noteId: activeNote.id, noteTitle: activeNote.title, rating: patch.difficulty },
+      });
+    }
   }
 
   function updateNoteFlashcard(noteId: string, cardId: string, patch: Partial<NonNullable<StudyNote["flashcards"]>[number]>) {
@@ -4788,6 +5153,14 @@ function NotesView({
           ? { difficulty: "learning" as const, dueAt: addDaysIso(1), reviewCount: current.reviewCount + 1, lastReviewedAt: reviewedAt }
           : { difficulty: "known" as const, dueAt: addDaysIso(current.reviewCount > 2 ? 10 : 4), reviewCount: current.reviewCount + 1, lastReviewedAt: reviewedAt };
     updateNoteFlashcard(activeQueueItem.noteId, current.id, nextPatch);
+    logActivityEvent({
+      domain: "notes",
+      action: "reviewed",
+      entityId: current.id,
+      entityTitle: current.question,
+      source: "Study flashcard queue",
+      metadata: { noteId: activeQueueItem.noteId, noteTitle: activeQueueItem.noteTitle, rating },
+    });
     setQueueRevealed(false);
   }
 
@@ -5112,7 +5485,17 @@ function NotesView({
                       draggable
                       onDragStart={(event) => startNoteDrag(event, note.id)}
                       onDragEnd={() => setDraggingNoteId("")}
-                      onClick={() => setActiveNoteId(note.id)}
+                      onClick={() => {
+                        setActiveNoteId(note.id);
+                        logActivityEvent({
+                          domain: "notes",
+                          action: "opened",
+                          entityId: note.id,
+                          entityTitle: note.title || "Untitled note",
+                          source: "Study library",
+                          metadata: { kind: note.kind, folderId: note.folderId },
+                        });
+                      }}
                       key={note.id}
                     >
                       <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
@@ -6809,13 +7192,22 @@ function CalendarView({
       setCalendarStatus("Past dates are locked. Choose today or a future date.");
       return;
     }
-    void calendarCrud.add({
+    const event: CalendarEvent = {
       id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       date: toDateInputValue(resolvedDate),
       day: resolvedDate.getDate(),
       title: cleanTitle,
       kind,
       time,
+    };
+    void calendarCrud.add(event);
+    logActivityEvent({
+      domain: "calendar",
+      action: "created",
+      entityId: event.id,
+      entityTitle: event.title,
+      source: "Calendar",
+      metadata: { kind: event.kind, date: event.date, time: event.time },
     });
     setTitle("");
     setCalendarStatus(`Scheduled ${cleanTitle} on ${formatUpcomingDate(resolvedDate)}.`);
@@ -6931,7 +7323,17 @@ function CalendarView({
                   <em>{event.kind}</em>
                   <button
                     type="button"
-                    onClick={() => void calendarCrud.delete(event.id)}
+                    onClick={() => {
+                      void calendarCrud.delete(event.id);
+                      logActivityEvent({
+                        domain: "calendar",
+                        action: "deleted",
+                        entityId: event.id,
+                        entityTitle: event.title,
+                        source: "Calendar",
+                        metadata: { kind: event.kind, date: event.date, time: event.time },
+                      });
+                    }}
                     aria-label={`Delete ${event.title}`}
                   >
                     ×
@@ -6962,42 +7364,238 @@ function CalendarView({
   );
 }
 
-function ProgressView() {
+function ProgressView({ events }: { events: ActivityEvent[] }) {
+  const metrics = useMemo(() => getActivityDashboard(events), [events]);
+
   return (
     <>
       <section className="metric-grid">
-        <MetricPanel title="7-Day Streak" value="23" suffix="days">
-          Longest streak yet. Keep momentum - three habits left tonight.
+        <MetricPanel title="Activity Streak" value={String(metrics.streak)} suffix="days">
+          {metrics.streak > 0 ? "Consecutive days with completed work, reviews, or accepted agent actions." : "Complete a task, habit, or flashcard review today to start the streak."}
         </MetricPanel>
-        <MetricPanel title="Focus Time" value="4.2" suffix="h today">
-          Down 0.6h vs. weekly average. Try a second 90-min block after dinner.
+        <MetricPanel title="Execution Signals" value={String(metrics.last7Count)} suffix="7d">
+          {metrics.last7Count} logged actions this week across {metrics.activeDomains} active domains.
         </MetricPanel>
-        <MetricPanel title="Momentum" value="+12" suffix="%">
-          Overall completion rate up vs. last month.
+        <MetricPanel title="Momentum" value={metrics.momentumLabel} suffix="%">
+          {metrics.momentum >= 0 ? "Behavior volume is up compared with the previous 7-day window." : "Behavior volume is down compared with the previous 7-day window."}
         </MetricPanel>
+      </section>
+      <section className="activity-command-grid">
+        <HudCard className="activity-ledger-card">
+          <CardHeader title="Activity Ledger" meta={`${events.length} total signals`} />
+          <div className="activity-timeline">
+            {metrics.recent.length === 0 ? (
+              <div className="kanban-empty">// activity will appear after tasks, notes, calendar, board, and agents change</div>
+            ) : (
+              metrics.recent.map((event) => (
+                <div className={`activity-row ${event.domain}`} key={event.id}>
+                  <span>{formatActivityTime(event.timestamp)}</span>
+                  <div>
+                    <strong>{event.entityTitle}</strong>
+                    <em>{formatActivityDomain(event.domain)} - {formatActivityAction(event.action)} - {event.source}</em>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </HudCard>
+        <HudCard className="activity-domain-card">
+          <CardHeader title="Domain Load" meta={metrics.busiestDomain} />
+          <div className="activity-domain-list">
+            {metrics.domainRows.map((row) => (
+              <div className="activity-domain-row" key={row.domain}>
+                <span>{formatActivityDomain(row.domain)}</span>
+                <strong>{row.count}</strong>
+                <ProgressBar value={row.percent} />
+              </div>
+            ))}
+          </div>
+        </HudCard>
       </section>
       <SystemTrace label="Progress metrics online" />
     </>
   );
 }
 
-function InsightsView() {
+function InsightsView({ events }: { events: ActivityEvent[] }) {
+  const insights = useMemo(() => getBehaviorInsights(events), [events]);
+
   return (
     <>
       <section className="metric-grid">
-        <MetricPanel title="Best Day" value="Tue" suffix="89% avg">
-          You complete the most habits on Tuesdays. Saturdays are weakest - lighten the list.
+        <MetricPanel title="Best Day" value={insights.bestDay.value} suffix={insights.bestDay.suffix}>
+          {insights.bestDay.copy}
         </MetricPanel>
-        <MetricPanel title="Drop-Off" value="Read" suffix="54%">
-          Skipped 14 of 30 days. Anchor it after dinner instead of pre-bed.
+        <MetricPanel title="Drift Source" value={insights.drift.value} suffix={insights.drift.suffix}>
+          {insights.drift.copy}
         </MetricPanel>
-        <MetricPanel title="Top Pair" value="Run ▸ Deep" suffix="89%">
-          When you run, your deep-work completion jumps. Keep stacking them.
+        <MetricPanel title="Top Pair" value={insights.topPair.value} suffix={insights.topPair.suffix}>
+          {insights.topPair.copy}
         </MetricPanel>
       </section>
+      <HudCard className="activity-insight-card">
+        <CardHeader title="Behavior Recommendations" meta={`${insights.recommendations.length} generated`} />
+        <div className="activity-insight-list">
+          {insights.recommendations.map((item) => (
+            <article key={item.title}>
+              <span>{item.signal}</span>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </HudCard>
       <SystemTrace label="Pattern analysis online" />
     </>
   );
+}
+
+function getActivityDashboard(events: ActivityEvent[], now = new Date()) {
+  const sorted = sortActivityEvents(events);
+  const currentStart = startOfDay(addDays(now, -6));
+  const previousStart = startOfDay(addDays(now, -13));
+  const previousEnd = startOfDay(addDays(now, -7));
+  const last7 = sorted.filter((event) => new Date(event.timestamp) >= currentStart);
+  const previous7 = sorted.filter((event) => {
+    const date = new Date(event.timestamp);
+    return date >= previousStart && date <= previousEnd;
+  });
+  const productiveDays = new Set(
+    sorted
+      .filter((event) => isProductiveActivity(event))
+      .map((event) => event.dayKey),
+  );
+  const streak = getActivityStreak(productiveDays, now);
+  const domainCounts = countBy(last7, (event) => event.domain);
+  const maxDomainCount = Math.max(...Array.from(domainCounts.values()), 1);
+  const domainRows = (["task", "habit", "kanban", "calendar", "notes", "agent", "goal"] as ActivityEventDomain[])
+    .map((domain) => ({
+      domain,
+      count: domainCounts.get(domain) ?? 0,
+      percent: Math.round(((domainCounts.get(domain) ?? 0) / maxDomainCount) * 100),
+    }))
+    .filter((row) => row.count > 0);
+  const busiest = [...domainRows].sort((a, b) => b.count - a.count)[0];
+  const momentum = previous7.length === 0 ? (last7.length > 0 ? 100 : 0) : Math.round(((last7.length - previous7.length) / Math.max(previous7.length, 1)) * 100);
+
+  return {
+    streak,
+    last7Count: last7.length,
+    activeDomains: domainRows.length,
+    momentum,
+    momentumLabel: `${momentum >= 0 ? "+" : ""}${momentum}`,
+    recent: sorted.slice(0, 12),
+    domainRows,
+    busiestDomain: busiest ? formatActivityDomain(busiest.domain) : "no activity",
+  };
+}
+
+function getBehaviorInsights(events: ActivityEvent[]) {
+  const sorted = sortActivityEvents(events);
+  const productive = sorted.filter(isProductiveActivity);
+  const byWeekday = countBy(productive, (event) => new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(event.timestamp)));
+  const bestDayEntry = [...byWeekday.entries()].sort((a, b) => b[1] - a[1])[0];
+  const driftEvents = sorted.filter((event) => ["deferred", "reopened", "deleted"].includes(event.action));
+  const driftDomain = [...countBy(driftEvents, (event) => event.domain).entries()].sort((a, b) => b[1] - a[1])[0];
+  const pair = getTopActivityPair(sorted);
+  const reviewCount = sorted.filter((event) => event.domain === "notes" && event.action === "reviewed").length;
+  const taskCompletionCount = sorted.filter((event) => event.domain === "task" && event.action === "completed").length;
+  const deferCount = sorted.filter((event) => event.action === "deferred").length;
+
+  return {
+    bestDay: {
+      value: bestDayEntry?.[0] ?? "--",
+      suffix: bestDayEntry ? `${bestDayEntry[1]} wins` : "no data",
+      copy: bestDayEntry ? `${bestDayEntry[0]} has the strongest completion signal. Keep important work near that rhythm.` : "Complete work for a few days and this will identify your strongest day.",
+    },
+    drift: {
+      value: driftDomain ? formatActivityDomain(driftDomain[0]).slice(0, 8) : "None",
+      suffix: driftDomain ? `${driftDomain[1]} slips` : "0 slips",
+      copy: driftDomain ? `${formatActivityDomain(driftDomain[0])} has the most defer/delete/reopen signals. That is where planning friction is showing up.` : "No drift source detected yet. That is exactly the kind of quiet we like.",
+    },
+    topPair: {
+      value: pair ? pair.label : "--",
+      suffix: pair ? `${pair.count} days` : "no pair",
+      copy: pair ? `${pair.label} appears together most often. Build routines that intentionally stack those domains.` : "Once multiple domains happen on the same day, the strongest pair will appear here.",
+    },
+    recommendations: [
+      {
+        signal: "execution",
+        title: taskCompletionCount >= reviewCount ? "Protect the task-finishing window" : "Convert study momentum into tasks",
+        body: taskCompletionCount >= reviewCount
+          ? "Task completion is leading the system. Add short review blocks after task wins so knowledge work keeps pace."
+          : "Study reviews are active. Attach one daily task to each serious note so learning turns into shipped work.",
+      },
+      {
+        signal: "drift",
+        title: deferCount > 2 ? "Reduce tomorrow carry-forward" : "Keep deferrals scarce",
+        body: deferCount > 2
+          ? "Deferrals are accumulating. Split large tasks into a first visible proof step before moving them forward again."
+          : "Deferrals are controlled. Keep using the Today queue as the decision point before work spreads out.",
+      },
+      {
+        signal: "agents",
+        title: "Feed this ledger into coaching",
+        body: "Agent recommendations now have a behavior trail to learn from: completions, reviews, moves, deferrals, and accepted plans.",
+      },
+    ],
+  };
+}
+
+function sortActivityEvents(events: ActivityEvent[]) {
+  return [...events].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+function isProductiveActivity(event: ActivityEvent) {
+  return event.action === "completed" || event.action === "reviewed" || event.action === "accepted" || event.action === "generated";
+}
+
+function getActivityStreak(dayKeys: Set<string>, now: Date) {
+  let streak = 0;
+  for (let offset = 0; offset < 365; offset += 1) {
+    const key = toDateInputValue(addDays(now, -offset));
+    if (!dayKeys.has(key)) break;
+    streak += 1;
+  }
+  return streak;
+}
+
+function getTopActivityPair(events: ActivityEvent[]) {
+  const byDay = new Map<string, Set<ActivityEventDomain>>();
+  events.forEach((event) => {
+    if (!byDay.has(event.dayKey)) byDay.set(event.dayKey, new Set());
+    byDay.get(event.dayKey)?.add(event.domain);
+  });
+  const pairs = new Map<string, { label: string; count: number }>();
+  byDay.forEach((domains) => {
+    const ordered = Array.from(domains).sort();
+    for (let index = 0; index < ordered.length; index += 1) {
+      for (let next = index + 1; next < ordered.length; next += 1) {
+        const key = `${ordered[index]}-${ordered[next]}`;
+        const label = `${formatActivityDomain(ordered[index])} > ${formatActivityDomain(ordered[next])}`;
+        pairs.set(key, { label, count: (pairs.get(key)?.count ?? 0) + 1 });
+      }
+    }
+  });
+  return [...pairs.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))[0];
+}
+
+function countBy<T, K>(items: T[], getKey: (item: T) => K) {
+  return items.reduce<Map<K, number>>((map, item) => {
+    const key = getKey(item);
+    map.set(key, (map.get(key) ?? 0) + 1);
+    return map;
+  }, new Map<K, number>());
+}
+
+function formatActivityDomain(domain: ActivityEventDomain) {
+  if (domain === "kanban") return "Board";
+  if (domain === "notes") return "Notes";
+  return domain.charAt(0).toUpperCase() + domain.slice(1);
+}
+
+function formatActivityAction(action: ActivityEventAction) {
+  return action.replace(/-/g, " ");
 }
 
 const agentProfiles: Array<{ id: AgentId; name: string; signal: string; description: string }> = [
@@ -7015,6 +7613,7 @@ function AgentsView({
   dashboardTasks,
   calendarEvents,
   kanbanCards,
+  activityEvents,
   recommendations,
 }: {
   goals: Goal[];
@@ -7023,6 +7622,7 @@ function AgentsView({
   dashboardTasks: ReturnType<typeof getDashboardTasks>;
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  activityEvents: ActivityEvent[];
   recommendations: AgentRecommendation[];
 }) {
   const sortedRecommendations = [...recommendations].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -7038,9 +7638,20 @@ function AgentsView({
       dashboardTasks,
       calendarEvents,
       kanbanCards,
+      activityEvents,
       existing: pendingRecommendations,
     });
     generated.forEach((recommendation) => void agentRecommendationCrud.add(recommendation));
+    if (generated.length > 0) {
+      logActivityEvent({
+        domain: "agent",
+        action: "generated",
+        entityId: `agent-run-${Date.now()}`,
+        entityTitle: "Agent recommendation run",
+        source: "Agents command",
+        metadata: { count: generated.length },
+      });
+    }
   }
 
   async function acceptRecommendation(recommendation: AgentRecommendation) {
@@ -7048,6 +7659,14 @@ function AgentsView({
       await executeAgentAction(recommendation.action);
     }
     await agentRecommendationCrud.update(recommendation.id, { status: "accepted" });
+    logActivityEvent({
+      domain: "agent",
+      action: "accepted",
+      entityId: recommendation.id,
+      entityTitle: recommendation.title,
+      source: "Agents command",
+      metadata: { agent: recommendation.agentName, severity: recommendation.severity, actionType: recommendation.action?.type },
+    });
   }
 
   return (
@@ -7117,7 +7736,20 @@ function AgentsView({
                         Accept
                       </button>
                     )}
-                    <button type="button" onClick={() => void agentRecommendationCrud.update(recommendation.id, { status: "dismissed" })}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void agentRecommendationCrud.update(recommendation.id, { status: "dismissed" });
+                        logActivityEvent({
+                          domain: "agent",
+                          action: "dismissed",
+                          entityId: recommendation.id,
+                          entityTitle: recommendation.title,
+                          source: "Agents command",
+                          metadata: { agent: recommendation.agentName, severity: recommendation.severity },
+                        });
+                      }}
+                    >
                       Dismiss
                     </button>
                   </div>
@@ -8049,6 +8681,7 @@ function logKanbanActivity({
   fromColumnId?: KanbanColumnId;
   toColumnId?: KanbanColumnId;
 }) {
+  const createdAt = new Date().toISOString();
   void kanbanActivityCrud.add({
     id: `${Date.now()}-${card.id}-${action}`,
     cardId: card.id,
@@ -8056,7 +8689,57 @@ function logKanbanActivity({
     action,
     fromColumnId,
     toColumnId,
-    createdAt: new Date().toISOString(),
+    createdAt,
+  });
+  logActivityEvent({
+    domain: "kanban",
+    action,
+    entityId: card.id,
+    entityTitle: card.title,
+    source: "Kanban board",
+    timestamp: createdAt,
+    metadata: {
+      priority: card.priority,
+      fromColumnId,
+      toColumnId,
+      dueDate: card.dueDate,
+      linkedTaskProjectId: card.linkedTaskProjectId,
+    },
+  });
+}
+
+function logActivityEvent({
+  domain,
+  action,
+  entityId,
+  entityTitle,
+  source,
+  timestamp = new Date().toISOString(),
+  metadata,
+}: {
+  domain: ActivityEventDomain;
+  action: ActivityEventAction;
+  entityId: string;
+  entityTitle: string;
+  source: string;
+  timestamp?: string;
+  metadata?: ActivityEventMetadata;
+}) {
+  const date = new Date(timestamp);
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const idSeed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  void activityEventCrud.add({
+    id: `${idSeed}-${domain}-${action}-${slugify(entityId || entityTitle)}`,
+    domain,
+    action,
+    entityId,
+    entityTitle,
+    source,
+    dayKey: toDateInputValue(safeDate),
+    timestamp: safeDate.toISOString(),
+    metadata,
+  }).catch((error) => {
+    console.warn("Activity event log failed", error);
   });
 }
 
@@ -8124,6 +8807,7 @@ function generateAgentRecommendations({
   dashboardTasks,
   calendarEvents,
   kanbanCards,
+  activityEvents = [],
   existing,
 }: {
   goals: Goal[];
@@ -8132,10 +8816,11 @@ function generateAgentRecommendations({
   dashboardTasks: ReturnType<typeof getDashboardTasks>;
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  activityEvents?: ActivityEvent[];
   existing: AgentRecommendation[];
 }) {
   const now = new Date();
-  const context = buildAgentContext({ goals, habits, projects, dashboardTasks, calendarEvents, kanbanCards, now });
+  const context = buildAgentContext({ goals, habits, projects, dashboardTasks, calendarEvents, kanbanCards, activityEvents, now });
   const recommendations = [
     ...runPlannerAgent(context),
     ...runReviewerAgent(context),
@@ -8171,6 +8856,9 @@ type AgentContext = {
   dashboardTasks: ReturnType<typeof getDashboardTasks>;
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  activityEvents: ActivityEvent[];
+  activityDashboard: ReturnType<typeof getActivityDashboard>;
+  behaviorInsights: ReturnType<typeof getBehaviorInsights>;
   topGoal?: Goal;
   activeProject?: TaskProject;
   overdueCards: KanbanCard[];
@@ -8198,6 +8886,7 @@ function buildAgentContext({
   dashboardTasks,
   calendarEvents,
   kanbanCards,
+  activityEvents = [],
   now,
 }: {
   goals: Goal[];
@@ -8206,6 +8895,7 @@ function buildAgentContext({
   dashboardTasks: ReturnType<typeof getDashboardTasks>;
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  activityEvents?: ActivityEvent[];
   now: Date;
 }): AgentContext {
   const openCards = kanbanCards.filter((card) => card.columnId !== "done" && !card.archivedAt);
@@ -8228,6 +8918,8 @@ function buildAgentContext({
   const kanbanPressure = clamp(overdueCards.length * 24 + blockedCards.length * 18 + highOpenCards.length * 10 + staleCards.length * 8, 0, 100);
   const executionLoad = clamp(incompleteTasks.length * 12 + missedHabits.length * 8 + openCards.length * 5 + upcomingEvents.length * 4, 0, 100);
   const driftScore = clamp((100 - dailyTaskCompletion) * 0.28 + (100 - habitCompletion) * 0.32 + kanbanPressure * 0.28 + Math.max(0, projectPressure - avgGoalProgress) * 0.12, 0, 100);
+  const activityDashboard = getActivityDashboard(activityEvents, now);
+  const behaviorInsights = getBehaviorInsights(activityEvents);
 
   return {
     now,
@@ -8236,6 +8928,9 @@ function buildAgentContext({
     dashboardTasks,
     calendarEvents,
     kanbanCards,
+    activityEvents,
+    activityDashboard,
+    behaviorInsights,
     topGoal: sortGoals(goals)[0],
     activeProject: projects.map((project) => ({ project, pressure: getProjectPressure(project, now) })).sort((a, b) => b.pressure - a.pressure)[0]?.project,
     overdueCards,
@@ -8520,6 +9215,7 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
   const riskyCard = [...context.overdueCards, ...context.blockedCards, ...context.highOpenCards].sort(
     (a, b) => getCardRiskScore(b, context.now) - getCardRiskScore(a, context.now),
   )[0];
+  const recentDeferrals = context.activityEvents.filter((event) => event.action === "deferred" && daysBetween(new Date(event.timestamp), context.now) <= 7);
 
   if (riskyCard) {
     const risk = getCardRiskScore(riskyCard, context.now);
@@ -8544,6 +9240,34 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
         title: `Intervention: ${riskyCard.title}`,
         date: toDateInputValue(context.now),
         time: "18:00",
+        kind: "project",
+      },
+    });
+  }
+
+  if (recentDeferrals.length >= 2) {
+    const topDeferredDomain = [...countBy(recentDeferrals, (event) => event.domain).entries()].sort((a, b) => b[1] - a[1])[0];
+    const score = clamp(48 + recentDeferrals.length * 9 + context.driftScore * 0.2, 45, 92);
+    drafts.push({
+      agentId: "discipline",
+      agentName: "Discipline Agent",
+      title: `Deferral pattern detected in ${formatActivityDomain(topDeferredDomain?.[0] ?? "task")}`,
+      body: `The activity ledger shows repeated carry-forward decisions this week. This is usually a scope problem, not a discipline problem: shrink the next action until it can be completed in one sitting.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([recentDeferrals.length * 18, context.driftScore, context.executionLoad]),
+      source: "activity-ledger model",
+      evidence: [
+        `${recentDeferrals.length} deferral signal${recentDeferrals.length === 1 ? "" : "s"} in 7 days`,
+        `${context.activityDashboard.last7Count} total ledger events this week`,
+        `${context.behaviorInsights.drift.value} current drift source`,
+      ],
+      action: {
+        type: "create_calendar",
+        label: "Schedule scope reset",
+        title: "Scope reset: reduce carry-forward",
+        date: toDateInputValue(context.now),
+        time: "17:30",
         kind: "project",
       },
     });
@@ -8583,6 +9307,14 @@ async function executeAgentAction(action: NonNullable<AgentRecommendation["actio
       done: false,
     };
     await taskProjectCrud.addTask(action.projectId, action.day, task);
+    logActivityEvent({
+      domain: "task",
+      action: "created",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Agent action",
+      metadata: { projectId: action.projectId, day: action.day },
+    });
     return;
   }
 
@@ -8607,13 +9339,22 @@ async function executeAgentAction(action: NonNullable<AgentRecommendation["actio
     return;
   }
 
-  await calendarCrud.add({
+  const event: CalendarEvent = {
     id: `${Date.now()}-${action.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     date: action.date,
     day: parseDateInput(action.date)?.getDate() ?? new Date().getDate(),
     title: action.title,
     kind: action.kind,
     time: action.time,
+  };
+  await calendarCrud.add(event);
+  logActivityEvent({
+    domain: "calendar",
+    action: "created",
+    entityId: event.id,
+    entityTitle: event.title,
+    source: "Agent action",
+    metadata: { kind: event.kind, date: event.date, time: event.time },
   });
 }
 

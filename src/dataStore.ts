@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
+  activityEventCrud as localActivityEventCrud,
   calendarCrud as localCalendarCrud,
   agentRecommendationCrud as localAgentRecommendationCrud,
   db,
@@ -14,9 +15,9 @@ import {
   taskProjectCrud as localTaskProjectCrud,
 } from "./database";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
-import type { AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
+import type { ActivityEvent, AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
 
-type TableName = "goals" | "habits" | "task_projects" | "calendar_events" | "kanban_cards" | "kanban_activity" | "agent_recommendations" | "study_notes" | "study_folders";
+type TableName = "goals" | "habits" | "task_projects" | "calendar_events" | "kanban_cards" | "kanban_activity" | "activity_events" | "agent_recommendations" | "study_notes" | "study_folders";
 type StoreMap = {
   goals: Goal;
   habits: Habit;
@@ -24,6 +25,7 @@ type StoreMap = {
   calendar_events: CalendarEvent;
   kanban_cards: KanbanCard;
   kanban_activity: KanbanActivity;
+  activity_events: ActivityEvent;
   agent_recommendations: AgentRecommendation;
   study_notes: StudyNote;
   study_folders: StudyFolder;
@@ -219,6 +221,11 @@ export function useKanbanActivityData(refreshKey = 0) {
   return useRemoteTable("kanban_activity", local, refreshKey);
 }
 
+export function useActivityEventsData(refreshKey = 0) {
+  const local = useLiveQuery(() => db.activityEvents.toArray(), []) ?? [];
+  return useRemoteTable("activity_events", local, refreshKey);
+}
+
 export function useAgentRecommendationsData(refreshKey = 0) {
   const local = useLiveQuery(() => db.agentRecommendations.toArray(), []) ?? [];
   return useRemoteTable("agent_recommendations", local, refreshKey);
@@ -320,6 +327,19 @@ function toKanbanActivityRow(activity: KanbanActivity, userId = currentUserId) {
     from_column_id: activity.fromColumnId ?? null,
     to_column_id: activity.toColumnId ?? null,
     created_at: activity.createdAt,
+  };
+}
+
+function toActivityEventRow(event: ActivityEvent, userId = currentUserId) {
+  return {
+    ...toRemoteRow(event, userId),
+    domain: event.domain,
+    action: event.action,
+    entity_id: event.entityId,
+    entity_title: event.entityTitle,
+    source: event.source,
+    day_key: event.dayKey,
+    created_at: event.timestamp,
   };
 }
 
@@ -427,6 +447,16 @@ async function remoteUpsertKanbanActivity(activity: KanbanActivity, userId = cur
   const { error } = await supabase.from("kanban_activity").upsert(toKanbanActivityRow(activity, userId));
   if (error) {
     setBackendStatus({ error: `Supabase save failed for kanban_activity: ${error.message}` });
+    throw error;
+  }
+  setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertActivityEvent(event: ActivityEvent, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from("activity_events").upsert(toActivityEventRow(event, userId));
+  if (error) {
+    setBackendStatus({ error: `Supabase save failed for activity_events: ${error.message}` });
     throw error;
   }
   setBackendStatus({ label: "Supabase realtime", error: null });
@@ -647,6 +677,21 @@ export const kanbanActivityCrud = {
   async add(activity: KanbanActivity) {
     if (isSupabaseConfigured) return remoteUpsertKanbanActivity(activity);
     return localKanbanActivityCrud.add(activity);
+  },
+};
+
+export const activityEventCrud = {
+  async add(event: ActivityEvent) {
+    if (isSupabaseConfigured) return remoteUpsertActivityEvent(event);
+    return localActivityEventCrud.add(event);
+  },
+  async delete(id: string) {
+    if (isSupabaseConfigured) return remoteDelete("activity_events", id);
+    return localActivityEventCrud.delete(id);
+  },
+  async clear() {
+    if (isSupabaseConfigured || !db.activityEvents) return;
+    return localActivityEventCrud.clear();
   },
 };
 

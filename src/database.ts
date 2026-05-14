@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
+import type { ActivityEvent, AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
 
 export class ProgressTrackerDatabase extends Dexie {
   goals!: Table<Goal, string>;
@@ -8,6 +8,7 @@ export class ProgressTrackerDatabase extends Dexie {
   calendarEvents!: Table<CalendarEvent, string>;
   kanbanCards!: Table<KanbanCard, string>;
   kanbanActivity!: Table<KanbanActivity, string>;
+  activityEvents!: Table<ActivityEvent, string>;
   agentRecommendations!: Table<AgentRecommendation, string>;
   studyNotes!: Table<StudyNote, string>;
   studyFolders!: Table<StudyFolder, string>;
@@ -94,6 +95,18 @@ export class ProgressTrackerDatabase extends Dexie {
       calendarEvents: "id, day, kind, time",
       kanbanCards: "id, columnId, priority, order",
       kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
+    this.version(10).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, goalId, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      activityEvents: "id, domain, action, entityId, dayKey, timestamp",
       agentRecommendations: "id, agentId, status, severity, createdAt",
       studyNotes: "id, kind, pinned, folderId, updatedAt",
       studyFolders: "id, parentId, examDate, name, createdAt",
@@ -195,6 +208,18 @@ export const kanbanCrud = {
 export const kanbanActivityCrud = {
   add(activity: KanbanActivity) {
     return db.kanbanActivity.put(activity);
+  },
+};
+
+export const activityEventCrud = {
+  add(event: ActivityEvent) {
+    return db.activityEvents.put(event);
+  },
+  delete(id: string) {
+    return db.activityEvents.delete(id);
+  },
+  clear() {
+    return db.activityEvents.clear();
   },
 };
 

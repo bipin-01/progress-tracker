@@ -180,6 +180,35 @@ export type KanbanActivity = {
   createdAt: string;
 };
 
+export type ActivityEventDomain = "goal" | "habit" | "task" | "kanban" | "calendar" | "notes" | "agent" | "system";
+export type ActivityEventAction =
+  | "created"
+  | "updated"
+  | "deleted"
+  | "completed"
+  | "reopened"
+  | "deferred"
+  | "moved"
+  | "reviewed"
+  | "opened"
+  | "accepted"
+  | "dismissed"
+  | "archived"
+  | "generated";
+export type ActivityEventMetadata = Record<string, string | number | boolean | null | undefined>;
+
+export type ActivityEvent = {
+  id: string;
+  domain: ActivityEventDomain;
+  action: ActivityEventAction;
+  entityId: string;
+  entityTitle: string;
+  source: string;
+  dayKey: string;
+  timestamp: string;
+  metadata?: ActivityEventMetadata;
+};
+
 export type AgentId = "planner" | "reviewer" | "motivation" | "project" | "discipline";
 export type AgentSeverity = "info" | "notice" | "warning" | "critical";
 export type AgentRecommendationStatus = "pending" | "accepted" | "dismissed";
