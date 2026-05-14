@@ -3373,6 +3373,44 @@ function NotesView({
     }
   }
 
+  async function deleteFolder(folder: StudyFolderTreeItem) {
+    const branchIds = getStudyFolderBranchIdsFromIndex(folderIndex, folder.id);
+    const affectedNotes = notes.filter((note) => note.folderId && branchIds.includes(note.folderId));
+    const nestedDirectoryCount = Math.max(branchIds.length - 1, 0);
+    const confirmMessage = [
+      `Delete "${folder.name}" directory?`,
+      nestedDirectoryCount
+        ? `${nestedDirectoryCount} nested director${nestedDirectoryCount === 1 ? "y" : "ies"} will also be deleted.`
+        : "",
+      affectedNotes.length
+        ? `${affectedNotes.length} note${affectedNotes.length === 1 ? "" : "s"} will be moved to Uncategorized.`
+        : "No notes will be deleted.",
+      "This cannot be undone.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    if (!window.confirm(confirmMessage)) return;
+    setFolderCreateStatus(`Deleting ${folder.name}...`);
+    try {
+      await Promise.all(affectedNotes.map((note) => studyNoteCrud.update(note.id, { folderId: undefined })));
+      await Promise.all([...branchIds].reverse().map((folderId) => studyFolderCrud.delete(folderId)));
+      if (branchIds.includes(activeFolderId)) setActiveFolderId("all");
+      if (folderParentId !== STUDY_FOLDER_ROOT_ID && branchIds.includes(folderParentId)) {
+        setFolderParentId(STUDY_FOLDER_ROOT_ID);
+      }
+      setExpandedFolderIds((current) => {
+        const next = new Set(current);
+        branchIds.forEach((folderId) => next.delete(folderId));
+        return next;
+      });
+      setFolderCreateStatus(
+        `Deleted ${folder.name}. ${affectedNotes.length ? "Notes moved to Uncategorized." : "No notes were moved."}`,
+      );
+    } catch (error) {
+      setFolderCreateStatus(`Could not delete directory: ${error instanceof Error ? error.message : "delete failed"}`);
+    }
+  }
+
   function updateActive(patch: Partial<Omit<StudyNote, "id" | "createdAt">>) {
     if (!activeNote) return;
     void studyNoteCrud.update(activeNote.id, patch);
@@ -3694,6 +3732,14 @@ function NotesView({
                         aria-label={`Add child directory under ${folder.name}`}
                       >
                         +
+                      </button>
+                      <button
+                        className="folder-delete-trigger"
+                        type="button"
+                        onClick={() => void deleteFolder(folder)}
+                        aria-label={`Delete directory ${folder.name}`}
+                      >
+                        <Trash2 />
                       </button>
                     </div>
                   );

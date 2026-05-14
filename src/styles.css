@@ -4048,7 +4048,7 @@ button {
 
 .folder-tree-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 30px;
+  grid-template-columns: 26px minmax(0, 1fr) 30px 30px;
   gap: 6px;
   margin-left: calc(var(--depth) * 14px);
 }
@@ -4062,6 +4062,12 @@ button {
   border-color: var(--cyan-dim);
   background: rgba(53, 215, 255, 0.08);
   color: var(--cyan);
+}
+
+.folder-delete-trigger:hover {
+  border-color: rgba(255, 85, 114, 0.75);
+  background: rgba(255, 85, 114, 0.08);
+  color: var(--red);
 }
 
 .folder-system > button em,
@@ -4088,13 +4094,24 @@ button {
 }
 
 .folder-toggle,
-.folder-child-trigger {
+.folder-child-trigger,
+.folder-delete-trigger {
   display: grid;
   place-items: center;
   border: 1px solid var(--hair-soft);
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 12px;
+}
+
+.folder-delete-trigger {
+  border-color: rgba(255, 85, 114, 0.4);
+  color: var(--red);
+}
+
+.folder-delete-trigger svg {
+  width: 13px;
+  height: 13px;
 }
 
 .folder-toggle:disabled {
@@ -6634,7 +6651,7 @@ button {
   }
 
   .folder-tree-row {
-    grid-template-columns: 24px minmax(0, 1fr) 28px;
+    grid-template-columns: 24px minmax(0, 1fr) 28px 28px;
     margin-left: calc(var(--depth) * 8px);
   }
 
