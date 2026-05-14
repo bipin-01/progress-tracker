@@ -55,7 +55,7 @@ import {
   signUpWithEmail,
 } from "./dataStore";
 import { seedDatabase } from "./database";
-import type { AgentId, AgentRecommendation, CalendarEvent, Category, Goal, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, TaskProject, View } from "./types";
+import type { AgentId, AgentRecommendation, CalendarEvent, Category, Goal, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
   book: BookOpen,
@@ -240,11 +240,62 @@ const initialStudyNotes: StudyNote[] = [
 const initialStudyFolders: StudyFolder[] = [
   { id: "folder-all-study", name: "Study Inbox", color: "cyan", createdAt: "2026-05-11T12:00:00.000Z" },
   { id: "folder-certifications", name: "Certifications", color: "violet", createdAt: "2026-05-11T12:05:00.000Z" },
-  { id: "folder-network-plus", name: "Network+", color: "cyan", parentId: "folder-certifications", createdAt: "2026-05-11T12:06:00.000Z" },
-  { id: "folder-security-plus", name: "Security+", color: "red", parentId: "folder-certifications", createdAt: "2026-05-11T12:07:00.000Z" },
-  { id: "folder-prompt-engineering", name: "Prompt Engineering", color: "amber", parentId: "folder-certifications", createdAt: "2026-05-11T12:08:00.000Z" },
+  {
+    id: "folder-network-plus",
+    name: "Network+",
+    color: "cyan",
+    parentId: "folder-certifications",
+    examDate: "2026-07-10",
+    objectives: makeStudyObjectives([
+      ["Networking fundamentals", 24],
+      ["IP addressing and subnetting", 22],
+      ["Network implementations", 20],
+      ["Operations and troubleshooting", 18],
+      ["Security concepts", 16],
+    ]),
+    createdAt: "2026-05-11T12:06:00.000Z",
+  },
+  {
+    id: "folder-security-plus",
+    name: "Security+",
+    color: "red",
+    parentId: "folder-certifications",
+    examDate: "2026-08-28",
+    objectives: makeStudyObjectives([
+      ["General security concepts", 22],
+      ["Threats, vulnerabilities, and mitigations", 22],
+      ["Security architecture", 20],
+      ["Security operations", 20],
+      ["Governance, risk, and compliance", 16],
+    ]),
+    createdAt: "2026-05-11T12:07:00.000Z",
+  },
+  {
+    id: "folder-prompt-engineering",
+    name: "Prompt Engineering",
+    color: "amber",
+    parentId: "folder-certifications",
+    examDate: "2026-06-21",
+    objectives: makeStudyObjectives([
+      ["Prompt patterns", 20],
+      ["Evaluation loops", 22],
+      ["Tool use and agents", 22],
+      ["Retrieval workflows", 18],
+      ["Safety and guardrails", 18],
+    ]),
+    createdAt: "2026-05-11T12:08:00.000Z",
+  },
   { id: "folder-project-notes", name: "Project Notes", color: "lime", createdAt: "2026-05-11T12:10:00.000Z" },
 ];
+
+function makeStudyObjectives(items: Array<[string, number]>): StudyObjective[] {
+  return items.map(([title, weight], index) => ({
+    id: `objective-${index + 1}-${slugify(title)}`,
+    title,
+    weight,
+    done: false,
+  }));
+}
 
 const initialCalendarEvents: CalendarEvent[] = [];
 const calendarMonth = 4;
@@ -403,7 +454,7 @@ function getPathForView(view: View) {
   return view === "dashboard" ? "/" : `/${view}`;
 }
 
-type NotesMode = "home" | "writing" | "reading" | "review" | "queue" | "ai";
+type NotesMode = "home" | "writing" | "reading" | "review" | "queue" | "certifications" | "ai";
 
 type AppCommand = {
   id: string;
@@ -595,6 +646,7 @@ function App() {
     { id: "notes-read", group: "Study Notes", title: "Reading Mode", hint: "Open the document reading workspace.", action: () => openNotesMode("reading") },
     { id: "notes-review", group: "Study Notes", title: "Review Mode", hint: "Generate active recall cards.", action: () => openNotesMode("review") },
     { id: "notes-queue", group: "Study Notes", title: "Review Queue", hint: "Run due flashcards and scheduled study cards.", action: () => openNotesMode("queue") },
+    { id: "notes-certs", group: "Study Notes", title: "Certification Tracks", hint: "Open exam readiness, objectives, and study plans.", action: () => openNotesMode("certifications") },
     { id: "notes-ai", group: "Study Notes", title: "AI Study Console", hint: "Analyze notes and ask study questions.", action: () => openNotesMode("ai") },
   ];
 
@@ -2527,6 +2579,9 @@ function NotesView({
   const [tagInput, setTagInput] = useState("");
   const [folderInput, setFolderInput] = useState("");
   const [folderParentId, setFolderParentId] = useState("root");
+  const [activeCertificationId, setActiveCertificationId] = useState("");
+  const [objectiveInput, setObjectiveInput] = useState("");
+  const [certPlanStatus, setCertPlanStatus] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
   const [libraryCollapsed, setLibraryCollapsed] = useState(false);
   const [notesFullscreen, setNotesFullscreen] = useState(false);
@@ -2553,6 +2608,10 @@ function NotesView({
   const recentStudyNotes = sortedNotes.slice(0, 4);
   const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags))).sort(), [notes]);
   const folderTree = useMemo(() => getStudyFolderTree(folders, notes), [folders, notes]);
+  const certificationTracks = useMemo(() => getCertificationTracks(folders, notes), [folders, notes]);
+  const activeCertification = certificationTracks.find((track) => track.folder.id === activeCertificationId) ?? certificationTracks[0];
+  const activeCertificationPlan = useMemo(() => (activeCertification ? getCertificationStudyPlan(activeCertification) : []), [activeCertification]);
+  const activeCertificationWeakTopics = useMemo(() => (activeCertification ? getCertificationWeakTopics(activeCertification) : []), [activeCertification]);
   const activeFolderScope = useMemo(
     () => (activeFolderId === "all" || activeFolderId === "uncategorized" ? [] : getStudyFolderBranchIds(folders, activeFolderId)),
     [activeFolderId, folders],
@@ -2588,6 +2647,16 @@ function NotesView({
       setFolderParentId("root");
     }
   }, [folderParentId, folders]);
+
+  useEffect(() => {
+    if (!activeCertification && activeCertificationId) {
+      setActiveCertificationId("");
+      return;
+    }
+    if (!activeCertificationId && activeCertification) {
+      setActiveCertificationId(activeCertification.folder.id);
+    }
+  }, [activeCertification, activeCertificationId]);
 
   useEffect(() => {
     setDraftTitle(activeNote?.title ?? "");
@@ -2802,6 +2871,75 @@ function NotesView({
     setAskInput("");
   }
 
+  function updateCertificationObjectives(folder: StudyFolder, objectives: StudyObjective[]) {
+    void studyFolderCrud.update(folder.id, { objectives });
+  }
+
+  function toggleCertificationObjective(folder: StudyFolder, objectiveId: string) {
+    const currentObjectives = getFolderObjectives(folder);
+    const targetObjective = currentObjectives.find((objective) => objective.id === objectiveId);
+    const objectives = currentObjectives.map((objective) =>
+      objective.id === objectiveId ? { ...objective, done: !objective.done } : objective,
+    );
+    if (targetObjective) {
+      setCertPlanStatus(`${folder.name}: ${targetObjective.title} ${targetObjective.done ? "reopened" : "completed"}.`);
+    }
+    updateCertificationObjectives(folder, objectives);
+  }
+
+  function addCertificationObjective() {
+    if (!activeCertification) return;
+    const title = objectiveInput.trim();
+    if (!title) return;
+    const objectives = getFolderObjectives(activeCertification.folder);
+    updateCertificationObjectives(activeCertification.folder, [
+      ...objectives,
+      {
+        id: `${Date.now()}-${slugify(title)}`,
+        title,
+        done: false,
+        weight: 12,
+      },
+    ]);
+    setObjectiveInput("");
+  }
+
+  function createCertificationStudyPlan(track: CertificationTrack) {
+    const today = new Date();
+    const examDate = parseDateInput(track.folder.examDate);
+    const endDate = examDate && examDate >= today ? examDate : addDays(today, 29);
+    const startDateValue = toDateInputValue(today);
+    const endDateValue = toDateInputValue(endDate);
+    const days = getDateRangeDays(startDateValue, endDateValue);
+    const planRows = getCertificationStudyPlan(track, Math.min(days, 14));
+    const tasksByDay: Record<number, ProjectTask[]> = {};
+
+    planRows.forEach((row, index) => {
+      tasksByDay[index + 1] = [
+        { id: `${Date.now()}-${index}-read`, name: row.focus, done: false },
+        { id: `${Date.now()}-${index}-recall`, name: row.recall, done: false },
+      ];
+    });
+
+    const project: TaskProject = {
+      id: `${Date.now()}-${slugify(track.folder.name)}-study-sprint`,
+      name: `${track.folder.name} study sprint`,
+      startDate: startDateValue,
+      endDate: endDateValue,
+      deadlineDays: days,
+      currentDay: 1,
+      tasksByDay,
+    };
+
+    void taskProjectCrud.add(project);
+    setCertPlanStatus(`${track.folder.name} task sprint created with ${planRows.length} planned days.`);
+  }
+
+  function openCertificationTrack(track: CertificationTrack) {
+    setActiveCertificationId(track.folder.id);
+    setActiveFolderId(track.folder.id);
+  }
+
   useEffect(() => {
     const handleNotesShortcuts = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
@@ -2818,6 +2956,7 @@ function NotesView({
         r: "reading",
         v: "review",
         q: "queue",
+        c: "certifications",
         a: "ai",
       };
       if (key === "n") {
@@ -2961,6 +3100,9 @@ function NotesView({
                   <button className={mode === "queue" ? "active" : ""} type="button" onClick={() => setMode("queue")}>
                     <ListTodo /> queue
                   </button>
+                  <button className={mode === "certifications" ? "active" : ""} type="button" onClick={() => setMode("certifications")}>
+                    <Target /> certs
+                  </button>
                   <button className={mode === "ai" ? "active" : ""} type="button" onClick={() => setMode("ai")}>
                     <Bot /> ai
                   </button>
@@ -2972,37 +3114,41 @@ function NotesView({
                 </div>
               </div>
 
-              <input className="note-title-input" value={draftTitle} onChange={(event) => updateDraftTitle(event.target.value)} onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  editorRef.current?.focus();
-                }
-              }} />
+              {mode !== "certifications" && (
+                <>
+                  <input className="note-title-input" value={draftTitle} onChange={(event) => updateDraftTitle(event.target.value)} onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      editorRef.current?.focus();
+                    }
+                  }} />
 
-              <div className="note-directory-row">
-                <span>Directory</span>
-                <select value={activeNote.folderId ?? "uncategorized"} onChange={(event) => updateActive({ folderId: event.target.value === "uncategorized" ? undefined : event.target.value })}>
-                  <option value="uncategorized">Uncategorized</option>
-                  {folderTree.map((folder) => (
-                    <option value={folder.id} key={folder.id}>{getStudyFolderOptionLabel(folder)}</option>
-                  ))}
-                </select>
-              </div>
+                  <div className="note-directory-row">
+                    <span>Directory</span>
+                    <select value={activeNote.folderId ?? "uncategorized"} onChange={(event) => updateActive({ folderId: event.target.value === "uncategorized" ? undefined : event.target.value })}>
+                      <option value="uncategorized">Uncategorized</option>
+                      {folderTree.map((folder) => (
+                        <option value={folder.id} key={folder.id}>{getStudyFolderOptionLabel(folder)}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="note-tag-editor">
-                {activeNote.tags.map((tag) => (
-                  <button type="button" onClick={() => updateActive({ tags: activeNote.tags.filter((item) => item !== tag) })} key={tag}>{tag} ×</button>
-                ))}
-                <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === ",") {
-                    event.preventDefault();
-                    addTag(tagInput);
-                  }
-                  if (event.key === "Backspace" && !tagInput && activeNote.tags.length > 0) {
-                    updateActive({ tags: activeNote.tags.slice(0, -1) });
-                  }
-                }} placeholder="add tag" />
-              </div>
+                  <div className="note-tag-editor">
+                    {activeNote.tags.map((tag) => (
+                      <button type="button" onClick={() => updateActive({ tags: activeNote.tags.filter((item) => item !== tag) })} key={tag}>{tag} ×</button>
+                    ))}
+                    <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === ",") {
+                        event.preventDefault();
+                        addTag(tagInput);
+                      }
+                      if (event.key === "Backspace" && !tagInput && activeNote.tags.length > 0) {
+                        updateActive({ tags: activeNote.tags.slice(0, -1) });
+                      }
+                    }} placeholder="add tag" />
+                  </div>
+                </>
+              )}
 
               {mode === "home" ? (
                 <div className="notes-home-mode">
@@ -3266,6 +3412,151 @@ function NotesView({
                     )}
                   </section>
                 </div>
+              ) : mode === "certifications" ? (
+                <div className="certification-mode">
+                  <section className="certification-hero">
+                    <div>
+                      <span>Certification Study System</span>
+                      <strong>{activeCertification ? activeCertification.folder.name : "No tracks online"}</strong>
+                      <p>{activeCertification ? activeCertification.summary : "Create folders under Certifications to start building exam-ready study tracks."}</p>
+                    </div>
+                    <div className="certification-hero-metrics">
+                      <div>
+                        <strong>{activeCertification?.readiness ?? 0}%</strong>
+                        <span>readiness</span>
+                      </div>
+                      <div>
+                        <strong>{activeCertification?.daysLeftLabel ?? "set"}</strong>
+                        <span>exam window</span>
+                      </div>
+                      <button type="button" onClick={() => activeCertification && createCertificationStudyPlan(activeCertification)} disabled={!activeCertification}>
+                        create task sprint
+                      </button>
+                    </div>
+                  </section>
+
+                  <div className="certification-track-grid">
+                    {certificationTracks.length === 0 ? (
+                      <div className="kanban-empty">// no certification folders detected</div>
+                    ) : (
+                      certificationTracks.map((track) => (
+                        <button className={`cert-track-card ${activeCertification?.folder.id === track.folder.id ? "active" : ""}`} type="button" onClick={() => openCertificationTrack(track)} key={track.folder.id}>
+                          <span className={`folder-dot ${track.folder.color}`} />
+                          <strong>{track.folder.name}</strong>
+                          <em>{track.daysLeftLabel} · {track.documentCount} docs · {track.flashcardCount} cards</em>
+                          <div className="cert-track-meter"><span style={{ width: `${track.readiness}%` }} /></div>
+                          <small>{track.readiness}% ready</small>
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  {activeCertification && (
+                    <div className="certification-detail-grid">
+                      <section className="cert-panel cert-exam-panel">
+                        <div className="ask-note-head">
+                          <span>Exam Control</span>
+                          <strong>{activeCertification.folder.name}</strong>
+                        </div>
+                        <label className="cert-date-control">
+                          <span>Exam date</span>
+                          <input
+                            type="date"
+                            value={activeCertification.folder.examDate ?? ""}
+                            onChange={(event) => void studyFolderCrud.update(activeCertification.folder.id, { examDate: event.target.value || undefined })}
+                          />
+                        </label>
+                        <div className="cert-score-grid">
+                          <div><strong>{activeCertification.objectiveProgress}%</strong><span>objectives</span></div>
+                          <div><strong>{activeCertification.reviewLoad}</strong><span>due cards</span></div>
+                          <div><strong>{activeCertification.readingMinutes}</strong><span>read mins</span></div>
+                        </div>
+                        {certPlanStatus && <p className="cert-plan-status">{certPlanStatus}</p>}
+                      </section>
+
+                      <section className="cert-panel">
+                        <div className="ask-note-head">
+                          <span>Objective Map</span>
+                          <strong>{activeCertification.completedObjectives}/{activeCertification.objectives.length} done</strong>
+                        </div>
+                        <div className="cert-objective-list">
+                          {activeCertification.objectives.map((objective) => (
+                            <button className={objective.done ? "done" : ""} type="button" onClick={() => toggleCertificationObjective(activeCertification.folder, objective.id)} key={objective.id}>
+                              <span>{objective.done ? <Check /> : null}</span>
+                              <strong>{objective.title}</strong>
+                              <em>{objective.weight}%</em>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="cert-objective-add">
+                          <input
+                            value={objectiveInput}
+                            onChange={(event) => setObjectiveInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                addCertificationObjective();
+                              }
+                            }}
+                            placeholder="// add objective"
+                          />
+                          <button type="button" onClick={addCertificationObjective}>add</button>
+                        </div>
+                      </section>
+
+                      <section className="cert-panel">
+                        <div className="ask-note-head">
+                          <span>Next Study Blocks</span>
+                          <strong>{activeCertificationPlan.length} days</strong>
+                        </div>
+                        <div className="cert-plan-list">
+                          {activeCertificationPlan.map((row) => (
+                            <article key={row.day}>
+                              <span>D{String(row.day).padStart(2, "0")}</span>
+                              <strong>{row.focus}</strong>
+                              <em>{row.recall}</em>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="cert-panel">
+                        <div className="ask-note-head">
+                          <span>Weak Topic Radar</span>
+                          <strong>{activeCertificationWeakTopics.length} signals</strong>
+                        </div>
+                        <div className="cert-weak-list">
+                          {activeCertificationWeakTopics.map((topic) => (
+                            <span key={topic}>{topic}</span>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="cert-panel cert-wide">
+                        <div className="ask-note-head">
+                          <span>Track Library</span>
+                          <strong>{activeCertification.notes.length} entries</strong>
+                        </div>
+                        <div className="cert-note-list">
+                          {activeCertification.notes.length === 0 ? (
+                            <div className="kanban-empty">// move notes and PDFs into this certification folder</div>
+                          ) : (
+                            activeCertification.notes.map((note) => (
+                              <button type="button" onClick={() => {
+                                setActiveNoteId(note.id);
+                                setMode(note.kind === "document" ? "reading" : "writing");
+                              }} key={note.id}>
+                                <span>{note.kind}</span>
+                                <strong>{note.title}</strong>
+                                <em>{getWordCount(note.extractedText ?? note.body)} words · {formatActivityTime(note.updatedAt)}</em>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </section>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="ai-study-console">
                   <div className="ai-study-head">
@@ -3465,6 +3756,179 @@ function getStudyFolderNoteCount(folders: StudyFolder[], notes: StudyNote[], fol
 
 function getStudyFolderOptionLabel(folder: StudyFolderTreeItem) {
   return `${"  ".repeat(folder.depth)}${folder.depth ? "- " : ""}${folder.name}`;
+}
+
+type CertificationPlanRow = {
+  day: number;
+  focus: string;
+  recall: string;
+};
+
+type CertificationTrack = {
+  folder: StudyFolder;
+  notes: StudyNote[];
+  objectives: StudyObjective[];
+  objectiveProgress: number;
+  completedObjectives: number;
+  documentCount: number;
+  flashcardCount: number;
+  reviewLoad: number;
+  readingMinutes: number;
+  readiness: number;
+  daysLeftLabel: string;
+  summary: string;
+};
+
+function getCertificationTracks(folders: StudyFolder[], notes: StudyNote[]): CertificationTrack[] {
+  const certificationRootIds = new Set(
+    folders.filter((folder) => folder.name.toLowerCase().includes("certification")).map((folder) => folder.id),
+  );
+  const trackFolders = folders.filter((folder) => {
+    const hasTrackData = Boolean(folder.examDate || folder.objectives?.length);
+    const isCertificationChild = Boolean(folder.parentId && certificationRootIds.has(folder.parentId));
+    return hasTrackData || isCertificationChild;
+  });
+
+  return trackFolders
+    .map((folder) => {
+      const branchIds = new Set(getStudyFolderBranchIds(folders, folder.id));
+      const trackNotes = notes.filter((note) => note.folderId && branchIds.has(note.folderId));
+      const objectives = getFolderObjectives(folder);
+      const objectiveProgress = getObjectiveProgress(objectives);
+      const completedObjectives = objectives.filter((objective) => objective.done).length;
+      const flashcards = trackNotes.flatMap((note) => note.flashcards ?? []);
+      const dueCards = flashcards.filter((card) => new Date(card.dueAt).getTime() <= Date.now() && card.difficulty !== "known");
+      const knownCards = flashcards.filter((card) => card.difficulty === "known").length;
+      const documentCount = trackNotes.filter((note) => note.kind === "document").length;
+      const readingMinutes = trackNotes.reduce((total, note) => total + getReadingMinutes(note.extractedText ?? note.body), 0);
+      const cardReadiness = flashcards.length ? Math.round((knownCards / flashcards.length) * 100) : 0;
+      const libraryReadiness = Math.min(100, documentCount * 24 + Math.min(readingMinutes, 240) / 4);
+      const freshnessReadiness = getFreshnessReadiness(trackNotes);
+      const readiness = Math.round(objectiveProgress * 0.54 + cardReadiness * 0.24 + libraryReadiness * 0.14 + freshnessReadiness * 0.08);
+      const daysLeftLabel = getExamWindowLabel(folder.examDate);
+
+      return {
+        folder,
+        notes: trackNotes,
+        objectives,
+        objectiveProgress,
+        completedObjectives,
+        documentCount,
+        flashcardCount: flashcards.length,
+        reviewLoad: dueCards.length,
+        readingMinutes,
+        readiness: clamp(readiness, 0, 100),
+        daysLeftLabel,
+        summary: getCertificationSummary(folder, objectiveProgress, dueCards.length, trackNotes.length),
+      };
+    })
+    .sort((a, b) => b.readiness - a.readiness || a.folder.name.localeCompare(b.folder.name));
+}
+
+function getFolderObjectives(folder: StudyFolder): StudyObjective[] {
+  const objectives = folder.objectives?.length ? folder.objectives : getDefaultCertificationObjectives(folder.name);
+  return objectives.map((objective, index) => ({
+    id: objective.id || `objective-${index + 1}-${slugify(objective.title)}`,
+    title: objective.title,
+    done: Boolean(objective.done),
+    weight: clamp(Math.round(objective.weight || 12), 1, 100),
+  }));
+}
+
+function getDefaultCertificationObjectives(name: string): StudyObjective[] {
+  const lower = name.toLowerCase();
+  if (lower.includes("network")) {
+    return makeStudyObjectives([
+      ["Networking fundamentals", 24],
+      ["IP addressing and subnetting", 22],
+      ["Network implementations", 20],
+      ["Operations and troubleshooting", 18],
+      ["Security concepts", 16],
+    ]);
+  }
+  if (lower.includes("security")) {
+    return makeStudyObjectives([
+      ["General security concepts", 22],
+      ["Threats, vulnerabilities, and mitigations", 22],
+      ["Security architecture", 20],
+      ["Security operations", 20],
+      ["Governance, risk, and compliance", 16],
+    ]);
+  }
+  if (lower.includes("prompt")) {
+    return makeStudyObjectives([
+      ["Prompt patterns", 20],
+      ["Evaluation loops", 22],
+      ["Tool use and agents", 22],
+      ["Retrieval workflows", 18],
+      ["Safety and guardrails", 18],
+    ]);
+  }
+  return makeStudyObjectives([
+    ["Core vocabulary", 20],
+    ["Concept map", 20],
+    ["Practice questions", 20],
+    ["Weak-topic review", 20],
+    ["Timed review", 20],
+  ]);
+}
+
+function getObjectiveProgress(objectives: StudyObjective[]) {
+  const totalWeight = objectives.reduce((total, objective) => total + objective.weight, 0);
+  if (totalWeight === 0) return 0;
+  const completedWeight = objectives.filter((objective) => objective.done).reduce((total, objective) => total + objective.weight, 0);
+  return Math.round((completedWeight / totalWeight) * 100);
+}
+
+function getExamWindowLabel(examDate?: string) {
+  const parsed = parseDateInput(examDate);
+  if (!parsed) return "set date";
+  const daysLeft = daysBetween(new Date(), parsed);
+  if (daysLeft < 0) return "past due";
+  if (daysLeft === 0) return "today";
+  return `${daysLeft}d left`;
+}
+
+function getFreshnessReadiness(notes: StudyNote[]) {
+  if (notes.length === 0) return 0;
+  const now = Date.now();
+  const freshNotes = notes.filter((note) => now - new Date(note.updatedAt).getTime() <= 10 * 86400000).length;
+  return Math.round((freshNotes / notes.length) * 100);
+}
+
+function getCertificationSummary(folder: StudyFolder, objectiveProgress: number, reviewLoad: number, noteCount: number) {
+  if (reviewLoad > 0) return `${reviewLoad} review cards need attention before the next deep study block.`;
+  if (objectiveProgress >= 80) return "Readiness is high. Shift into timed review, recall drills, and weak-topic cleanup.";
+  if (noteCount === 0) return `Start by adding readings, PDFs, and handwritten notes to ${folder.name}.`;
+  return "Build coverage first, then convert weak sections into flashcards and daily recall blocks.";
+}
+
+function getCertificationWeakTopics(track: CertificationTrack) {
+  const objectiveSignals = track.objectives
+    .filter((objective) => !objective.done)
+    .sort((a, b) => b.weight - a.weight)
+    .map((objective) => objective.title);
+  const learningSignals = track.notes
+    .flatMap((note) => (note.flashcards ?? []).filter((card) => card.difficulty !== "known").map((card) => card.source || note.title))
+    .filter(Boolean);
+  return Array.from(new Set([...objectiveSignals, ...learningSignals])).slice(0, 8);
+}
+
+function getCertificationStudyPlan(track: CertificationTrack, limit = 7): CertificationPlanRow[] {
+  const focusPool = track.objectives.filter((objective) => !objective.done);
+  const objectives = focusPool.length ? focusPool : track.objectives;
+  const days = Math.max(3, Math.min(limit, Math.max(objectives.length, 3)));
+
+  return Array.from({ length: days }, (_, index) => {
+    const objective = objectives[index % Math.max(objectives.length, 1)];
+    const title = objective?.title ?? "Mixed exam review";
+    const documentCue = track.documentCount > 0 ? "reference one saved document" : "capture one new source";
+    return {
+      day: index + 1,
+      focus: `${title}: read, summarize, and mark confusion points`,
+      recall: `Create 5 recall prompts, ${documentCue}, then review due cards`,
+    };
+  });
 }
 
 function sortStudyNotes(notes: StudyNote[]) {
