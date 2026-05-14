@@ -172,6 +172,14 @@ export async function seedRemoteDatabase(seed: {
     supabase.from("study_folders").select("id", { count: "exact", head: true }).eq("user_id", userId),
   ]);
 
+  const missingStudyFoldersPromise = folderCount && folderCount > 0
+    ? supabase.from("study_folders").select("id").eq("user_id", userId).then(({ data }) => {
+        const existingFolderIds = new Set((data ?? []).map((row) => row.id));
+        return seed.studyFolders.filter((folder) => !existingFolderIds.has(folder.id));
+      })
+    : Promise.resolve(seed.studyFolders);
+  const missingStudyFolders = await missingStudyFoldersPromise;
+
   await Promise.all([
     goalCount === 0 ? supabase.from("goals").upsert(seed.goals.map((record) => toRemoteRow(record, userId))) : null,
     habitCount === 0 ? supabase.from("habits").upsert(seed.habits.map((record) => toRemoteRow(record, userId))) : null,
@@ -183,7 +191,7 @@ export async function seedRemoteDatabase(seed: {
       : null,
     kanbanCount === 0 ? remoteUpsertKanbanCards(seed.kanbanCards, userId) : null,
     noteCount === 0 ? supabase.from("study_notes").upsert(seed.studyNotes.map((record) => toStudyNoteRow(record, userId))) : null,
-    folderCount === 0 ? supabase.from("study_folders").upsert(seed.studyFolders.map((record) => toStudyFolderRow(record, userId))) : null,
+    missingStudyFolders.length > 0 ? supabase.from("study_folders").upsert(missingStudyFolders.map((record) => toStudyFolderRow(record, userId))) : null,
   ]);
 }
 
@@ -413,6 +421,7 @@ function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
     ...toRemoteRow(folder, userId),
     name: folder.name,
     color: folder.color,
+    parent_id: folder.parentId ?? null,
     created_at: folder.createdAt,
   };
 }

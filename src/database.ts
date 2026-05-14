@@ -65,6 +65,17 @@ export class ProgressTrackerDatabase extends Dexie {
       studyNotes: "id, kind, pinned, folderId, updatedAt",
       studyFolders: "id, name, createdAt",
     });
+    this.version(7).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, name, createdAt",
+    });
   }
 }
 
@@ -96,7 +107,13 @@ export async function seedDatabase(seed: {
     if (eventCount === 0) await db.calendarEvents.bulkPut(seed.calendarEvents);
     if (kanbanCount === 0) await db.kanbanCards.bulkPut(seed.kanbanCards);
     if (noteCount === 0) await db.studyNotes.bulkPut(seed.studyNotes);
-    if (folderCount === 0) await db.studyFolders.bulkPut(seed.studyFolders);
+    if (folderCount === 0) {
+      await db.studyFolders.bulkPut(seed.studyFolders);
+    } else {
+      const existingFolderIds = new Set((await db.studyFolders.toArray()).map((folder) => folder.id));
+      const missingFolders = seed.studyFolders.filter((folder) => !existingFolderIds.has(folder.id));
+      if (missingFolders.length > 0) await db.studyFolders.bulkPut(missingFolders);
+    }
   });
 }
 

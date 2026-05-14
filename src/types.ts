@@ -98,6 +98,7 @@ export type StudyFolder = {
   id: string;
   name: string;
   color: KanbanLabelColor;
+  parentId?: string;
   createdAt: string;
 };
 
