@@ -7498,6 +7498,29 @@ button.load-forecast-day:hover {
   padding: 18px 20px;
 }
 
+.forecast-memory-card .protocol-memory-score {
+  border-color: var(--cyan-dim);
+  background:
+    radial-gradient(circle, rgba(53, 215, 255, 0.16), rgba(53, 215, 255, 0.04) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.66);
+}
+
+.forecast-memory-card .protocol-memory-score strong {
+  text-shadow: 0 0 18px rgba(53, 215, 255, 0.35);
+}
+
+.forecast-memory-card .protocol-memory-grid section {
+  border-left-color: var(--cyan);
+}
+
+.forecast-memory-card .protocol-memory-grid section:nth-child(2) {
+  border-left-color: var(--red);
+}
+
+.forecast-memory-card .protocol-memory-grid section:nth-child(3) {
+  border-left-color: var(--violet);
+}
+
 .activity-insight-list {
   grid-template-columns: repeat(3, minmax(240px, 1fr));
 }

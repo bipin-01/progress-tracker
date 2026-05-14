@@ -8242,6 +8242,7 @@ function InsightsView({
 }) {
   const insights = useMemo(() => getBehaviorInsights(events), [events]);
   const protocolMemory = useMemo(() => getProtocolMemory(events), [events]);
+  const forecastMemory = useMemo(() => getForecastBalanceMemory(events), [events]);
   const forecast = useMemo(
     () => getLoadForecast({ projects, calendarEvents, kanbanCards }),
     [calendarEvents, kanbanCards, projects],
@@ -8317,6 +8318,50 @@ function InsightsView({
         </div>
       </HudCard>
       <LoadForecastPanel forecast={forecast} compact />
+      <HudCard className="protocol-memory-card forecast-memory-card" active>
+        <CardHeader title="Forecast Balance Memory" meta={`${forecastMemory.balanceCount} moves`} />
+        <div className="protocol-memory-hero">
+          <div className="protocol-memory-score">
+            <strong>{forecastMemory.score}</strong>
+            <span>trust score</span>
+          </div>
+          <div>
+            <span className="today-eyebrow">Balancer intelligence</span>
+            <strong>{forecastMemory.headline}</strong>
+            <p>{forecastMemory.summary}</p>
+          </div>
+        </div>
+        <div className="protocol-memory-grid">
+          <section>
+            <span>Net Relief</span>
+            <strong>{forecastMemory.netMoves}</strong>
+            <p>{forecastMemory.balanceCount} stabilizing move{forecastMemory.balanceCount === 1 ? "" : "s"} recorded.</p>
+          </section>
+          <section>
+            <span>Undo Rate</span>
+            <strong>{forecastMemory.undoRate}%</strong>
+            <p>{forecastMemory.undoCount} undo signal{forecastMemory.undoCount === 1 ? "" : "s"} from manual correction.</p>
+          </section>
+          <section>
+            <span>7-Day Use</span>
+            <strong>{forecastMemory.last7Moves}</strong>
+            <p>{forecastMemory.taskMoves} task move{forecastMemory.taskMoves === 1 ? "" : "s"} and {forecastMemory.cardMoves} card shift{forecastMemory.cardMoves === 1 ? "" : "s"}.</p>
+          </section>
+        </div>
+        <div className="protocol-memory-list">
+          {forecastMemory.recent.length === 0 ? (
+            <div className="kanban-empty">// use Stabilize Peak from Today to build forecast memory</div>
+          ) : (
+            forecastMemory.recent.map((item) => (
+              <div className="protocol-memory-row" key={item.id}>
+                <span>{item.date}</span>
+                <strong>{item.title}</strong>
+                <em>{item.type}</em>
+              </div>
+            ))
+          )}
+        </div>
+      </HudCard>
       <SystemTrace label="Pattern analysis online" />
     </>
   );
@@ -8469,6 +8514,55 @@ function getActivityNumber(event: ActivityEvent, key: string) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function getForecastBalanceMemory(events: ActivityEvent[], now = new Date()) {
+  const sorted = sortActivityEvents(events);
+  const balanceEvents = sorted.filter((event) => event.source === "Forecast load balancer");
+  const undoEvents = sorted.filter((event) => event.source === "Forecast load balancer undo");
+  const last7Start = startOfDay(addDays(now, -6));
+  const last7Moves = balanceEvents.filter((event) => new Date(event.timestamp) >= last7Start).length;
+  const taskMoves = balanceEvents.filter((event) => event.domain === "task").length;
+  const cardMoves = balanceEvents.filter((event) => event.domain === "kanban").length;
+  const balanceCount = balanceEvents.length;
+  const undoCount = undoEvents.length;
+  const netMoves = Math.max(0, balanceCount - undoCount);
+  const undoRate = Math.round((undoCount / Math.max(balanceCount, 1)) * 100);
+  const score = Math.round(clamp(58 + netMoves * 9 + Math.min(last7Moves, 5) * 4 - undoCount * 22 - Math.max(0, undoRate - 35) * 0.5, 0, 100));
+  const headline =
+    balanceCount === 0
+      ? "No forecast balancing memory yet."
+      : undoRate >= 50
+        ? "Forecast automation needs calibration."
+        : score >= 72
+          ? "Forecast balancing is earning trust."
+          : "Forecast balancing is useful but still experimental.";
+  const summary =
+    balanceCount === 0
+      ? "Use Stabilize Peak from Today to let the app record whether automatic task/card moves actually reduce schedule pressure."
+      : `${balanceCount} forecast move${balanceCount === 1 ? "" : "s"} and ${undoCount} undo signal${undoCount === 1 ? "" : "s"} are recorded. Undo rate is ${undoRate}%, with ${last7Moves} move${last7Moves === 1 ? "" : "s"} in the last 7 days.`;
+
+  return {
+    balanceCount,
+    undoCount,
+    undoRate,
+    netMoves,
+    last7Moves,
+    taskMoves,
+    cardMoves,
+    score,
+    headline,
+    summary,
+    recent: [...balanceEvents, ...undoEvents]
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+      .slice(0, 6)
+      .map((event) => ({
+        id: event.id,
+        date: formatTaskDate(new Date(event.timestamp)),
+        title: event.entityTitle,
+        type: event.source === "Forecast load balancer undo" ? "undo" : `${formatActivityDomain(event.domain)} balance`,
+      })),
+  };
 }
 
 type LoadForecastTone = "calm" | "active" | "loaded" | "collision";
@@ -10246,6 +10340,7 @@ type AgentContext = {
   activityDashboard: ReturnType<typeof getActivityDashboard>;
   behaviorInsights: ReturnType<typeof getBehaviorInsights>;
   protocolMemory: ReturnType<typeof getProtocolMemory>;
+  forecastMemory: ReturnType<typeof getForecastBalanceMemory>;
   loadForecast: ReturnType<typeof getLoadForecast>;
   topGoal?: Goal;
   activeProject?: TaskProject;
@@ -10309,6 +10404,7 @@ function buildAgentContext({
   const activityDashboard = getActivityDashboard(activityEvents, now);
   const behaviorInsights = getBehaviorInsights(activityEvents);
   const protocolMemory = getProtocolMemory(activityEvents, now);
+  const forecastMemory = getForecastBalanceMemory(activityEvents, now);
   const loadForecast = getLoadForecast({ projects, calendarEvents, kanbanCards, now });
 
   return {
@@ -10322,6 +10418,7 @@ function buildAgentContext({
     activityDashboard,
     behaviorInsights,
     protocolMemory,
+    forecastMemory,
     loadForecast,
     topGoal: sortGoals(goals)[0],
     activeProject: projects.map((project) => ({ project, pressure: getProjectPressure(project, now) })).sort((a, b) => b.pressure - a.pressure)[0]?.project,
@@ -10559,6 +10656,33 @@ function runReviewerAgent(context: AgentContext): AgentDraft[] {
         description: `Audit blockers, completion criteria, and the next smallest action for ${staleCard.title}.`,
         priority: staleCard.priority,
         tags: ["review", "stalled"],
+      },
+    });
+  }
+
+  if (context.forecastMemory.balanceCount >= 2 && context.forecastMemory.undoRate >= 50) {
+    const score = clamp(48 + context.forecastMemory.undoRate * 0.36 + context.forecastMemory.undoCount * 12, 52, 92);
+    drafts.push({
+      agentId: "reviewer",
+      agentName: "Reviewer Agent",
+      title: "Calibrate forecast balancer rules",
+      body: "Forecast balancing is being undone often enough that the automation should be reviewed. Compare the moved tasks/cards against what you actually wanted protected, then tighten what counts as flexible.",
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([context.forecastMemory.undoRate, context.forecastMemory.undoCount * 22, context.forecastMemory.balanceCount * 12]),
+      source: "forecast-memory model",
+      evidence: [
+        `${context.forecastMemory.undoRate}% forecast undo rate`,
+        `${context.forecastMemory.undoCount} undo signal${context.forecastMemory.undoCount === 1 ? "" : "s"}`,
+        `${context.forecastMemory.balanceCount} balance move${context.forecastMemory.balanceCount === 1 ? "" : "s"}`,
+      ],
+      action: {
+        type: "create_kanban",
+        label: "Create calibration card",
+        title: "Calibrate forecast load balancer",
+        description: "Review the last forecast balance moves. Mark which task/card types are safe to move automatically and which should require manual review.",
+        priority: context.forecastMemory.undoRate >= 70 ? "high" : "medium",
+        tags: ["forecast", "automation", "review"],
       },
     });
   }
