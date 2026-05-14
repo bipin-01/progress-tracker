@@ -473,7 +473,7 @@ function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
 
 async function remoteUpsertStudyNote(note: StudyNote, userId = currentUserId) {
   if (!supabase || !userId) return;
-  const { error } = await supabase.from("study_notes").upsert(toStudyNoteRow(note, userId));
+  const { error } = await supabase.from("study_notes").upsert(toStudyNoteRow(note, userId), { onConflict: "user_id,id" });
   if (error) {
     setBackendStatus({ error: `Supabase save failed for study_notes: ${error.message}` });
     throw error;
@@ -483,7 +483,7 @@ async function remoteUpsertStudyNote(note: StudyNote, userId = currentUserId) {
 
 async function remoteUpsertStudyFolder(folder: StudyFolder, userId = currentUserId) {
   if (!supabase || !userId) return;
-  const { error } = await supabase.from("study_folders").upsert(toStudyFolderRow(folder, userId));
+  const { error } = await supabase.from("study_folders").upsert(toStudyFolderRow(folder, userId), { onConflict: "user_id,id" });
   if (error) {
     setBackendStatus({ error: `Supabase save failed for study_folders: ${error.message}` });
     throw error;

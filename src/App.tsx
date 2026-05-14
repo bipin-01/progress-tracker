@@ -512,6 +512,9 @@ type AppCommand = {
   action: () => void;
 };
 
+const STUDY_FOLDER_ROOT_ID = "root";
+const STUDY_FOLDER_UNCATEGORIZED_ID = "uncategorized";
+
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
   if (!element) return false;
@@ -3133,7 +3136,9 @@ function NotesView({
   const [activeTag, setActiveTag] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [folderInput, setFolderInput] = useState("");
-  const [folderParentId, setFolderParentId] = useState("root");
+  const [folderParentId, setFolderParentId] = useState(STUDY_FOLDER_ROOT_ID);
+  const [folderCreateStatus, setFolderCreateStatus] = useState("");
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
   const [activeCertificationId, setActiveCertificationId] = useState("");
   const [objectiveInput, setObjectiveInput] = useState("");
   const [certPlanStatus, setCertPlanStatus] = useState("");
@@ -3147,6 +3152,7 @@ function NotesView({
   const [draftBody, setDraftBody] = useState("");
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const textSaveRef = useRef<number | null>(null);
   const sortedNotes = useMemo(() => sortStudyNotes(notes), [notes]);
   const activeNote = notes.find((note) => note.id === activeNoteId) ?? sortedNotes[0];
@@ -3162,20 +3168,33 @@ function NotesView({
   const reviewedToday = useMemo(() => allSavedFlashcards.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length, [allSavedFlashcards]);
   const recentStudyNotes = sortedNotes.slice(0, 4);
   const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags))).sort(), [notes]);
-  const folderTree = useMemo(() => getStudyFolderTree(folders, notes), [folders, notes]);
-  const certificationTracks = useMemo(() => getCertificationTracks(folders, notes), [folders, notes]);
+  const folderIndex = useMemo(() => buildStudyFolderIndex(folders, notes), [folders, notes]);
+  const folderTree = folderIndex.tree;
+  const folderStructureKey = useMemo(
+    () => folderTree.map((folder) => `${folder.id}:${folder.depth}:${folder.childCount}:${folder.parentId ?? STUDY_FOLDER_ROOT_ID}`).join("|"),
+    [folderTree],
+  );
+  const visibleFolderTree = useMemo(
+    () => folderTree.filter((folder) => folder.ancestorIds.every((ancestorId) => expandedFolderIds.has(ancestorId))),
+    [expandedFolderIds, folderTree],
+  );
+  const selectedFolderParent = folderParentId === STUDY_FOLDER_ROOT_ID ? null : folderIndex.itemById.get(folderParentId) ?? null;
+  const certificationTracks = useMemo(() => getCertificationTracks(folders, notes, folderIndex), [folderIndex, folders, notes]);
   const activeCertification = certificationTracks.find((track) => track.folder.id === activeCertificationId) ?? certificationTracks[0];
   const activeCertificationPlan = useMemo(() => (activeCertification ? getCertificationStudyPlan(activeCertification) : []), [activeCertification]);
   const activeCertificationWeakTopics = useMemo(() => (activeCertification ? getCertificationWeakTopics(activeCertification) : []), [activeCertification]);
   const activeFolderScope = useMemo(
-    () => (activeFolderId === "all" || activeFolderId === "uncategorized" ? [] : getStudyFolderBranchIds(folders, activeFolderId)),
-    [activeFolderId, folders],
+    () =>
+      activeFolderId === "all" || activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID
+        ? []
+        : getStudyFolderBranchIdsFromIndex(folderIndex, activeFolderId),
+    [activeFolderId, folderIndex],
   );
   const filteredNotes = sortedNotes.filter((note) => {
     const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
     const matchesFolder =
       activeFolderId === "all" ||
-      (activeFolderId === "uncategorized" ? !note.folderId : activeFolderScope.includes(note.folderId ?? ""));
+      (activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID ? !note.folderId : activeFolderScope.includes(note.folderId ?? ""));
     const matchesTag = !activeTag || note.tags.includes(activeTag);
     const haystack = `${note.title} ${note.body} ${note.extractedText ?? ""} ${note.tags.join(" ")}`.toLowerCase();
     return matchesFilter && matchesFolder && matchesTag && haystack.includes(query.trim().toLowerCase());
@@ -3186,22 +3205,36 @@ function NotesView({
   }, [activeNote, sortedNotes]);
 
   useEffect(() => {
-    if (activeFolderId !== "all" && activeFolderId !== "uncategorized" && !folders.some((folder) => folder.id === activeFolderId)) {
+    if (activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && !folderIndex.byId.has(activeFolderId)) {
       setActiveFolderId("all");
     }
-  }, [activeFolderId, folders]);
+  }, [activeFolderId, folderIndex]);
 
   useEffect(() => {
-    if (activeFolderId !== "all" && activeFolderId !== "uncategorized") {
+    if (activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && folderIndex.byId.has(activeFolderId)) {
       setFolderParentId(activeFolderId);
     }
-  }, [activeFolderId]);
+  }, [activeFolderId, folderIndex]);
 
   useEffect(() => {
-    if (folderParentId !== "root" && !folders.some((folder) => folder.id === folderParentId)) {
-      setFolderParentId("root");
+    if (folderParentId !== STUDY_FOLDER_ROOT_ID && !folderIndex.byId.has(folderParentId)) {
+      setFolderParentId(STUDY_FOLDER_ROOT_ID);
     }
-  }, [folderParentId, folders]);
+  }, [folderIndex, folderParentId]);
+
+  useEffect(() => {
+    setExpandedFolderIds((current) => {
+      const knownIds = new Set(folderTree.map((folder) => folder.id));
+      const next = new Set([...current].filter((id) => knownIds.has(id)));
+      folderTree.forEach((folder) => {
+        if (folder.depth === 0 || folder.childCount > 0) {
+          next.add(folder.id);
+        }
+      });
+      if (next.size !== current.size || [...next].some((id) => !current.has(id))) return next;
+      return current;
+    });
+  }, [folderStructureKey]);
 
   useEffect(() => {
     if (!activeCertification && activeCertificationId) {
@@ -3228,6 +3261,12 @@ function NotesView({
 
   async function createNote(kind: StudyNote["kind"] = "note", seed?: Partial<StudyNote>) {
     const now = new Date().toISOString();
+    const fallbackFolderId =
+      activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && folderIndex.byId.has(activeFolderId)
+        ? activeFolderId
+        : folderParentId !== STUDY_FOLDER_ROOT_ID && folderIndex.byId.has(folderParentId)
+          ? folderParentId
+          : folderTree[0]?.id;
     const note: StudyNote = {
       id: `${Date.now()}-${kind}`,
       title: seed?.title ?? (kind === "document" ? "Uploaded document" : "Untitled study note"),
@@ -3235,7 +3274,7 @@ function NotesView({
       tags: seed?.tags ?? (kind === "document" ? ["reading"] : ["study"]),
       pinned: false,
       kind,
-      folderId: seed?.folderId ?? (activeFolderId !== "all" && activeFolderId !== "uncategorized" ? activeFolderId : folders[0]?.id),
+      folderId: seed?.folderId ?? fallbackFolderId,
       sourceName: seed?.sourceName,
       mimeType: seed?.mimeType,
       fileDataUrl: seed?.fileDataUrl,
@@ -3251,19 +3290,78 @@ function NotesView({
     setMode(kind === "document" ? "reading" : "writing");
   }
 
+  function expandFolderPath(folderId: string) {
+    const folder = folderIndex.itemById.get(folderId);
+    if (!folder) return;
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      folder.ancestorIds.forEach((ancestorId) => next.add(ancestorId));
+      next.add(folderId);
+      return next;
+    });
+  }
+
+  function toggleFolderExpanded(folderId: string) {
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }
+
+  function prepareChildFolder(parentId: string) {
+    setFolderParentId(parentId);
+    setActiveFolderId(parentId);
+    expandFolderPath(parentId);
+    const parent = folderIndex.itemById.get(parentId);
+    setFolderCreateStatus(parent ? `Creating inside ${parent.path}` : "");
+    requestAnimationFrame(() => folderInputRef.current?.focus());
+  }
+
+  function prepareRootFolder() {
+    setFolderParentId(STUDY_FOLDER_ROOT_ID);
+    setFolderCreateStatus("Creating at library root");
+    requestAnimationFrame(() => folderInputRef.current?.focus());
+  }
+
   async function createFolder() {
     const cleanName = folderInput.trim();
     if (!cleanName) return;
+    const parentId = folderParentId !== STUDY_FOLDER_ROOT_ID && folderIndex.byId.has(folderParentId) ? folderParentId : undefined;
+    const parentKey = parentId ?? STUDY_FOLDER_ROOT_ID;
+    const duplicate = (folderIndex.childrenByParentId.get(parentKey) ?? []).some(
+      (folder) => folder.name.trim().toLowerCase() === cleanName.toLowerCase(),
+    );
+    if (duplicate) {
+      setFolderCreateStatus(`Directory already exists under ${selectedFolderParent?.path ?? "root"}.`);
+      return;
+    }
     const folder: StudyFolder = {
-      id: `${Date.now()}-${slugify(cleanName)}`,
+      id: createStudyFolderId(cleanName, folderIndex.byId),
       name: cleanName,
       color: ["cyan", "violet", "lime", "amber", "red"][folders.length % 5] as KanbanLabelColor,
-      parentId: folderParentId === "root" ? undefined : folderParentId,
+      parentId,
       createdAt: new Date().toISOString(),
     };
     await studyFolderCrud.add(folder);
     setFolderInput("");
     setActiveFolderId(folder.id);
+    setFolderParentId(folder.id);
+    setFolderCreateStatus(`Created ${folder.name} under ${selectedFolderParent?.path ?? "root"}.`);
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      if (parentId) {
+        const parent = folderIndex.itemById.get(parentId);
+        parent?.ancestorIds.forEach((ancestorId) => next.add(ancestorId));
+        next.add(parentId);
+      }
+      next.add(folder.id);
+      return next;
+    });
   }
 
   function updateActive(patch: Partial<Omit<StudyNote, "id" | "createdAt">>) {
@@ -3533,7 +3631,7 @@ function NotesView({
 
     window.addEventListener("keydown", handleNotesShortcuts);
     return () => window.removeEventListener("keydown", handleNotesShortcuts);
-  }, [activeFolderId, folders]);
+  }, [activeFolderId, folderIndex, folderParentId, folderTree]);
 
   return (
     <>
@@ -3547,90 +3645,115 @@ function NotesView({
           </div>
           {!libraryCollapsed && (
             <>
-          <div className="folder-system">
-            <div className="folder-system-head">
-              <span>Directories</span>
-              <strong>{folders.length}</strong>
-            </div>
-            <button className={activeFolderId === "all" ? "active" : ""} type="button" onClick={() => setActiveFolderId("all")}>
-              <span className="folder-dot cyan" /> All Notes <em>{notes.length}</em>
-            </button>
-            {folderTree.map((folder) => (
-              <div className="folder-tree-row" style={{ "--depth": folder.depth } as CSSProperties} key={folder.id}>
-                <button className={activeFolderId === folder.id ? "active" : ""} type="button" onClick={() => setActiveFolderId(folder.id)}>
-                  <span className={`folder-dot ${folder.color}`} />
-                  <span>
-                    {folder.name}
-                    {folder.depth > 0 && <small>{folder.path}</small>}
-                  </span>
-                  <em>{folder.noteCount}</em>
+              <div className="folder-system">
+                <div className="folder-system-head">
+                  <span>Directories</span>
+                  <strong>{folderIndex.tree.length}</strong>
+                </div>
+                <button className={activeFolderId === "all" ? "active" : ""} type="button" onClick={() => setActiveFolderId("all")}>
+                  <span className="folder-dot cyan" /> All Notes <em>{notes.length}</em>
                 </button>
-                <button
-                  className="folder-child-trigger"
-                  type="button"
-                  onClick={() => {
-                    setFolderParentId(folder.id);
-                    setActiveFolderId(folder.id);
-                  }}
-                  aria-label={`Add child directory under ${folder.name}`}
-                >
-                  +
+                {visibleFolderTree.map((folder) => {
+                  const expanded = expandedFolderIds.has(folder.id);
+                  return (
+                    <div className={`folder-tree-row ${folder.isOrphan ? "orphan" : ""}`} style={{ "--depth": folder.depth } as CSSProperties} key={folder.id}>
+                      <button
+                        className="folder-toggle"
+                        type="button"
+                        disabled={folder.childCount === 0}
+                        onClick={() => toggleFolderExpanded(folder.id)}
+                        aria-label={`${expanded ? "Collapse" : "Expand"} ${folder.name}`}
+                        aria-expanded={folder.childCount > 0 ? expanded : undefined}
+                      >
+                        {folder.childCount > 0 ? (expanded ? "-" : "+") : ""}
+                      </button>
+                      <button className={`folder-select-button ${activeFolderId === folder.id ? "active" : ""}`} type="button" onClick={() => {
+                        setActiveFolderId(folder.id);
+                        expandFolderPath(folder.id);
+                      }}>
+                        <span className={`folder-dot ${folder.color}`} />
+                        <span>
+                          {folder.name}
+                          <small>{folder.path}{folder.childCount > 0 ? ` - ${folder.childCount} dirs` : ""}</small>
+                        </span>
+                        <em>{folder.directNoteCount}/{folder.noteCount}</em>
+                      </button>
+                      <button
+                        className="folder-child-trigger"
+                        type="button"
+                        onClick={() => prepareChildFolder(folder.id)}
+                        aria-label={`Add child directory under ${folder.name}`}
+                      >
+                        +
+                      </button>
+                    </div>
+                  );
+                })}
+                <button className={activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID ? "active" : ""} type="button" onClick={() => setActiveFolderId(STUDY_FOLDER_UNCATEGORIZED_ID)}>
+                  <span className="folder-dot amber" /> Uncategorized <em>{notes.filter((note) => !note.folderId).length}</em>
                 </button>
+                <div className="folder-create-context">
+                  <span>Create inside</span>
+                  <strong>{selectedFolderParent?.path ?? "Library root"}</strong>
+                  <button type="button" onClick={prepareRootFolder}>root</button>
+                </div>
+                <div className="folder-create">
+                  <input ref={folderInputRef} value={folderInput} onChange={(event) => {
+                    setFolderInput(event.target.value);
+                    if (folderCreateStatus) setFolderCreateStatus("");
+                  }} onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void createFolder();
+                    }
+                  }} placeholder="new directory" />
+                  <select value={folderParentId} onChange={(event) => setFolderParentId(event.target.value)}>
+                    <option value={STUDY_FOLDER_ROOT_ID}>root</option>
+                    {folderTree.map((folder) => (
+                      <option value={folder.id} key={folder.id}>
+                        {getStudyFolderOptionLabel(folder)}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => void createFolder()}>add</button>
+                </div>
+                {folderCreateStatus && <div className="folder-create-status">{folderCreateStatus}</div>}
               </div>
-            ))}
-            <button className={activeFolderId === "uncategorized" ? "active" : ""} type="button" onClick={() => setActiveFolderId("uncategorized")}>
-              <span className="folder-dot amber" /> Uncategorized <em>{notes.filter((note) => !note.folderId).length}</em>
-            </button>
-            <div className="folder-create">
-              <input value={folderInput} onChange={(event) => setFolderInput(event.target.value)} onKeyDown={(event) => {
-                if (event.key === "Enter") void createFolder();
-              }} placeholder="new directory" />
-              <select value={folderParentId} onChange={(event) => setFolderParentId(event.target.value)}>
-                <option value="root">root</option>
-                {folderTree.map((folder) => (
-                  <option value={folder.id} key={folder.id}>
-                    {getStudyFolderOptionLabel(folder)}
-                  </option>
+              <div className="notes-search">
+                <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
+              </div>
+              <div className="notes-tabs">
+                {(["all", "pinned", "recent"] as const).map((item) => (
+                  <button className={filter === item ? "active" : ""} type="button" onClick={() => setFilter(item)} key={item}>{item}</button>
                 ))}
-              </select>
-              <button type="button" onClick={() => void createFolder()}>add</button>
-            </div>
-          </div>
-          <div className="notes-search">
-            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
-          </div>
-          <div className="notes-tabs">
-            {(["all", "pinned", "recent"] as const).map((item) => (
-              <button className={filter === item ? "active" : ""} type="button" onClick={() => setFilter(item)} key={item}>{item}</button>
-            ))}
-          </div>
-          <div className="notes-tags">
-            <button className={!activeTag ? "active" : ""} type="button" onClick={() => setActiveTag("")}>all tags</button>
-            {allTags.map((tag) => (
-              <button className={activeTag === tag ? "active" : ""} type="button" onClick={() => setActiveTag(tag)} key={tag}>{tag}</button>
-            ))}
-          </div>
-          <div className="note-list">
-            {filteredNotes.length === 0 ? (
-              <div className="kanban-empty">// no notes match current filter</div>
-            ) : (
-              filteredNotes.map((note) => (
-                <button className={`note-list-item ${activeNote?.id === note.id ? "active" : ""}`} type="button" onClick={() => setActiveNoteId(note.id)} key={note.id}>
-                  <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
-                  <strong>{note.title || "Untitled"}</strong>
-                  <em>{getWordCount(note.body)} words · {formatActivityTime(note.updatedAt)}</em>
-                </button>
-              ))
-            )}
-          </div>
-          <div className="notes-create-row">
-            <button type="button" onClick={() => void createNote("note")}>+ note</button>
-            <label>
-              <input type="file" multiple accept=".pdf,.docx,.md,.markdown,.txt,.csv,.json,.html,.css,.js,.ts,.tsx" onChange={(event) => void uploadDocuments(event.target.files)} />
-              + upload
-            </label>
-          </div>
-          {uploadStatus && <div className="notes-upload-status">{uploadStatus}</div>}
+              </div>
+              <div className="notes-tags">
+                <button className={!activeTag ? "active" : ""} type="button" onClick={() => setActiveTag("")}>all tags</button>
+                {allTags.map((tag) => (
+                  <button className={activeTag === tag ? "active" : ""} type="button" onClick={() => setActiveTag(tag)} key={tag}>{tag}</button>
+                ))}
+              </div>
+              <div className="note-list">
+                {filteredNotes.length === 0 ? (
+                  <div className="kanban-empty">// no notes match current filter</div>
+                ) : (
+                  filteredNotes.map((note) => (
+                    <button className={`note-list-item ${activeNote?.id === note.id ? "active" : ""}`} type="button" onClick={() => setActiveNoteId(note.id)} key={note.id}>
+                      <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
+                      <strong>{note.title || "Untitled"}</strong>
+                      <em>{getWordCount(note.body)} words · {formatActivityTime(note.updatedAt)}</em>
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="notes-create-row">
+                <button type="button" onClick={() => void createNote("note")}>+ note</button>
+                <label>
+                  <input type="file" multiple accept=".pdf,.docx,.md,.markdown,.txt,.csv,.json,.html,.css,.js,.ts,.tsx" onChange={(event) => void uploadDocuments(event.target.files)} />
+                  + upload
+                </label>
+              </div>
+              {uploadStatus && <div className="notes-upload-status">{uploadStatus}</div>}
             </>
           )}
         </HudCard>
@@ -3680,8 +3803,8 @@ function NotesView({
 
                   <div className="note-directory-row">
                     <span>Directory</span>
-                    <select value={activeNote.folderId ?? "uncategorized"} onChange={(event) => updateActive({ folderId: event.target.value === "uncategorized" ? undefined : event.target.value })}>
-                      <option value="uncategorized">Uncategorized</option>
+                    <select value={activeNote.folderId ?? STUDY_FOLDER_UNCATEGORIZED_ID} onChange={(event) => updateActive({ folderId: event.target.value === STUDY_FOLDER_UNCATEGORIZED_ID ? undefined : event.target.value })}>
+                      <option value={STUDY_FOLDER_UNCATEGORIZED_ID}>Uncategorized</option>
                       {folderTree.map((folder) => (
                         <option value={folder.id} key={folder.id}>{getStudyFolderOptionLabel(folder)}</option>
                       ))}
@@ -4255,58 +4378,128 @@ function NotesView({
 type StudyFolderTreeItem = StudyFolder & {
   depth: number;
   path: string;
+  ancestorIds: string[];
+  childCount: number;
+  directNoteCount: number;
   noteCount: number;
+  isOrphan: boolean;
 };
 
-function getStudyFolderTree(folders: StudyFolder[], notes: StudyNote[]): StudyFolderTreeItem[] {
-  const children = new Map<string, StudyFolder[]>();
-  const folderIds = new Set(folders.map((folder) => folder.id));
-  folders.forEach((folder) => {
-    const parentId = folder.parentId && folderIds.has(folder.parentId) ? folder.parentId : "root";
-    children.set(parentId, [...(children.get(parentId) ?? []), folder]);
+type StudyFolderIndex = {
+  tree: StudyFolderTreeItem[];
+  byId: Map<string, StudyFolder>;
+  itemById: Map<string, StudyFolderTreeItem>;
+  childrenByParentId: Map<string, StudyFolder[]>;
+  descendantIdsById: Map<string, string[]>;
+  directNoteIdsByFolderId: Map<string, string[]>;
+};
+
+function buildStudyFolderIndex(folders: StudyFolder[], notes: StudyNote[]): StudyFolderIndex {
+  const sortedFolders = [...folders].sort(compareStudyFolders);
+  const byId = new Map(sortedFolders.map((folder) => [folder.id, folder]));
+  const childrenByParentId = new Map<string, StudyFolder[]>();
+  const directNoteIdsByFolderId = new Map<string, string[]>();
+
+  notes.forEach((note) => {
+    if (!note.folderId || !byId.has(note.folderId)) return;
+    directNoteIdsByFolderId.set(note.folderId, [...(directNoteIdsByFolderId.get(note.folderId) ?? []), note.id]);
   });
-  children.forEach((items) => items.sort((a, b) => a.name.localeCompare(b.name) || a.createdAt.localeCompare(b.createdAt)));
+
+  sortedFolders.forEach((folder) => {
+    const parentId = getNormalizedStudyFolderParentId(folder, byId);
+    childrenByParentId.set(parentId, [...(childrenByParentId.get(parentId) ?? []), folder]);
+  });
+  childrenByParentId.forEach((items) => items.sort(compareStudyFolders));
+
+  const descendantIdsById = new Map<string, string[]>();
+  function collectDescendants(folderId: string, stack = new Set<string>()): string[] {
+    if (descendantIdsById.has(folderId)) return descendantIdsById.get(folderId) ?? [folderId];
+    if (stack.has(folderId)) return [folderId];
+    stack.add(folderId);
+    const ids = new Set<string>([folderId]);
+    (childrenByParentId.get(folderId) ?? []).forEach((child) => {
+      if (child.id === folderId) return;
+      collectDescendants(child.id, new Set(stack)).forEach((id) => ids.add(id));
+    });
+    const result = [...ids];
+    descendantIdsById.set(folderId, result);
+    return result;
+  }
+
+  sortedFolders.forEach((folder) => collectDescendants(folder.id));
+  const noteCountByFolderId = new Map<string, number>();
+  sortedFolders.forEach((folder) => {
+    const branchIds = descendantIdsById.get(folder.id) ?? [folder.id];
+    noteCountByFolderId.set(
+      folder.id,
+      branchIds.reduce((total, id) => total + (directNoteIdsByFolderId.get(id)?.length ?? 0), 0),
+    );
+  });
 
   const tree: StudyFolderTreeItem[] = [];
+  const itemById = new Map<string, StudyFolderTreeItem>();
   const visited = new Set<string>();
 
-  function walk(parentId: string, depth: number, ancestors: string[]) {
-    (children.get(parentId) ?? []).forEach((folder) => {
-      if (visited.has(folder.id)) return;
-      visited.add(folder.id);
-      const pathParts = [...ancestors, folder.name];
-      tree.push({
-        ...folder,
-        depth,
-        path: pathParts.join(" / "),
-        noteCount: getStudyFolderNoteCount(folders, notes, folder.id),
-      });
-      walk(folder.id, depth + 1, pathParts);
+  function appendFolder(folder: StudyFolder, depth: number, ancestorIds: string[], pathParts: string[], isOrphan: boolean) {
+    if (visited.has(folder.id)) return;
+    visited.add(folder.id);
+    const nextPathParts = [...pathParts, folder.name];
+    const item: StudyFolderTreeItem = {
+      ...folder,
+      depth,
+      ancestorIds,
+      path: nextPathParts.join(" / "),
+      childCount: (childrenByParentId.get(folder.id) ?? []).length,
+      directNoteCount: directNoteIdsByFolderId.get(folder.id)?.length ?? 0,
+      noteCount: noteCountByFolderId.get(folder.id) ?? 0,
+      isOrphan,
+    };
+    tree.push(item);
+    itemById.set(folder.id, item);
+    (childrenByParentId.get(folder.id) ?? []).forEach((child) => {
+      appendFolder(child, depth + 1, [...ancestorIds, folder.id], nextPathParts, isOrphan);
     });
   }
 
-  walk("root", 0, []);
-  return tree;
+  (childrenByParentId.get(STUDY_FOLDER_ROOT_ID) ?? []).forEach((folder) => appendFolder(folder, 0, [], [], false));
+  sortedFolders.forEach((folder) => {
+    if (!visited.has(folder.id)) appendFolder(folder, 0, [], [], true);
+  });
+
+  return { tree, byId, itemById, childrenByParentId, descendantIdsById, directNoteIdsByFolderId };
+}
+
+function getStudyFolderTree(folders: StudyFolder[], notes: StudyNote[]): StudyFolderTreeItem[] {
+  return buildStudyFolderIndex(folders, notes).tree;
+}
+
+function getStudyFolderBranchIdsFromIndex(index: StudyFolderIndex, folderId: string) {
+  return index.descendantIdsById.get(folderId) ?? (index.byId.has(folderId) ? [folderId] : []);
 }
 
 function getStudyFolderBranchIds(folders: StudyFolder[], folderId: string) {
-  const ids = new Set<string>([folderId]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    folders.forEach((folder) => {
-      if (folder.parentId && ids.has(folder.parentId) && !ids.has(folder.id)) {
-        ids.add(folder.id);
-        changed = true;
-      }
-    });
-  }
-  return [...ids];
+  return getStudyFolderBranchIdsFromIndex(buildStudyFolderIndex(folders, []), folderId);
 }
 
 function getStudyFolderNoteCount(folders: StudyFolder[], notes: StudyNote[], folderId: string) {
-  const branchIds = new Set(getStudyFolderBranchIds(folders, folderId));
-  return notes.filter((note) => note.folderId && branchIds.has(note.folderId)).length;
+  return buildStudyFolderIndex(folders, notes).itemById.get(folderId)?.noteCount ?? 0;
+}
+
+function getNormalizedStudyFolderParentId(folder: StudyFolder, foldersById: Map<string, StudyFolder>) {
+  if (!folder.parentId || folder.parentId === folder.id || !foldersById.has(folder.parentId)) return STUDY_FOLDER_ROOT_ID;
+  return folder.parentId;
+}
+
+function compareStudyFolders(a: StudyFolder, b: StudyFolder) {
+  return a.name.localeCompare(b.name) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
+}
+
+function createStudyFolderId(name: string, foldersById: Map<string, StudyFolder>) {
+  const base = `${Date.now()}-${slugify(name)}`;
+  if (!foldersById.has(base)) return base;
+  let index = 2;
+  while (foldersById.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
 }
 
 function getStudyFolderOptionLabel(folder: StudyFolderTreeItem) {
@@ -4334,19 +4527,21 @@ type CertificationTrack = {
   summary: string;
 };
 
-function getCertificationTracks(folders: StudyFolder[], notes: StudyNote[]): CertificationTrack[] {
+function getCertificationTracks(folders: StudyFolder[], notes: StudyNote[], existingIndex?: StudyFolderIndex): CertificationTrack[] {
+  const folderIndex = existingIndex ?? buildStudyFolderIndex(folders, notes);
   const certificationRootIds = new Set(
     folders.filter((folder) => folder.name.toLowerCase().includes("certification")).map((folder) => folder.id),
   );
   const trackFolders = folders.filter((folder) => {
     const hasTrackData = Boolean(folder.examDate || folder.objectives?.length);
-    const isCertificationChild = Boolean(folder.parentId && certificationRootIds.has(folder.parentId));
+    const ancestors = folderIndex.itemById.get(folder.id)?.ancestorIds ?? [];
+    const isCertificationChild = ancestors.some((ancestorId) => certificationRootIds.has(ancestorId));
     return hasTrackData || isCertificationChild;
   });
 
   return trackFolders
     .map((folder) => {
-      const branchIds = new Set(getStudyFolderBranchIds(folders, folder.id));
+      const branchIds = new Set(getStudyFolderBranchIdsFromIndex(folderIndex, folder.id));
       const trackNotes = notes.filter((note) => note.folderId && branchIds.has(note.folderId));
       const objectives = getFolderObjectives(folder);
       const objectiveProgress = getObjectiveProgress(objectives);

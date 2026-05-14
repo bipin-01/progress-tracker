@@ -4030,7 +4030,7 @@ button {
 }
 
 .folder-system > button,
-.folder-tree-row > button:first-child {
+.folder-select-button {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto;
   gap: 8px;
@@ -4048,15 +4048,16 @@ button {
 
 .folder-tree-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: 26px minmax(0, 1fr) 30px;
   gap: 6px;
   margin-left: calc(var(--depth) * 14px);
 }
 
 .folder-system > button.active,
 .folder-system > button:hover,
-.folder-tree-row > button:first-child.active,
-.folder-tree-row > button:first-child:hover,
+.folder-select-button.active,
+.folder-select-button:hover,
+.folder-toggle:hover:not(:disabled),
 .folder-child-trigger:hover {
   border-color: var(--cyan-dim);
   background: rgba(53, 215, 255, 0.08);
@@ -4067,6 +4068,10 @@ button {
 .folder-tree-row em {
   color: var(--muted);
   font-style: normal;
+}
+
+.folder-tree-row.orphan .folder-select-button {
+  border-color: rgba(255, 183, 77, 0.4);
 }
 
 .folder-tree-row small {
@@ -4082,6 +4087,7 @@ button {
   white-space: nowrap;
 }
 
+.folder-toggle,
 .folder-child-trigger {
   display: grid;
   place-items: center;
@@ -4089,6 +4095,12 @@ button {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 12px;
+}
+
+.folder-toggle:disabled {
+  color: var(--dim);
+  cursor: default;
+  opacity: 0.42;
 }
 
 .folder-dot {
@@ -4128,6 +4140,44 @@ button {
   gap: 8px;
 }
 
+.folder-create-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.03);
+  padding: 8px;
+}
+
+.folder-create-context span,
+.folder-create-status {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.folder-create-context strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-create-context button {
+  border: 1px solid var(--hair);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 5px 8px;
+  text-transform: uppercase;
+}
+
 .folder-create input,
 .folder-create select,
 .note-directory-row select {
@@ -4158,6 +4208,11 @@ button {
   letter-spacing: 0.12em;
   padding: 0 10px;
   text-transform: uppercase;
+}
+
+.folder-create-status {
+  border-left: 2px solid var(--cyan);
+  padding: 4px 0 4px 8px;
 }
 
 .notes-search input,
@@ -6567,8 +6622,12 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .folder-create-context {
+    grid-template-columns: 1fr;
+  }
+
   .folder-tree-row {
-    grid-template-columns: minmax(0, 1fr) 28px;
+    grid-template-columns: 24px minmax(0, 1fr) 28px;
     margin-left: calc(var(--depth) * 8px);
   }
 
