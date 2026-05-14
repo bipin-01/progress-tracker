@@ -688,6 +688,10 @@ function App() {
         navigateTo("tasks");
       } else if (preview.intent === "calendar") {
         const date = parseDateInput(preview.date) ?? now;
+        if (isPastCalendarDate(date, startOfDay(now))) {
+          setQuickCaptureStatus("Calendar capture blocked: past dates are locked.");
+          return;
+        }
         await calendarCrud.add({
           id,
           date: toDateInputValue(date),
@@ -850,7 +854,7 @@ function App() {
             : activeView === "notes"
               ? { title: "Study Notes", subtitle: "Reading library // markdown workspace" }
               : activeView === "calendar"
-                ? { title: "Calendar · May 2026", subtitle: "Consistency map // per-day completion" }
+                ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
                 : activeView === "progress"
                   ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
                   : activeView === "insights"
@@ -6282,19 +6286,53 @@ function CalendarView({
 }: {
   events: CalendarEvent[];
 }) {
-  const [selectedDay, setSelectedDay] = useState(12);
+  const today = useMemo(() => startOfDay(new Date()), []);
+  const todayKey = toDateInputValue(today);
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<CalendarEvent["kind"]>("meeting");
   const [time, setTime] = useState("09:00");
-  const [eventDate, setEventDate] = useState(() => toDateInputValue(makeCalendarDate(12)));
-  const selectedDate = makeCalendarDate(selectedDay);
-  const activeDate = parseDateInput(eventDate) ?? selectedDate;
-  const selectedEvents = events.filter((event) => getEventDate(event).toDateString() === activeDate.toDateString());
+  const [eventDate, setEventDate] = useState(todayKey);
+  const [calendarStatus, setCalendarStatus] = useState("");
+  const activeDate = parseDateInput(eventDate) ?? today;
+  const activeDateKey = toDateInputValue(activeDate);
+  const selectedDateLocked = isPastCalendarDate(activeDate, today);
+  const visibleMonthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(visibleMonth);
+  const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+  const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+  const leadingEmptyDays = (firstDay.getDay() + 6) % 7;
+  const totalCalendarCells = Math.ceil((leadingEmptyDays + daysInMonth) / 7) * 7;
+  const visibleMonthKey = `${visibleMonth.getFullYear()}-${visibleMonth.getMonth()}`;
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    events.forEach((event) => {
+      const key = toDateInputValue(getEventDate(event));
+      map.set(key, [...(map.get(key) ?? []), event].sort((a, b) => a.time.localeCompare(b.time)));
+    });
+    return map;
+  }, [events]);
+  const selectedEvents = eventsByDate.get(activeDateKey) ?? [];
+  const visibleMonthEventCount = useMemo(
+    () =>
+      events.filter((event) => {
+        const date = getEventDate(event);
+        return date.getFullYear() === visibleMonth.getFullYear() && date.getMonth() === visibleMonth.getMonth();
+      }).length,
+    [events, visibleMonth],
+  );
+  const upcomingVisibleEvents = useMemo(() => getUpcomingEvents(events, today).slice(0, 4), [events, today]);
 
   function addEvent() {
     const cleanTitle = title.trim();
-    if (!cleanTitle) return;
-    const resolvedDate = parseDateInput(eventDate) ?? selectedDate;
+    if (!cleanTitle) {
+      setCalendarStatus("Add a title before scheduling.");
+      return;
+    }
+    const resolvedDate = parseDateInput(eventDate) ?? today;
+    if (isPastCalendarDate(resolvedDate, today)) {
+      setCalendarStatus("Past dates are locked. Choose today or a future date.");
+      return;
+    }
     void calendarCrud.add({
       id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       date: toDateInputValue(resolvedDate),
@@ -6304,6 +6342,24 @@ function CalendarView({
       time,
     });
     setTitle("");
+    setCalendarStatus(`Scheduled ${cleanTitle} on ${formatUpcomingDate(resolvedDate)}.`);
+  }
+
+  function changeVisibleMonth(direction: -1 | 1) {
+    setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + direction, 1));
+  }
+
+  function selectCalendarDate(date: Date) {
+    setEventDate(toDateInputValue(date));
+    setCalendarStatus(isPastCalendarDate(date, today) ? "Viewing locked past date. New events require today or later." : "");
+  }
+
+  function handleDateInput(value: string) {
+    const nextDate = parseDateInput(value);
+    if (!nextDate) return;
+    setEventDate(toDateInputValue(nextDate));
+    setVisibleMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+    setCalendarStatus(isPastCalendarDate(nextDate, today) ? "Past dates are locked. Choose today or a future date." : "");
   }
 
   return (
@@ -6312,11 +6368,19 @@ function CalendarView({
         <HudCard className="calendar-card">
           <div className="calendar-toolbar">
             <div>
-              <button type="button">‹</button>
-              <button type="button">›</button>
-              <strong>May 2026</strong>
+              <button type="button" onClick={() => changeVisibleMonth(-1)} aria-label="Previous month">‹</button>
+              <button type="button" onClick={() => changeVisibleMonth(1)} aria-label="Next month">›</button>
+              <button type="button" onClick={() => {
+                setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+                selectCalendarDate(today);
+              }}>today</button>
+              <strong>{visibleMonthLabel}</strong>
             </div>
-            <span>{events.length} events</span>
+            <span>{visibleMonthEventCount} events this month</span>
+          </div>
+          <div className="calendar-signal-strip">
+            <span>{upcomingVisibleEvents.length} next-14-day signals</span>
+            <strong>{selectedDateLocked ? "selected date locked" : "future scheduling open"}</strong>
           </div>
           <div className="calendar-weekdays">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
@@ -6324,27 +6388,31 @@ function CalendarView({
             ))}
           </div>
           <div className="calendar-grid">
-            {Array.from({ length: 4 }, (_, index) => (
+            {Array.from({ length: leadingEmptyDays }, (_, index) => (
               <span className="calendar-empty" key={`empty-${index}`} />
             ))}
-            {Array.from({ length: 31 }, (_, index) => {
+            {Array.from({ length: daysInMonth }, (_, index) => {
               const day = index + 1;
-              const gridDate = makeCalendarDate(day);
-              const dayEvents = events.filter((event) => getEventDate(event).toDateString() === gridDate.toDateString());
-              const activity = Math.abs(Math.sin(day * 7.9)) % 1;
+              const gridDate = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
+              const gridDateKey = toDateInputValue(gridDate);
+              const dayEvents = eventsByDate.get(gridDateKey) ?? [];
+              const activity = Math.min(dayEvents.length / 4, 1);
               const eventKinds = Array.from(new Set(dayEvents.map((event) => event.kind)));
+              const isPast = isPastCalendarDate(gridDate, today);
+              const isToday = gridDateKey === todayKey;
+              const isActive = gridDateKey === activeDateKey;
               return (
                 <button
-                  className={`calendar-day ${day === selectedDay ? "active" : ""} ${dayEvents.length ? "has-events" : ""}`}
-                  key={day}
+                  className={`calendar-day ${isActive ? "active" : ""} ${dayEvents.length ? "has-events" : ""} ${isPast ? "past" : ""} ${isToday ? "today" : ""}`}
+                  key={gridDateKey}
                   style={{ "--intensity": activity } as CSSProperties}
                   type="button"
-                  onClick={() => {
-                    setSelectedDay(day);
-                    setEventDate(toDateInputValue(makeCalendarDate(day)));
-                  }}
+                  onClick={() => selectCalendarDate(gridDate)}
+                  aria-label={`${formatUpcomingDate(gridDate)}${isPast ? " locked" : ""}`}
                 >
                   <span className="calendar-day-number">{day}</span>
+                  {isPast && <span className="calendar-lock">locked</span>}
+                  {isToday && <span className="calendar-today">today</span>}
                   {dayEvents.length > 0 && <em className="calendar-event-count">{dayEvents.length}</em>}
                   {eventKinds.length > 0 && (
                     <div className="calendar-event-markers" aria-label={`${dayEvents.length} events`}>
@@ -6363,6 +6431,9 @@ function CalendarView({
                 </button>
               );
             })}
+            {Array.from({ length: totalCalendarCells - leadingEmptyDays - daysInMonth }, (_, index) => (
+              <span className="calendar-empty" key={`${visibleMonthKey}-tail-${index}`} />
+            ))}
           </div>
           <div className="calendar-legend">
             {["meeting", "deadline", "appointment", "project", "personal"].map((item) => (
@@ -6372,7 +6443,7 @@ function CalendarView({
         </HudCard>
 
         <HudCard className="selected-day-card">
-          <CardHeader title="Selected Day" meta={formatUpcomingDate(activeDate)} />
+          <CardHeader title="Selected Day" meta={`${formatUpcomingDate(activeDate)}${selectedDateLocked ? " - locked" : ""}`} />
           <div className="selected-events">
             {selectedEvents.length === 0 ? (
               <p>// no events scheduled</p>
@@ -6393,18 +6464,20 @@ function CalendarView({
               ))
             )}
           </div>
-          <div className="event-form">
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="// new event title..." />
-            <select value={kind} onChange={(event) => setKind(event.target.value as CalendarEvent["kind"])}>
+          {selectedDateLocked && <div className="selected-day-lock">// past date locked - create events on today or a future date</div>}
+          {calendarStatus && <div className="calendar-status">{calendarStatus}</div>}
+          <div className={`event-form ${selectedDateLocked ? "locked" : ""}`}>
+            <input value={title} disabled={selectedDateLocked} onChange={(event) => setTitle(event.target.value)} placeholder="// new event title..." />
+            <select value={kind} disabled={selectedDateLocked} onChange={(event) => setKind(event.target.value as CalendarEvent["kind"])}>
               <option value="meeting">Meeting</option>
               <option value="deadline">Deadline</option>
               <option value="appointment">Appointment</option>
               <option value="project">Project</option>
               <option value="personal">Personal</option>
             </select>
-            <input type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} />
-            <input value={time} onChange={(event) => setTime(event.target.value)} placeholder="HH:MM" />
-            <button type="button" onClick={addEvent}>+ Add Event</button>
+            <input type="date" min={todayKey} value={eventDate} onChange={(event) => handleDateInput(event.target.value)} />
+            <input value={time} disabled={selectedDateLocked} onChange={(event) => setTime(event.target.value)} placeholder="HH:MM" />
+            <button type="button" disabled={selectedDateLocked} onClick={addEvent}>+ Add Event</button>
           </div>
         </HudCard>
       </section>
@@ -8287,6 +8360,14 @@ function parseDateInput(value?: string) {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day);
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function isPastCalendarDate(date: Date, today = startOfDay(new Date())) {
+  return startOfDay(date).getTime() < today.getTime();
 }
 
 function getEventDate(event: CalendarEvent) {
