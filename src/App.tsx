@@ -55,7 +55,7 @@ import {
   signUpWithEmail,
 } from "./dataStore";
 import { seedDatabase } from "./database";
-import type { AgentId, AgentRecommendation, CalendarEvent, Category, Goal, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
+import type { AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
   book: BookOpen,
@@ -99,6 +99,12 @@ const initialGoals: Goal[] = [
     meta: "12 / 24 books completed",
     iconKey: "book",
     chart: "line",
+    milestones: makeGoalMilestones([
+      ["Choose monthly reading queue", true, 20],
+      ["Finish 12 books", true, 30],
+      ["Write 6 book summaries", false, 25],
+      ["Finish remaining 12 books", false, 25],
+    ]),
   },
   {
     id: "run-10k",
@@ -109,6 +115,12 @@ const initialGoals: Goal[] = [
     meta: "4 runs this week",
     iconKey: "run",
     chart: "bars",
+    milestones: makeGoalMilestones([
+      ["Build 5K base", true, 25],
+      ["Complete 4 tempo sessions", true, 25],
+      ["Run 8K comfortably", false, 25],
+      ["Complete 10K attempt", false, 25],
+    ]),
   },
   {
     id: "save-5000",
@@ -119,6 +131,12 @@ const initialGoals: Goal[] = [
     meta: "$3,200 / $5,000 saved",
     iconKey: "wallet",
     chart: "line",
+    milestones: makeGoalMilestones([
+      ["Automate weekly transfer", true, 25],
+      ["Reach $3,000 saved", true, 30],
+      ["Audit recurring spending", false, 20],
+      ["Reach $5,000 saved", false, 25],
+    ]),
   },
   {
     id: "launch-website",
@@ -129,6 +147,12 @@ const initialGoals: Goal[] = [
     meta: "Design phase in progress",
     iconKey: "code",
     chart: "blocks",
+    milestones: makeGoalMilestones([
+      ["Map sitemap", true, 20],
+      ["Ship homepage design", false, 25],
+      ["Build project pages", false, 25],
+      ["Launch public site", false, 30],
+    ]),
   },
   {
     id: "meditation",
@@ -139,6 +163,12 @@ const initialGoals: Goal[] = [
     meta: "24 of 30 days this month",
     iconKey: "leaf",
     chart: "dots",
+    milestones: makeGoalMilestones([
+      ["Set morning cue", true, 30],
+      ["Complete 20 sessions", true, 35],
+      ["Add evening recovery check", false, 15],
+      ["Complete 30-session month", false, 20],
+    ]),
   },
 ];
 
@@ -146,6 +176,8 @@ const initialTaskProjects: TaskProject[] = [
   {
     id: "onboarding-flow",
     name: "Launch onboarding flow",
+    goalId: "launch-website",
+    outcome: "Complete onboarding experience before website launch",
     startDate: "2026-05-01",
     endDate: "2026-06-19",
     deadlineDays: 50,
@@ -161,6 +193,8 @@ const initialTaskProjects: TaskProject[] = [
   {
     id: "run-10k",
     name: "Run a 10K",
+    goalId: "run-10k",
+    outcome: "Finish a comfortable 10K attempt",
     startDate: "2026-05-01",
     endDate: "2026-06-09",
     deadlineDays: 40,
@@ -176,6 +210,8 @@ const initialTaskProjects: TaskProject[] = [
   {
     id: "save-money",
     name: "Save $5,000",
+    goalId: "save-5000",
+    outcome: "Reach $5,000 saved with weekly money tasks",
     startDate: "2026-05-01",
     endDate: "2026-07-29",
     deadlineDays: 90,
@@ -188,6 +224,15 @@ const initialTaskProjects: TaskProject[] = [
     },
   },
 ];
+
+function makeGoalMilestones(items: Array<[string, boolean, number]>): GoalMilestone[] {
+  return items.map(([title, done, weight], index) => ({
+    id: `milestone-${index + 1}-${slugify(title)}`,
+    title,
+    done,
+    weight,
+  }));
+}
 
 const initialHabits: Habit[] = [
   { id: "wake", name: "Wake", time: "06:30", duration: "start", done: true },
@@ -895,11 +940,25 @@ function App() {
               onNavigate={navigateTo}
             />
           ) : activeView === "goals" ? (
-            <GoalsRegistry goals={sortedGoals} onAddGoal={goalCrud.add} onDeleteGoal={goalCrud.delete} />
+            <GoalsRegistry
+              goals={sortedGoals}
+              projects={taskProjects}
+              calendarEvents={calendarEvents}
+              kanbanCards={kanbanCards}
+              onAddGoal={goalCrud.add}
+              onUpdateGoal={goalCrud.update}
+              onDeleteGoal={goalCrud.delete}
+              onNavigate={navigateTo}
+              onOpenProject={(projectId) => {
+                setActiveTaskProjectId(projectId);
+                navigateTo("tasks");
+              }}
+            />
           ) : activeView === "habits" ? (
             <HabitProtocol habits={habits} />
           ) : activeView === "tasks" ? (
             <TaskProtocol
+              goals={goals}
               projects={taskProjects}
               activeProjectId={activeTaskProjectId}
               onActiveProjectChange={setActiveTaskProjectId}
@@ -1580,19 +1639,53 @@ function AuthScreen({ mode }: { mode: "loading" | "signin" }) {
 
 function GoalsRegistry({
   goals,
+  projects,
+  calendarEvents,
+  kanbanCards,
   onAddGoal,
+  onUpdateGoal,
   onDeleteGoal,
+  onNavigate,
+  onOpenProject,
 }: {
   goals: Goal[];
+  projects: TaskProject[];
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
   onAddGoal: (goal: Goal) => void;
+  onUpdateGoal: (id: string, patch: Partial<Omit<Goal, "id">>) => void;
   onDeleteGoal: (id: string) => void;
+  onNavigate: (view: View) => void;
+  onOpenProject: (projectId: string) => void;
 }) {
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("Dec 31, 2026");
   const [level, setLevel] = useState<Priority>("ziftinity");
   const [progress, setProgress] = useState(0);
+  const [activeGoalId, setActiveGoalId] = useState(goals[0]?.id ?? "");
+  const [search, setSearch] = useState("");
+  const [milestoneInput, setMilestoneInput] = useState("");
+
+  useEffect(() => {
+    if (!goals.length) {
+      setActiveGoalId("");
+      return;
+    }
+    if (!goals.some((goal) => goal.id === activeGoalId)) {
+      setActiveGoalId(goals[0].id);
+    }
+  }, [activeGoalId, goals]);
+
+  const activeGoal = goals.find((goal) => goal.id === activeGoalId) ?? goals[0] ?? null;
+  const filteredGoals = goals.filter((goal) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    return `${goal.title} ${goal.due} ${goal.level} ${goal.meta}`.toLowerCase().includes(query);
+  });
+  const executionMap = useMemo(
+    () => (activeGoal ? getGoalExecutionMap(activeGoal, projects, calendarEvents, kanbanCards) : null),
+    [activeGoal, calendarEvents, kanbanCards, projects],
+  );
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1608,6 +1701,12 @@ function GoalsRegistry({
       meta: `${progress}% initialized`,
       iconKey: "target",
       chart: "line",
+      milestones: makeGoalMilestones([
+        ["Define measurable outcome", progress >= 15, 20],
+        ["Create execution plan", progress >= 30, 25],
+        ["Ship visible progress", progress >= 60, 30],
+        ["Close goal or reset target", progress >= 95, 25],
+      ]),
     });
     setTitle("");
     setDue("Dec 31, 2026");
@@ -1615,10 +1714,51 @@ function GoalsRegistry({
     setProgress(0);
   }
 
+  function toggleMilestone(goal: Goal, milestoneId: string) {
+    const milestones = getGoalMilestones(goal).map((milestone) =>
+      milestone.id === milestoneId ? { ...milestone, done: !milestone.done } : milestone,
+    );
+    onUpdateGoal(goal.id, { milestones });
+  }
+
+  function addMilestone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeGoal) return;
+    const title = milestoneInput.trim();
+    if (!title) return;
+    const milestones = getGoalMilestones(activeGoal);
+    onUpdateGoal(activeGoal.id, {
+      milestones: [
+        ...milestones,
+        {
+          id: `${Date.now()}-${slugify(title)}`,
+          title,
+          done: false,
+          weight: Math.max(10, Math.round(100 / Math.max(milestones.length + 1, 1))),
+        },
+      ],
+    });
+    setMilestoneInput("");
+  }
+
+  function syncProgress() {
+    if (!activeGoal || !executionMap) return;
+    onUpdateGoal(activeGoal.id, {
+      progress: executionMap.computedProgress,
+      meta: executionMap.statusLine,
+    });
+  }
+
+  function buildExecutionSprint() {
+    if (!activeGoal) return;
+    const project = createGoalExecutionProject(activeGoal, projects.length);
+    void taskProjectCrud.add(project).then(() => onOpenProject(project.id));
+  }
+
   return (
     <>
       <HudCard className="goal-editor-card">
-        <CardHeader title="Add Goal" meta={`${goals.length} active`} />
+        <CardHeader title="Goal Command" meta={`${goals.length} active`} />
         <form className="goal-form" onSubmit={handleSubmit}>
           <label>
             <span>Objective</span>
@@ -1649,28 +1789,161 @@ function GoalsRegistry({
           </label>
           <button className="submit-goal" type="submit">+ Add Goal</button>
         </form>
-      </HudCard>
-
-      <HudCard className="goals-registry-card">
-        <CardHeader title="All Goals" meta={`${goals.length} active`} />
-        <div className="registry-list">
-          {goals.map((goal, index) => (
-            <div className="registry-row" key={goal.id}>
-              <span className="priority-index">{String(index + 1).padStart(2, "0")}</span>
-              <div className="registry-main">
-                <strong>{goal.title}</strong>
-                <ProgressBar value={goal.progress} />
-              </div>
-              <span className="registry-due">{goal.due}</span>
-              <PriorityChip level={goal.level} />
-              <strong className="registry-progress">{goal.progress}%</strong>
-              <button className="delete-goal" type="button" onClick={() => onDeleteGoal(goal.id)} aria-label={`Delete ${goal.title}`}>
-                <Trash2 />
-              </button>
-            </div>
-          ))}
+        <div className="goal-registry-filter">
+          <Search />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="// search objectives, priority, due date" />
         </div>
       </HudCard>
+
+      <section className="goal-command-grid">
+        <HudCard className="goals-registry-card">
+          <CardHeader title="All Goals" meta={`${filteredGoals.length} visible`} />
+          <div className="registry-list">
+            {filteredGoals.length === 0 ? (
+              <div className="empty-calendar-band">// no objective matches that filter</div>
+            ) : (
+              filteredGoals.map((goal, index) => {
+                const map = getGoalExecutionMap(goal, projects, calendarEvents, kanbanCards);
+                return (
+                  <div className={`registry-row ${goal.id === activeGoal?.id ? "active" : ""}`} key={goal.id}>
+                    <button
+                      className="registry-select-button"
+                      type="button"
+                      onClick={() => setActiveGoalId(goal.id)}
+                    >
+                      <span className="priority-index">{String(index + 1).padStart(2, "0")}</span>
+                      <div className="registry-main">
+                        <strong>{goal.title}</strong>
+                        <ProgressBar value={map.computedProgress} />
+                      </div>
+                      <span className="registry-due">{goal.due}</span>
+                      <PriorityChip level={goal.level} />
+                      <strong className="registry-progress">{map.computedProgress}%</strong>
+                    </button>
+                    <button className="delete-goal" type="button" onClick={() => onDeleteGoal(goal.id)} aria-label={`Delete ${goal.title}`}>
+                      <Trash2 />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </HudCard>
+
+        <HudCard className="goal-detail-card">
+          {activeGoal && executionMap ? (
+            <>
+              <div className="goal-detail-hero">
+                <div>
+                  <span className="goal-detail-kicker">Execution map</span>
+                  <h2>{activeGoal.title}</h2>
+                  <p>{executionMap.statusLine}</p>
+                </div>
+                <div className="goal-score">
+                  <strong>{executionMap.computedProgress}%</strong>
+                  <span>computed</span>
+                </div>
+              </div>
+              <ProgressBar value={executionMap.computedProgress} />
+              <div className="goal-source-grid">
+                <MetricBadge value={`${executionMap.milestoneProgress}%`} label="milestones" />
+                <MetricBadge value={`${executionMap.taskProgress}%`} label="task proof" />
+                <MetricBadge value={`${executionMap.boardProgress}%`} label="board proof" />
+              </div>
+              <div className="goal-action-row">
+                <button type="button" onClick={syncProgress}>Sync Progress</button>
+                <button type="button" onClick={buildExecutionSprint}>Build Task Sprint</button>
+                <button type="button" onClick={() => executionMap.projects[0] ? onOpenProject(executionMap.projects[0].id) : onNavigate("tasks")}>Open Tasks</button>
+                <button type="button" onClick={() => onNavigate("calendar")}>Calendar</button>
+              </div>
+
+              <div className="goal-execution-grid">
+                <section>
+                  <CardHeader title="Milestones" meta={`${executionMap.milestones.filter((item) => item.done).length}/${executionMap.milestones.length} complete`} />
+                  <div className="goal-milestone-list">
+                    {executionMap.milestones.map((milestone) => (
+                      <button
+                        className={`goal-milestone-row ${milestone.done ? "done" : ""}`}
+                        type="button"
+                        key={milestone.id}
+                        onClick={() => toggleMilestone(activeGoal, milestone.id)}
+                      >
+                        <span className="checkbox">{milestone.done && <Check />}</span>
+                        <strong>{milestone.title}</strong>
+                        <em>{milestone.weight}%</em>
+                      </button>
+                    ))}
+                  </div>
+                  <form className="goal-milestone-add" onSubmit={addMilestone}>
+                    <input
+                      value={milestoneInput}
+                      onChange={(event) => setMilestoneInput(event.target.value)}
+                      placeholder="// add milestone"
+                    />
+                    <button type="submit">Add</button>
+                  </form>
+                </section>
+
+                <section>
+                  <CardHeader title="Linked Task Plans" meta={`${executionMap.projects.length} tabs`} />
+                  <div className="goal-linked-list">
+                    {executionMap.projects.length === 0 ? (
+                      <div className="empty-calendar-band">// no linked task plan yet</div>
+                    ) : (
+                      executionMap.projects.map((project) => {
+                        const projectProgress = getTaskProjectProgress(project);
+                        return (
+                          <button type="button" key={project.id} onClick={() => onOpenProject(project.id)}>
+                            <span>{project.name}</span>
+                            <em>D{project.currentDay} / {project.deadlineDays}</em>
+                            <strong>{projectProgress}%</strong>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+
+                <section>
+                  <CardHeader title="Upcoming Signals" meta="next 14 days" />
+                  <div className="goal-linked-list">
+                    {executionMap.events.length === 0 ? (
+                      <div className="empty-calendar-band">// no calendar pressure linked</div>
+                    ) : (
+                      executionMap.events.map(({ event, date }) => (
+                        <button type="button" key={event.id} onClick={() => onNavigate("calendar")}>
+                          <span>{event.title}</span>
+                          <em>{formatUpcomingDate(date)} - {event.time}</em>
+                          <strong>{event.kind}</strong>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                <section>
+                  <CardHeader title="Kanban Signals" meta={`${executionMap.cards.length} cards`} />
+                  <div className="goal-linked-list">
+                    {executionMap.cards.length === 0 ? (
+                      <div className="empty-calendar-band">// no board card linked</div>
+                    ) : (
+                      executionMap.cards.map((card) => (
+                        <button type="button" key={card.id} onClick={() => onNavigate("kanban")}>
+                          <span>{card.title}</span>
+                          <em>{card.columnId}</em>
+                          <strong>{getSubtaskProgress(card)}%</strong>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+            </>
+          ) : (
+            <div className="empty-calendar-band">// add a goal to open execution mapping</div>
+          )}
+        </HudCard>
+      </section>
 
       <svg className="bottom-scan" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true">
         <polyline points="0,24 42,21 88,23 132,20 178,25 222,19 268,24 312,18 356,22 402,16 448,21 490,17 536,23 578,20 624,24 668,18 714,22 760,17 804,25 850,21 896,23 940,18 986,24 1032,21 1076,19 1122,23 1168,20 1200,22" />
@@ -1819,10 +2092,12 @@ function HabitProtocol({ habits }: { habits: Habit[] }) {
 }
 
 function TaskProtocol({
+  goals,
   projects,
   activeProjectId,
   onActiveProjectChange,
 }: {
+  goals: Goal[];
   projects: TaskProject[];
   activeProjectId: string;
   onActiveProjectChange: (id: string) => void;
@@ -1832,11 +2107,28 @@ function TaskProtocol({
   const [projectName, setProjectName] = useState("");
   const [startDate, setStartDate] = useState(() => toDateInputValue(new Date()));
   const [endDate, setEndDate] = useState(() => toDateInputValue(addDays(new Date(), 39)));
+  const [projectGoalId, setProjectGoalId] = useState("");
+  const [projectOutcome, setProjectOutcome] = useState("");
   const [newTask, setNewTask] = useState("");
 
   useEffect(() => {
     if (!activeProject && normalizedProjects[0]) onActiveProjectChange(normalizedProjects[0].id);
   }, [activeProject, normalizedProjects, onActiveProjectChange]);
+
+  function resetProjectForm() {
+    setProjectName("");
+    setProjectGoalId("");
+    setProjectOutcome("");
+    resetProjectDates(setStartDate, setEndDate);
+  }
+
+  function addProject() {
+    const project = createProject(projectName, startDate, endDate, projectGoalId || undefined, projectOutcome || undefined);
+    if (!project) return;
+    void taskProjectCrud.add(project);
+    onActiveProjectChange(project.id);
+    resetProjectForm();
+  }
 
   if (!activeProject) {
     return (
@@ -1846,17 +2138,15 @@ function TaskProtocol({
           name={projectName}
           startDate={startDate}
           endDate={endDate}
+          goals={goals}
+          goalId={projectGoalId}
+          outcome={projectOutcome}
           onNameChange={setProjectName}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
-          onSubmit={() => {
-            const project = createProject(projectName, startDate, endDate);
-            if (!project) return;
-            void taskProjectCrud.add(project);
-            onActiveProjectChange(project.id);
-            setProjectName("");
-            resetProjectDates(setStartDate, setEndDate);
-          }}
+          onGoalIdChange={setProjectGoalId}
+          onOutcomeChange={setProjectOutcome}
+          onSubmit={addProject}
         />
       </HudCard>
     );
@@ -1872,15 +2162,7 @@ function TaskProtocol({
   const projectDone = projectTasks.filter((task) => task.done).length;
   const projectProgress = Math.round((projectDone / Math.max(projectTasks.length, 1)) * 100);
   const daysLeft = Math.max(projectDeadlineDays - activeDay, 0);
-
-  function addProject() {
-    const project = createProject(projectName, startDate, endDate);
-    if (!project) return;
-    void taskProjectCrud.add(project);
-    onActiveProjectChange(project.id);
-    setProjectName("");
-    resetProjectDates(setStartDate, setEndDate);
-  }
+  const linkedGoal = goals.find((goal) => goal.id === activeProject.goalId);
 
   function deleteProject(projectId: string) {
     const next = normalizedProjects.filter((project) => project.id !== projectId);
@@ -1946,9 +2228,14 @@ function TaskProtocol({
             name={projectName}
             startDate={startDate}
             endDate={endDate}
+            goals={goals}
+            goalId={projectGoalId}
+            outcome={projectOutcome}
             onNameChange={setProjectName}
             onStartDateChange={setStartDate}
             onEndDateChange={setEndDate}
+            onGoalIdChange={setProjectGoalId}
+            onOutcomeChange={setProjectOutcome}
             onSubmit={addProject}
           />
         </div>
@@ -1960,6 +2247,16 @@ function TaskProtocol({
               {formatTaskDate(projectStartDate)} - {formatTaskDate(projectEndDate)} - {projectDeadlineDays} days -
               currently D{activeDay} ({formatTaskDate(activeDayDate)})
             </p>
+            <div className="project-goal-chip-row">
+              {linkedGoal ? (
+                <span className="project-goal-chip">
+                  Linked goal: {linkedGoal.title}
+                </span>
+              ) : (
+                <span className="project-goal-empty">No linked goal</span>
+              )}
+              {activeProject.outcome && <span className="project-outcome">{activeProject.outcome}</span>}
+            </div>
             <div className="project-date-controls" aria-label="Project schedule">
               <label>
                 <span>Start</span>
@@ -4192,6 +4489,7 @@ function getCertificationStudyPlan(track: CertificationTrack, limit = 7): Certif
 type PlanningSource = {
   id: string;
   type: "certification" | "goal";
+  goalId?: string;
   kindLabel: string;
   title: string;
   summary: string;
@@ -4242,6 +4540,7 @@ function getPlanningSources(goals: Goal[], folders: StudyFolder[], notes: StudyN
     return {
       id: `goal:${goal.id}`,
       type: "goal",
+      goalId: goal.id,
       kindLabel: "Goal",
       title: goal.title,
       summary: `${goal.progress}% complete. Planner will convert this objective into visible daily proof blocks.`,
@@ -4258,6 +4557,10 @@ function getPlanningSources(goals: Goal[], folders: StudyFolder[], notes: StudyN
 
 function getGoalPlanningFocusAreas(goal: Goal) {
   const base = goal.title;
+  const openMilestones = getGoalMilestones(goal).filter((milestone) => !milestone.done);
+  if (openMilestones.length) {
+    return openMilestones.map((milestone) => `${base}: ${milestone.title}`);
+  }
   const proof = goal.progress < 35 ? "Define the smallest measurable milestone" : "Ship one visible progress artifact";
   return [
     `${base}: ${proof}`,
@@ -4338,6 +4641,8 @@ function createTaskProjectFromPlan(plan: UnifiedPlan, timestamp: number): TaskPr
   return {
     id: `${timestamp}-${slugify(plan.source.title)}-planner-sprint`,
     name: `${plan.source.title} planner sprint`,
+    goalId: plan.source.goalId,
+    outcome: plan.source.type === "goal" ? `Advance ${plan.source.title} through a generated execution sprint` : undefined,
     startDate,
     endDate,
     deadlineDays: getDateRangeDays(startDate, endDate),
@@ -4367,7 +4672,7 @@ function createKanbanCardFromPlan(plan: UnifiedPlan, timestamp: number, linkTask
     priority: plan.source.priority,
     linkedTaskProjectId: linkTaskProject ? `${timestamp}-${slugify(plan.source.title)}-planner-sprint` : undefined,
     dueDate,
-    tags: ["planner", plan.source.type, slugify(plan.source.title)],
+    tags: ["planner", plan.source.type, slugify(plan.source.title), plan.source.goalId ?? ""].filter(Boolean),
     labels: [
       { name: "Planner", color: "violet" },
       { name: plan.source.kindLabel, color: plan.source.type === "certification" ? "cyan" : "lime" },
@@ -5213,18 +5518,28 @@ function ProjectCreateForm({
   name,
   startDate,
   endDate,
+  goals = [],
+  goalId = "",
+  outcome = "",
   onNameChange,
   onStartDateChange,
   onEndDateChange,
+  onGoalIdChange,
+  onOutcomeChange,
   onSubmit,
 }: {
   compact?: boolean;
   name: string;
   startDate: string;
   endDate: string;
+  goals?: Goal[];
+  goalId?: string;
+  outcome?: string;
   onNameChange: (value: string) => void;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
+  onGoalIdChange?: (value: string) => void;
+  onOutcomeChange?: (value: string) => void;
   onSubmit: () => void;
 }) {
   const rangeDays = getDateRangeDays(startDate, endDate);
@@ -5238,6 +5553,16 @@ function ProjectCreateForm({
       }}
     >
       <input value={name} onChange={(event) => onNameChange(event.target.value)} placeholder="New objective tab" />
+      {goals.length > 0 && (
+        <select value={goalId} onChange={(event) => onGoalIdChange?.(event.target.value)} aria-label="Linked goal">
+          <option value="">No linked goal</option>
+          {goals.map((goal) => (
+            <option value={goal.id} key={goal.id}>
+              {goal.title}
+            </option>
+          ))}
+        </select>
+      )}
       <input
         type="date"
         value={startDate}
@@ -5250,6 +5575,13 @@ function ProjectCreateForm({
         onChange={(event) => onEndDateChange(event.target.value)}
         aria-label="End date"
       />
+      {!compact && (
+        <input
+          value={outcome}
+          onChange={(event) => onOutcomeChange?.(event.target.value)}
+          placeholder="Outcome signal"
+        />
+      )}
       <span className="project-range">{rangeDays}d</span>
       <button type="submit">+</button>
     </form>
@@ -5630,7 +5962,13 @@ function normalizeTaskProject(project: TaskProject): TaskProject {
   };
 }
 
-function createProject(name: string, startDateValue: string, endDateValue: string): TaskProject | null {
+function createProject(
+  name: string,
+  startDateValue: string,
+  endDateValue: string,
+  goalId?: string,
+  outcome?: string,
+): TaskProject | null {
   const cleanName = name.trim();
   if (!cleanName) return null;
   const start = parseDateInput(startDateValue) ?? new Date();
@@ -5641,6 +5979,8 @@ function createProject(name: string, startDateValue: string, endDateValue: strin
   return {
     id: `${Date.now()}-${cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     name: cleanName,
+    goalId,
+    outcome: outcome?.trim() || undefined,
     startDate: toDateInputValue(start),
     endDate: toDateInputValue(end),
     deadlineDays: days,
@@ -5666,6 +6006,174 @@ function getProjectEndDate(project: TaskProject) {
 
 function getProjectDeadlineDays(project: TaskProject) {
   return getDateRangeDays(toDateInputValue(getProjectStartDate(project)), toDateInputValue(getProjectEndDate(project)));
+}
+
+type GoalExecutionMap = {
+  milestones: GoalMilestone[];
+  projects: TaskProject[];
+  cards: KanbanCard[];
+  events: Array<{ event: CalendarEvent; date: Date }>;
+  milestoneProgress: number;
+  taskProgress: number;
+  boardProgress: number;
+  computedProgress: number;
+  statusLine: string;
+};
+
+function getGoalExecutionMap(
+  goal: Goal,
+  projects: TaskProject[],
+  events: CalendarEvent[],
+  cards: KanbanCard[],
+): GoalExecutionMap {
+  const milestones = getGoalMilestones(goal);
+  const linkedProjects = projects.map(normalizeTaskProject).filter((project) => isProjectLinkedToGoal(project, goal));
+  const linkedProjectIds = new Set(linkedProjects.map((project) => project.id));
+  const linkedCards = cards.map(normalizeKanbanCard).filter((card) => isCardLinkedToGoal(card, goal, linkedProjectIds));
+  const linkedEvents = getGoalUpcomingSignals(goal, linkedProjects, events);
+  const milestoneProgress = getMilestoneProgress(milestones);
+  const taskProgress = getLinkedProjectsProgress(linkedProjects);
+  const boardProgress = getLinkedCardsProgress(linkedCards);
+  const progressParts = [
+    [milestoneProgress, milestones.length ? 0.35 : 0],
+    [taskProgress, linkedProjects.length ? 0.45 : 0],
+    [boardProgress, linkedCards.length ? 0.2 : 0],
+  ].filter((part): part is [number, number] => part[1] > 0);
+  const computedProgress = progressParts.length ? weightedScore(progressParts) : clamp(Math.round(goal.progress), 0, 100);
+  const statusLine = [
+    `${linkedProjects.length} linked task ${linkedProjects.length === 1 ? "plan" : "plans"}`,
+    `${linkedCards.length} board ${linkedCards.length === 1 ? "card" : "cards"}`,
+    `${linkedEvents.length} calendar ${linkedEvents.length === 1 ? "signal" : "signals"}`,
+  ].join(" - ");
+
+  return {
+    milestones,
+    projects: linkedProjects,
+    cards: linkedCards,
+    events: linkedEvents,
+    milestoneProgress,
+    taskProgress,
+    boardProgress,
+    computedProgress,
+    statusLine,
+  };
+}
+
+function getGoalMilestones(goal: Goal) {
+  if (goal.milestones?.length) return goal.milestones;
+  return makeGoalMilestones([
+    ["Define measurable outcome", goal.progress >= 15, 20],
+    ["Create execution plan", goal.progress >= 30, 25],
+    ["Ship visible progress", goal.progress >= 60, 30],
+    ["Close goal or reset target", goal.progress >= 95, 25],
+  ]);
+}
+
+function getMilestoneProgress(milestones: GoalMilestone[]) {
+  if (milestones.length === 0) return 0;
+  const totalWeight = milestones.reduce((total, milestone) => total + Math.max(milestone.weight || 0, 1), 0);
+  const doneWeight = milestones
+    .filter((milestone) => milestone.done)
+    .reduce((total, milestone) => total + Math.max(milestone.weight || 0, 1), 0);
+  return Math.round((doneWeight / Math.max(totalWeight, 1)) * 100);
+}
+
+function getTaskProjectProgress(project: TaskProject) {
+  const allTasks = Object.values(project.tasksByDay ?? {}).flat();
+  if (allTasks.length === 0) return 0;
+  return Math.round((allTasks.filter((task) => task.done).length / allTasks.length) * 100);
+}
+
+function getLinkedProjectsProgress(projects: TaskProject[]) {
+  if (projects.length === 0) return 0;
+  return Math.round(projects.reduce((total, project) => total + getTaskProjectProgress(project), 0) / projects.length);
+}
+
+function getLinkedCardsProgress(cards: KanbanCard[]) {
+  if (cards.length === 0) return 0;
+  return Math.round(
+    cards.reduce((total, card) => {
+      if (card.columnId === "done") return total + 100;
+      if (card.subtasks.length) return total + getSubtaskProgress(card);
+      return total + (card.columnId === "review" ? 72 : card.columnId === "in-progress" ? 48 : card.columnId === "planned" ? 24 : 8);
+    }, 0) / cards.length,
+  );
+}
+
+function isProjectLinkedToGoal(project: TaskProject, goal: Goal) {
+  return project.goalId === goal.id || isGoalTextMatch(`${project.name} ${project.outcome ?? ""}`, goal);
+}
+
+function isCardLinkedToGoal(card: KanbanCard, goal: Goal, linkedProjectIds: Set<string>) {
+  if (card.linkedTaskProjectId && linkedProjectIds.has(card.linkedTaskProjectId)) return true;
+  return isGoalTextMatch(`${card.title} ${card.description} ${card.tags.join(" ")} ${card.labels.map((label) => label.name).join(" ")}`, goal);
+}
+
+function getGoalUpcomingSignals(goal: Goal, projects: TaskProject[], events: CalendarEvent[]) {
+  const projectText = projects.map((project) => project.name).join(" ");
+  const dueDate = parseGoalDueDate(goal.due);
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = addDays(start, 14);
+  return events
+    .map((event) => ({ event, date: getEventDate(event) }))
+    .filter(({ event, date }) => {
+      if (date < start || date > end) return false;
+      const sameDueDate = dueDate ? date.toDateString() === dueDate.toDateString() : false;
+      return sameDueDate || isGoalTextMatch(`${event.title} ${event.kind} ${projectText}`, goal);
+    })
+    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.event.time.localeCompare(b.event.time))
+    .slice(0, 5);
+}
+
+function isGoalTextMatch(value: string, goal: Goal) {
+  const text = value.toLowerCase();
+  const title = goal.title.toLowerCase();
+  const goalKey = slugify(goal.title);
+  const tokens = title.split(/[^a-z0-9]+/).filter((token) => token.length > 3);
+  return text.includes(goal.id.toLowerCase()) || text.includes(goalKey) || text.includes(title) || tokens.some((token) => text.includes(token));
+}
+
+function createGoalExecutionProject(goal: Goal, seed: number): TaskProject {
+  const start = new Date();
+  const dueDate = parseGoalDueDate(goal.due);
+  const end = dueDate && dueDate > start && daysBetween(start, dueDate) <= 45 ? dueDate : addDays(start, 13);
+  const startDate = toDateInputValue(start);
+  const endDate = toDateInputValue(end);
+  const deadlineDays = getDateRangeDays(startDate, endDate);
+  const timestamp = Date.now();
+  const projectId = `${timestamp}-${seed}-${slugify(goal.title)}-execution`;
+  const openMilestones = getGoalMilestones(goal).filter((milestone) => !milestone.done);
+  const focusMilestones = openMilestones.length ? openMilestones : getGoalMilestones(goal);
+  const tasksByDay = Array.from({ length: deadlineDays }).reduce<Record<number, ProjectTask[]>>((tasks, _, index) => {
+    const day = index + 1;
+    const milestone = focusMilestones[index % Math.max(focusMilestones.length, 1)];
+    tasks[day] = [
+      {
+        id: `${projectId}-d${day}-build`,
+        name: milestone ? `${goal.title}: ${milestone.title}` : `${goal.title}: ship one visible proof block`,
+        done: false,
+      },
+      {
+        id: `${projectId}-d${day}-proof`,
+        name: `Log proof, blocker, and next action for ${goal.title}`,
+        done: false,
+      },
+    ];
+    return tasks;
+  }, {});
+
+  return {
+    id: projectId,
+    name: `${goal.title} execution sprint`,
+    goalId: goal.id,
+    outcome: `Move ${goal.title} from ${goal.progress}% toward completion with daily proof`,
+    startDate,
+    endDate,
+    deadlineDays,
+    currentDay: 1,
+    tasksByDay,
+  };
 }
 
 function getDateRangeDays(startDateValue: string, endDateValue: string) {

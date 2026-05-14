@@ -180,10 +180,10 @@ export async function seedRemoteDatabase(seed: {
   const missingStudyFolders = await missingStudyFoldersPromise;
 
   await Promise.all([
-    goalCount === 0 ? supabase.from("goals").upsert(seed.goals.map((record) => toRemoteRow(record, userId))) : null,
+    goalCount === 0 ? supabase.from("goals").upsert(seed.goals.map((record) => toGoalRow(record, userId))) : null,
     habitCount === 0 ? supabase.from("habits").upsert(seed.habits.map((record) => toRemoteRow(record, userId))) : null,
     projectCount === 0
-      ? supabase.from("task_projects").upsert(seed.taskProjects.map((record) => toRemoteRow(record, userId)))
+      ? supabase.from("task_projects").upsert(seed.taskProjects.map((record) => toTaskProjectRow(record, userId)))
       : null,
     eventCount === 0
       ? supabase.from("calendar_events").upsert(seed.calendarEvents.map((record) => toRemoteRow(record, userId)))
@@ -268,6 +268,30 @@ function toRemoteRow<T extends { id: string }>(record: T, userId = currentUserId
   return { id: record.id, user_id: userId, data: record };
 }
 
+function toGoalRow(goal: Goal, userId = currentUserId) {
+  return {
+    ...toRemoteRow(goal, userId),
+    title: goal.title,
+    due: goal.due,
+    level: goal.level,
+    progress: goal.progress,
+    milestones: goal.milestones ?? [],
+  };
+}
+
+function toTaskProjectRow(project: TaskProject, userId = currentUserId) {
+  return {
+    ...toRemoteRow(project, userId),
+    name: project.name,
+    goal_id: project.goalId ?? null,
+    outcome: project.outcome ?? null,
+    start_date: project.startDate,
+    end_date: project.endDate,
+    current_day: project.currentDay,
+    deadline_days: project.deadlineDays,
+  };
+}
+
 function toKanbanCardRow(card: KanbanCard, userId = currentUserId) {
   return {
     ...toRemoteRow(card, userId),
@@ -301,6 +325,26 @@ function toKanbanActivityRow(activity: KanbanActivity, userId = currentUserId) {
 
 async function remoteUpsertKanbanCards(cards: KanbanCard[], userId = currentUserId) {
   await Promise.all(cards.map((card) => remoteUpsertKanbanCard(card, userId)));
+}
+
+async function remoteUpsertGoal(goal: Goal, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from("goals").upsert(toGoalRow(goal, userId));
+  if (error) {
+    setBackendStatus({ error: `Supabase save failed for goals: ${error.message}` });
+    throw error;
+  }
+  setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertTaskProject(project: TaskProject, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from("task_projects").upsert(toTaskProjectRow(project, userId));
+  if (error) {
+    setBackendStatus({ error: `Supabase save failed for task_projects: ${error.message}` });
+    throw error;
+  }
+  setBackendStatus({ label: "Supabase realtime", error: null });
 }
 
 async function remoteUpsertKanbanCard(card: KanbanCard, userId = currentUserId) {
@@ -459,8 +503,16 @@ async function remoteUpsertAgentRecommendation(recommendation: AgentRecommendati
 
 export const goalCrud = {
   async add(goal: Goal) {
-    if (isSupabaseConfigured) return remoteUpsert("goals", goal);
+    if (isSupabaseConfigured) return remoteUpsertGoal(goal);
     return localGoalCrud.add(goal);
+  },
+  async update(id: string, patch: Partial<Omit<Goal, "id">>) {
+    if (isSupabaseConfigured) {
+      const goal = await getRemoteRecord<Goal>("goals", id);
+      if (!goal) return;
+      return remoteUpsertGoal({ ...goal, ...patch });
+    }
+    return localGoalCrud.update(id, patch);
   },
   async delete(id: string) {
     if (isSupabaseConfigured) return remoteDelete("goals", id);
@@ -599,7 +651,7 @@ export const studyFolderCrud = {
 
 export const taskProjectCrud = {
   async add(project: TaskProject) {
-    if (isSupabaseConfigured) return remoteUpsert("task_projects", project);
+    if (isSupabaseConfigured) return remoteUpsertTaskProject(project);
     return localTaskProjectCrud.add(project);
   },
   async delete(id: string) {
@@ -610,7 +662,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", { ...project, currentDay: day });
+      return remoteUpsertTaskProject({ ...project, currentDay: day });
     }
     return localTaskProjectCrud.setCurrentDay(projectId, day);
   },
@@ -618,7 +670,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         startDate,
         endDate,
@@ -632,7 +684,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         tasksByDay: {
           ...(project.tasksByDay ?? {}),
@@ -646,7 +698,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         tasksByDay: {
           ...(project.tasksByDay ?? {}),
@@ -660,7 +712,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         tasksByDay: {
           ...(project.tasksByDay ?? {}),

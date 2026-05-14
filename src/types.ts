@@ -21,6 +21,14 @@ export type Goal = {
   meta: string;
   iconKey: IconKey;
   chart: GoalChart;
+  milestones?: GoalMilestone[];
+};
+
+export type GoalMilestone = {
+  id: string;
+  title: string;
+  done: boolean;
+  weight: number;
 };
 
 export type ProjectTask = {
@@ -32,6 +40,8 @@ export type ProjectTask = {
 export type TaskProject = {
   id: string;
   name: string;
+  goalId?: string;
+  outcome?: string;
   startDate: string;
   endDate: string;
   deadlineDays: number;

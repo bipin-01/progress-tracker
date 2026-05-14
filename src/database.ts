@@ -87,6 +87,17 @@ export class ProgressTrackerDatabase extends Dexie {
       studyNotes: "id, kind, pinned, folderId, updatedAt",
       studyFolders: "id, parentId, examDate, name, createdAt",
     });
+    this.version(9).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, goalId, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
   }
 }
 
@@ -131,6 +142,9 @@ export async function seedDatabase(seed: {
 export const goalCrud = {
   add(goal: Goal) {
     return db.goals.put(goal);
+  },
+  update(id: string, patch: Partial<Omit<Goal, "id">>) {
+    return db.goals.update(id, patch);
   },
   delete(id: string) {
     return db.goals.delete(id);

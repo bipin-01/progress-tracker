@@ -2129,6 +2129,7 @@ button {
 
 .goal-editor-card,
 .goals-registry-card,
+.goal-detail-card,
 .habit-editor-card,
 .habits-card,
 .habit-timeline-card {
@@ -2183,6 +2184,40 @@ button {
   box-shadow: 0 0 12px rgba(53, 215, 255, 0.16);
 }
 
+.goal-registry-filter {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  border: 1px solid var(--hair);
+  background: rgba(5, 9, 18, 0.5);
+  padding: 0 10px;
+}
+
+.goal-registry-filter svg {
+  width: 14px;
+  height: 14px;
+  color: var(--cyan);
+}
+
+.goal-registry-filter input {
+  width: 100%;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.goal-command-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.4fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .submit-goal,
 .cancel-edit,
 .edit-habit {
@@ -2220,20 +2255,35 @@ button {
 
 .registry-row {
   display: grid;
-  grid-template-columns: 30px minmax(240px, 1fr) minmax(120px, 0.3fr) auto 48px 32px;
+  grid-template-columns: minmax(0, 1fr) 32px;
   align-items: center;
   gap: 14px;
   min-height: 58px;
   border-bottom: 1px dashed var(--hair-soft);
 }
 
+.registry-row.active {
+  background: linear-gradient(90deg, rgba(53, 215, 255, 0.1), transparent 76%);
+}
+
 .registry-row:last-child {
   border-bottom: 0;
+}
+
+.registry-select-button {
+  display: grid;
+  grid-template-columns: 30px minmax(180px, 1fr) minmax(96px, 0.35fr) auto 48px;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 10px 0;
+  text-align: left;
 }
 
 .registry-main {
   display: grid;
   gap: 9px;
+  min-width: 0;
 }
 
 .registry-main strong {
@@ -2254,6 +2304,209 @@ button {
   color: var(--lime);
   font-size: 12px;
   justify-self: end;
+}
+
+.goal-detail-card {
+  min-height: 520px;
+}
+
+.goal-detail-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.goal-detail-kicker {
+  display: block;
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.goal-detail-hero h2 {
+  margin: 8px 0 8px;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+}
+
+.goal-detail-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.goal-score {
+  min-width: 116px;
+  text-align: right;
+}
+
+.goal-score strong {
+  display: block;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.goal-score span {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.goal-source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.goal-source-grid > div {
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.03);
+  padding: 12px;
+}
+
+.goal-source-grid strong {
+  display: block;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+}
+
+.goal-source-grid span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.goal-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.goal-action-row button,
+.goal-milestone-add button {
+  height: 32px;
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.goal-action-row button:hover,
+.goal-milestone-add button:hover {
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.goal-execution-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.goal-execution-grid section {
+  min-width: 0;
+  border-top: 1px dashed var(--hair-soft);
+  padding-top: 14px;
+}
+
+.goal-milestone-list,
+.goal-linked-list {
+  display: grid;
+  gap: 8px;
+}
+
+.goal-milestone-row,
+.goal-linked-list button {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(5, 9, 18, 0.42);
+  color: var(--ink-2);
+  padding: 10px;
+  text-align: left;
+}
+
+.goal-milestone-row {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+}
+
+.goal-milestone-row.done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.goal-milestone-row.done .checkbox {
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+.goal-milestone-row strong,
+.goal-linked-list span {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-milestone-row em,
+.goal-linked-list em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.goal-linked-list button {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.goal-linked-list strong {
+  color: var(--lime);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.goal-milestone-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.goal-milestone-add input {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--hair);
+  background: rgba(5, 9, 18, 0.62);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  padding: 0 10px;
 }
 
 .delete-goal {
@@ -2423,19 +2676,20 @@ button {
 
 .project-create {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 150px 150px 56px 40px;
+  grid-template-columns: minmax(180px, 1fr) minmax(170px, 0.8fr) 140px 140px minmax(180px, 1fr) 56px 40px;
   gap: 10px;
   align-items: center;
   padding: 18px;
 }
 
 .project-create.compact {
-  grid-template-columns: 190px 136px 136px 48px 34px;
+  grid-template-columns: 190px 180px 136px 136px 48px 34px;
   flex: 0 0 auto;
   padding: 6px 0 6px 8px;
 }
 
 .project-create input,
+.project-create select,
 .add-day-task input {
   height: 36px;
   border: 1px solid var(--hair);
@@ -2447,6 +2701,7 @@ button {
 }
 
 .project-create input:focus,
+.project-create select:focus,
 .add-day-task input:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 12px rgba(53, 215, 255, 0.16);
@@ -2496,6 +2751,41 @@ button {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.project-goal-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.project-goal-chip,
+.project-goal-empty,
+.project-outcome {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid var(--hair);
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 0 9px;
+  text-transform: uppercase;
+}
+
+.project-goal-chip {
+  border-color: var(--cyan-dim);
+  color: var(--cyan);
+  background: rgba(53, 215, 255, 0.06);
+}
+
+.project-outcome {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .project-date-controls {
@@ -6134,6 +6424,9 @@ button {
   .work-grid,
   .bottom-grid,
   .goal-form,
+  .goal-command-grid,
+  .goal-source-grid,
+  .goal-execution-grid,
   .habit-form,
   .habit-layout,
   .notes-workspace,
@@ -6176,6 +6469,7 @@ button {
   .project-create,
   .project-create.compact,
   .add-day-task,
+  .registry-select-button,
   .registry-row {
     grid-template-columns: 1fr;
   }
