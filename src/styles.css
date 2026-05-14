@@ -978,6 +978,12 @@ button {
   color: var(--dim);
 }
 
+.dashboard-command-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .goals-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(180px, 1fr));
@@ -1287,14 +1293,288 @@ button {
   margin-top: 16px;
 }
 
+.planner-command-grid,
+.planner-main-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.planner-command-grid {
+  grid-template-columns: minmax(0, 1.24fr) minmax(330px, 0.76fr);
+}
+
+.planner-main-grid {
+  grid-template-columns: minmax(270px, 0.48fr) minmax(0, 1fr) minmax(280px, 0.52fr);
+  margin-top: 16px;
+  align-items: start;
+}
+
 .today-command-card,
 .today-metrics-card,
 .today-focus-card,
 .today-timeline-card,
 .today-risk-card,
 .today-checklist-card,
-.today-upcoming-card {
+.today-upcoming-card,
+.planner-hero-card,
+.planner-health-card,
+.planner-sources-card,
+.planner-preview-card,
+.planner-drift-card {
   padding: 18px 20px;
+}
+
+.planner-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 18px;
+  align-items: center;
+}
+
+.planner-hero > div:first-child {
+  display: grid;
+  gap: 10px;
+}
+
+.planner-hero > div:first-child > strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(22px, 3vw, 38px);
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.planner-hero p,
+.planner-rules p,
+.planner-preview-list p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.planner-score {
+  display: grid;
+  min-height: 128px;
+  place-items: center;
+  border: 1px solid var(--violet);
+  background:
+    radial-gradient(circle, rgba(170, 114, 255, 0.18), transparent 60%),
+    rgba(6, 15, 28, 0.64);
+  text-align: center;
+}
+
+.planner-score strong {
+  display: block;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(170, 114, 255, 0.36);
+}
+
+.planner-score span,
+.planner-controls span,
+.planner-destinations button,
+.planner-impact-grid span,
+.planner-signal-stack span,
+.planner-source-list span,
+.planner-source-list em,
+.planner-preview-list span,
+.planner-preview-list em {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.planner-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(120px, 0.32fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.planner-controls label {
+  display: grid;
+  gap: 7px;
+}
+
+.planner-controls input,
+.planner-controls select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid var(--hair);
+  background: rgba(5, 9, 18, 0.62);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  padding: 0 10px;
+}
+
+.planner-controls select,
+.planner-controls input[type="time"] {
+  color: var(--cyan);
+}
+
+.planner-destinations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.planner-destinations button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--hair);
+  color: var(--ink-2);
+  padding: 0 11px;
+}
+
+.planner-destinations button.active,
+.planner-destinations button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+  color: var(--cyan);
+}
+
+.planner-destinations svg {
+  width: 13px;
+  height: 13px;
+}
+
+.planner-destinations .planner-deploy {
+  margin-left: auto;
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+.planner-destinations .planner-deploy:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.planner-status {
+  margin: 14px 0 0;
+  border-left: 2px solid var(--lime);
+  color: var(--lime);
+  font-size: 11px;
+  line-height: 1.55;
+  padding-left: 10px;
+}
+
+.planner-impact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.planner-impact-grid div {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.34);
+  padding: 12px;
+}
+
+.planner-impact-grid strong {
+  display: block;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 26px;
+  line-height: 1;
+  margin-bottom: 7px;
+}
+
+.planner-signal-stack,
+.planner-source-list,
+.planner-preview-list,
+.planner-rules {
+  display: grid;
+  gap: 10px;
+}
+
+.planner-signal-stack {
+  margin-top: 14px;
+}
+
+.planner-signal-stack button,
+.planner-source-list button,
+.planner-preview-list article,
+.planner-rules div {
+  border: 1px solid var(--hair-soft);
+  background: rgba(6, 15, 28, 0.54);
+}
+
+.planner-signal-stack button,
+.planner-source-list button {
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  text-align: left;
+}
+
+.planner-signal-stack button:hover,
+.planner-source-list button:hover,
+.planner-source-list button.active {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.planner-signal-stack strong,
+.planner-source-list strong,
+.planner-preview-list strong,
+.planner-rules strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner-source-list .progress-bar {
+  margin-top: 3px;
+}
+
+.planner-preview-list {
+  max-height: min(72vh, 760px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.planner-preview-list article {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  border-left: 2px solid var(--cyan);
+  padding: 12px;
+}
+
+.planner-preview-list article:nth-child(3n + 2) {
+  border-left-color: var(--violet);
+}
+
+.planner-preview-list article:nth-child(3n) {
+  border-left-color: var(--amber);
+}
+
+.planner-preview-list span {
+  color: var(--cyan);
+}
+
+.planner-preview-list em {
+  display: block;
+  margin: 4px 0 7px;
+}
+
+.planner-rules div {
+  border-left: 2px solid var(--violet);
+  padding: 12px;
 }
 
 .today-command-copy {
@@ -5879,6 +6159,12 @@ button {
   .today-command-grid,
   .today-main-grid,
   .today-work-grid,
+  .planner-command-grid,
+  .planner-main-grid,
+  .planner-hero,
+  .planner-controls,
+  .planner-impact-grid,
+  .dashboard-command-row,
   .kanban-board,
   .kanban-form,
   .kanban-filter-bar,

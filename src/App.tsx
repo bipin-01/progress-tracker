@@ -389,6 +389,7 @@ const initialKanbanCards: KanbanCard[] = [
 const navItems = [
   { id: "dashboard", label: "Dashboard", Icon: Home },
   { id: "today", label: "Today", Icon: Sparkles },
+  { id: "planner", label: "Planner", Icon: BriefcaseBusiness },
   { id: "goals", label: "Goals", Icon: Target },
   { id: "habits", label: "Habits", Icon: Check, count: "4/7" },
   { id: "tasks", label: "Tasks", Icon: ListTodo },
@@ -427,6 +428,8 @@ const routeViewMap: Record<string, View> = {
   "/": "dashboard",
   "/dashboard": "dashboard",
   "/today": "today",
+  "/planner": "planner",
+  "/plan": "planner",
   "/goals": "goals",
   "/habits": "habits",
   "/tasks": "tasks",
@@ -563,6 +566,7 @@ function App() {
         h: "habits",
         t: "tasks",
         y: "today",
+        l: "planner",
         k: "kanban",
         n: "notes",
         c: "calendar",
@@ -611,6 +615,8 @@ function App() {
   const pageMeta =
     activeView === "today"
       ? { title: "Today Command Brief", subtitle: "Daily execution // live operating plan" }
+      : activeView === "planner"
+      ? { title: "Focus Planner", subtitle: "Unified planning engine // tasks calendar board" }
       : activeView === "goals"
       ? { title: "Goals Registry", subtitle: "All active objectives - sorted by priority" }
       : activeView === "habits"
@@ -633,6 +639,7 @@ function App() {
   const appCommands: AppCommand[] = [
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
     { id: "nav-today", group: "Navigate", title: "Today Command Brief", hint: "Open the daily operating plan.", action: () => navigateTo("today") },
+    { id: "nav-planner", group: "Navigate", title: "Focus Planner", hint: "Generate tasks, calendar blocks, and Kanban cards from goals or cert tracks.", action: () => navigateTo("planner") },
     { id: "nav-goals", group: "Navigate", title: "Goals Registry", hint: "Manage objectives and priorities.", action: () => navigateTo("goals") },
     { id: "nav-habits", group: "Navigate", title: "Habit Protocol", hint: "Track daily routines and scheduled habits.", action: () => navigateTo("habits") },
     { id: "nav-tasks", group: "Navigate", title: "Task Protocol", hint: "Open day-by-day task projects.", action: () => navigateTo("tasks") },
@@ -839,7 +846,10 @@ function App() {
                 ))
               )}
             </div>
-            <CommandLink onClick={() => navigateTo("calendar")}>Open Calendar</CommandLink>
+            <div className="dashboard-command-row">
+              <CommandLink onClick={() => navigateTo("planner")}>Open Planner</CommandLink>
+              <CommandLink onClick={() => navigateTo("calendar")}>Open Calendar</CommandLink>
+            </div>
           </HudCard>
 
           <div className="row-divider">View All Goals</div>
@@ -872,6 +882,16 @@ function App() {
               calendarEvents={calendarEvents}
               kanbanCards={kanbanCards}
               recommendations={agentRecommendations}
+              onNavigate={navigateTo}
+            />
+          ) : activeView === "planner" ? (
+            <PlannerView
+              goals={goals}
+              folders={studyFolders}
+              notes={studyNotes}
+              projects={taskProjects}
+              calendarEvents={calendarEvents}
+              kanbanCards={kanbanCards}
               onNavigate={navigateTo}
             />
           ) : activeView === "goals" ? (
@@ -1242,6 +1262,244 @@ function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: n
       </div>
       <ProgressBar value={value} />
     </div>
+  );
+}
+
+function PlannerView({
+  goals,
+  folders,
+  notes,
+  projects,
+  calendarEvents,
+  kanbanCards,
+  onNavigate,
+}: {
+  goals: Goal[];
+  folders: StudyFolder[];
+  notes: StudyNote[];
+  projects: TaskProject[];
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  onNavigate: (view: View) => void;
+}) {
+  const [sourceId, setSourceId] = useState("");
+  const [horizon, setHorizon] = useState(14);
+  const [dailyMinutes, setDailyMinutes] = useState(60);
+  const [startTime, setStartTime] = useState("08:00");
+  const [includeTasks, setIncludeTasks] = useState(true);
+  const [includeCalendar, setIncludeCalendar] = useState(true);
+  const [includeKanban, setIncludeKanban] = useState(true);
+  const [plannerStatus, setPlannerStatus] = useState("");
+  const sources = useMemo(() => getPlanningSources(goals, folders, notes), [folders, goals, notes]);
+  const activeSource = sources.find((source) => source.id === sourceId) ?? sources[0];
+  const generatedPlan = useMemo(
+    () => (activeSource ? buildUnifiedPlan(activeSource, horizon, dailyMinutes) : null),
+    [activeSource, dailyMinutes, horizon],
+  );
+  const upcomingPlannerEvents = useMemo(
+    () =>
+      getUpcomingEvents(calendarEvents, new Date())
+        .filter(({ event }) => event.title.toLowerCase().includes("focus:") || event.title.toLowerCase().includes("planner"))
+        .slice(0, 6),
+    [calendarEvents],
+  );
+  const plannerCards = useMemo(
+    () => kanbanCards.filter((card) => card.tags.includes("planner") && !card.archivedAt),
+    [kanbanCards],
+  );
+  const plannerProjects = useMemo(
+    () => projects.filter((project) => project.name.toLowerCase().includes("planner") || project.name.toLowerCase().includes("sprint")),
+    [projects],
+  );
+
+  useEffect(() => {
+    if (!sourceId && activeSource) {
+      setSourceId(activeSource.id);
+      return;
+    }
+    if (sourceId && !sources.some((source) => source.id === sourceId)) {
+      setSourceId(sources[0]?.id ?? "");
+    }
+  }, [activeSource, sourceId, sources]);
+
+  async function deployPlan() {
+    if (!generatedPlan || !activeSource) return;
+    if (!includeTasks && !includeCalendar && !includeKanban) {
+      setPlannerStatus("Select at least one destination: tasks, calendar, or board.");
+      return;
+    }
+
+    const timestamp = Date.now();
+    const writes: Promise<unknown>[] = [];
+    const deployed: string[] = [];
+
+    if (includeTasks) {
+      writes.push(taskProjectCrud.add(createTaskProjectFromPlan(generatedPlan, timestamp)));
+      deployed.push("task project");
+    }
+
+    if (includeCalendar) {
+      generatedPlan.rows.forEach((row, index) => {
+        writes.push(calendarCrud.add(createCalendarEventFromPlan(row, activeSource, startTime, timestamp + index)));
+      });
+      deployed.push(`${generatedPlan.rows.length} calendar blocks`);
+    }
+
+    if (includeKanban) {
+      const card = createKanbanCardFromPlan(generatedPlan, timestamp, includeTasks);
+      writes.push(kanbanCrud.add(card).then(() => logKanbanActivity({ card, action: "created", toColumnId: card.columnId })));
+      deployed.push("Kanban card");
+    }
+
+    await Promise.all(writes);
+    setPlannerStatus(`${activeSource.title} plan deployed to ${deployed.join(", ")}.`);
+  }
+
+  return (
+    <>
+      <section className="planner-command-grid">
+        <HudCard className="planner-hero-card" active>
+          <CardHeader title="Unified Planning Engine" meta={activeSource?.kindLabel ?? "source required"} />
+          {activeSource ? (
+            <div className="planner-hero">
+              <div>
+                <span className="today-eyebrow">Active source</span>
+                <strong>{activeSource.title}</strong>
+                <p>{activeSource.summary}</p>
+              </div>
+              <div className="planner-score">
+                <strong>{generatedPlan?.pressure ?? 0}%</strong>
+                <span>pressure</span>
+              </div>
+            </div>
+          ) : (
+            <div className="kanban-empty">// add a goal or certification track to generate a plan</div>
+          )}
+          <div className="planner-controls">
+            <label>
+              <span>Source</span>
+              <select value={activeSource?.id ?? ""} onChange={(event) => setSourceId(event.target.value)}>
+                {sources.map((source) => (
+                  <option value={source.id} key={source.id}>{source.kindLabel} - {source.title}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Window</span>
+              <select value={horizon} onChange={(event) => setHorizon(Number(event.target.value))}>
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={21}>21 days</option>
+                <option value={30}>30 days</option>
+              </select>
+            </label>
+            <label>
+              <span>Daily load</span>
+              <input type="number" min="20" max="180" step="10" value={dailyMinutes} onChange={(event) => setDailyMinutes(Number(event.target.value) || 60)} />
+            </label>
+            <label>
+              <span>Start time</span>
+              <input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />
+            </label>
+          </div>
+          <div className="planner-destinations">
+            <button className={includeTasks ? "active" : ""} type="button" onClick={() => setIncludeTasks((value) => !value)}>
+              <ListTodo /> tasks
+            </button>
+            <button className={includeCalendar ? "active" : ""} type="button" onClick={() => setIncludeCalendar((value) => !value)}>
+              <CalendarDays /> calendar
+            </button>
+            <button className={includeKanban ? "active" : ""} type="button" onClick={() => setIncludeKanban((value) => !value)}>
+              <Columns3 /> board
+            </button>
+            <button className="planner-deploy" type="button" onClick={() => void deployPlan()} disabled={!generatedPlan}>
+              deploy plan
+            </button>
+          </div>
+          {plannerStatus && <p className="planner-status">{plannerStatus}</p>}
+        </HudCard>
+
+        <HudCard className="planner-health-card">
+          <CardHeader title="System Impact" meta="live preview" />
+          <div className="planner-impact-grid">
+            <div><strong>{generatedPlan?.rows.length ?? 0}</strong><span>planned days</span></div>
+            <div><strong>{generatedPlan?.taskCount ?? 0}</strong><span>tasks</span></div>
+            <div><strong>{generatedPlan?.calendarCount ?? 0}</strong><span>events</span></div>
+            <div><strong>{includeKanban && generatedPlan ? 1 : 0}</strong><span>cards</span></div>
+          </div>
+          <div className="planner-signal-stack">
+            <button type="button" onClick={() => onNavigate("tasks")}>
+              <span>Task protocol</span>
+              <strong>{plannerProjects.length} planner sprint{plannerProjects.length === 1 ? "" : "s"}</strong>
+            </button>
+            <button type="button" onClick={() => onNavigate("calendar")}>
+              <span>Dashboard window</span>
+              <strong>{upcomingPlannerEvents.length} planner block{upcomingPlannerEvents.length === 1 ? "" : "s"} in 14 days</strong>
+            </button>
+            <button type="button" onClick={() => onNavigate("kanban")}>
+              <span>Board pressure</span>
+              <strong>{plannerCards.length} active planner card{plannerCards.length === 1 ? "" : "s"}</strong>
+            </button>
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="planner-main-grid">
+        <HudCard className="planner-sources-card">
+          <CardHeader title="Planning Sources" meta={`${sources.length} detected`} />
+          <div className="planner-source-list">
+            {sources.map((source) => (
+              <button className={activeSource?.id === source.id ? "active" : ""} type="button" onClick={() => setSourceId(source.id)} key={source.id}>
+                <span>{source.kindLabel}</span>
+                <strong>{source.title}</strong>
+                <em>{source.dueLabel} - {source.progress}% ready</em>
+                <ProgressBar value={source.progress} />
+              </button>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="planner-preview-card">
+          <CardHeader title="Generated Daily Blocks" meta={generatedPlan ? `${generatedPlan.rows.length} days` : "no plan"} />
+          <div className="planner-preview-list">
+            {generatedPlan?.rows.map((row) => (
+              <article key={row.day}>
+                <span>D{String(row.day).padStart(2, "0")}</span>
+                <div>
+                  <strong>{row.focus}</strong>
+                  <em>{formatUpcomingDate(row.date)} - {row.intensity} - {row.minutes}m</em>
+                  <p>{row.recall}</p>
+                </div>
+              </article>
+            )) ?? <div className="kanban-empty">// choose a source to preview a plan</div>}
+          </div>
+        </HudCard>
+
+        <HudCard className="planner-drift-card">
+          <CardHeader title="Adaptive Rules" meta="planner logic" />
+          <div className="planner-rules">
+            <div>
+              <strong>Deadline pressure</strong>
+              <p>Shorter windows raise priority and generate tighter daily blocks.</p>
+            </div>
+            <div>
+              <strong>Objective gaps</strong>
+              <p>Incomplete certification objectives and low-progress goals are scheduled first.</p>
+            </div>
+            <div>
+              <strong>Recovery rhythm</strong>
+              <p>Weekends become review days unless the pressure score is high.</p>
+            </div>
+            <div>
+              <strong>System sync</strong>
+              <p>Calendar events feed the dashboard window, tasks feed Today, and Kanban logs the sprint.</p>
+            </div>
+          </div>
+        </HudCard>
+      </section>
+
+      <SystemTrace label="Unified planning engine online" />
+    </>
   );
 }
 
@@ -3929,6 +4187,208 @@ function getCertificationStudyPlan(track: CertificationTrack, limit = 7): Certif
       recall: `Create 5 recall prompts, ${documentCue}, then review due cards`,
     };
   });
+}
+
+type PlanningSource = {
+  id: string;
+  type: "certification" | "goal";
+  kindLabel: string;
+  title: string;
+  summary: string;
+  progress: number;
+  priority: Priority;
+  dueDate?: Date;
+  dueLabel: string;
+  focusAreas: string[];
+};
+
+type PlannerRow = {
+  day: number;
+  date: Date;
+  focus: string;
+  recall: string;
+  intensity: string;
+  minutes: number;
+};
+
+type UnifiedPlan = {
+  source: PlanningSource;
+  rows: PlannerRow[];
+  pressure: number;
+  taskCount: number;
+  calendarCount: number;
+};
+
+function getPlanningSources(goals: Goal[], folders: StudyFolder[], notes: StudyNote[]): PlanningSource[] {
+  const certSources = getCertificationTracks(folders, notes).map((track): PlanningSource => {
+    const weakTopics = getCertificationWeakTopics(track);
+    return {
+      id: `certification:${track.folder.id}`,
+      type: "certification",
+      kindLabel: "Certification",
+      title: track.folder.name,
+      summary: `${track.daysLeftLabel}. ${track.summary}`,
+      progress: track.readiness,
+      priority: track.readiness < 35 ? "high" : "medium",
+      dueDate: parseDateInput(track.folder.examDate) ?? undefined,
+      dueLabel: track.daysLeftLabel,
+      focusAreas: weakTopics.length ? weakTopics : track.objectives.map((objective) => objective.title),
+    };
+  });
+
+  const goalSources = sortGoals(goals).map((goal): PlanningSource => {
+    const dueDate = parseGoalDueDate(goal.due) ?? undefined;
+    const dueLabel = dueDate ? `${Math.max(daysBetween(new Date(), dueDate), 0)}d left` : goal.due || "no date";
+    return {
+      id: `goal:${goal.id}`,
+      type: "goal",
+      kindLabel: "Goal",
+      title: goal.title,
+      summary: `${goal.progress}% complete. Planner will convert this objective into visible daily proof blocks.`,
+      progress: goal.progress,
+      priority: goal.level,
+      dueDate,
+      dueLabel,
+      focusAreas: getGoalPlanningFocusAreas(goal),
+    };
+  });
+
+  return [...certSources, ...goalSources].sort((a, b) => getPlanningPressure(b) - getPlanningPressure(a) || priorityRank[a.priority] - priorityRank[b.priority]);
+}
+
+function getGoalPlanningFocusAreas(goal: Goal) {
+  const base = goal.title;
+  const proof = goal.progress < 35 ? "Define the smallest measurable milestone" : "Ship one visible progress artifact";
+  return [
+    `${base}: ${proof}`,
+    `${base}: remove the next blocker`,
+    `${base}: document proof of progress`,
+    `${base}: review metrics and adjust scope`,
+    `${base}: prepare next public or private checkpoint`,
+  ];
+}
+
+function buildUnifiedPlan(source: PlanningSource, horizon: number, dailyMinutes: number): UnifiedPlan {
+  const start = new Date();
+  const maxByDeadline = source.dueDate ? clamp(daysBetween(start, source.dueDate) + 1, 1, horizon) : horizon;
+  const rowCount = Math.max(3, Math.min(horizon, maxByDeadline));
+  const pressure = getPlanningPressure(source);
+  const minutes = Math.max(20, Math.min(180, dailyMinutes));
+  const focusAreas = source.focusAreas.length ? source.focusAreas : ["Define next action", "Work the highest-risk blocker", "Document visible progress"];
+  const rows = Array.from({ length: rowCount }, (_, index): PlannerRow => {
+    const date = addDays(start, index);
+    const weekend = date.getDay() === 0 || date.getDay() === 6;
+    const highPressure = pressure >= 70;
+    const area = focusAreas[index % focusAreas.length];
+    const intensity = weekend && !highPressure ? "review" : highPressure ? "deep block" : "steady build";
+    const rowMinutes = intensity === "review" ? Math.max(25, Math.round(minutes * 0.55)) : minutes;
+    return {
+      day: index + 1,
+      date,
+      focus: `${source.title}: ${area}`,
+      recall: getPlannerRecallPrompt(source, area, intensity),
+      intensity,
+      minutes: rowMinutes,
+    };
+  });
+
+  return {
+    source,
+    rows,
+    pressure,
+    taskCount: rows.length * 2,
+    calendarCount: rows.length,
+  };
+}
+
+function getPlanningPressure(source: PlanningSource) {
+  const daysLeft = source.dueDate ? Math.max(daysBetween(new Date(), source.dueDate), 0) : 45;
+  const deadlinePressure = daysLeft <= 7 ? 100 : daysLeft <= 14 ? 86 : daysLeft <= 30 ? 70 : daysLeft <= 60 ? 48 : 28;
+  const progressPressure = 100 - source.progress;
+  const priorityPressure = source.priority === "ziftinity" ? 96 : source.priority === "high" ? 78 : source.priority === "medium" ? 52 : 34;
+  return weightedScore([
+    [deadlinePressure, 0.38],
+    [progressPressure, 0.36],
+    [priorityPressure, 0.26],
+  ]);
+}
+
+function getPlannerRecallPrompt(source: PlanningSource, area: string, intensity: string) {
+  if (source.type === "certification") {
+    return intensity === "review"
+      ? `Run recall on ${area}, update weak notes, and review due cards.`
+      : `Read one source, create 5 recall prompts for ${area}, and mark one objective signal.`;
+  }
+  return intensity === "review"
+    ? "Review progress evidence, trim scope, and choose the next visible checkpoint."
+    : "Complete one measurable block, log proof, and write the next blocker.";
+}
+
+function createTaskProjectFromPlan(plan: UnifiedPlan, timestamp: number): TaskProject {
+  const startDate = toDateInputValue(plan.rows[0]?.date ?? new Date());
+  const endDate = toDateInputValue(plan.rows[plan.rows.length - 1]?.date ?? new Date());
+  const tasksByDay = plan.rows.reduce<Record<number, ProjectTask[]>>((tasks, row) => {
+    tasks[row.day] = [
+      { id: `${timestamp}-${row.day}-focus`, name: row.focus, done: false },
+      { id: `${timestamp}-${row.day}-recall`, name: row.recall, done: false },
+    ];
+    return tasks;
+  }, {});
+
+  return {
+    id: `${timestamp}-${slugify(plan.source.title)}-planner-sprint`,
+    name: `${plan.source.title} planner sprint`,
+    startDate,
+    endDate,
+    deadlineDays: getDateRangeDays(startDate, endDate),
+    currentDay: 1,
+    tasksByDay,
+  };
+}
+
+function createCalendarEventFromPlan(row: PlannerRow, source: PlanningSource, time: string, idSeed: number): CalendarEvent {
+  return {
+    id: `${idSeed}-${slugify(source.title)}-planner-d${row.day}`,
+    date: toDateInputValue(row.date),
+    day: row.date.getDate(),
+    title: `Focus: ${source.title} D${row.day} - ${row.intensity}`,
+    kind: "project",
+    time,
+  };
+}
+
+function createKanbanCardFromPlan(plan: UnifiedPlan, timestamp: number, linkTaskProject: boolean): KanbanCard {
+  const dueDate = toDateInputValue(plan.rows[plan.rows.length - 1]?.date ?? new Date());
+  return {
+    id: `${timestamp}-${slugify(plan.source.title)}-planner-card`,
+    title: `${plan.source.title} execution sprint`,
+    description: `Planner generated ${plan.rows.length} days from ${plan.source.kindLabel.toLowerCase()} pressure ${plan.pressure}%. Use this card as the visible control point while tasks and calendar blocks carry daily execution.`,
+    columnId: "planned",
+    priority: plan.source.priority,
+    linkedTaskProjectId: linkTaskProject ? `${timestamp}-${slugify(plan.source.title)}-planner-sprint` : undefined,
+    dueDate,
+    tags: ["planner", plan.source.type, slugify(plan.source.title)],
+    labels: [
+      { name: "Planner", color: "violet" },
+      { name: plan.source.kindLabel, color: plan.source.type === "certification" ? "cyan" : "lime" },
+    ],
+    subtasks: plan.rows.slice(0, 10).map((row) => ({
+      id: `${timestamp}-${row.day}-subtask`,
+      title: `D${row.day}: ${row.focus}`,
+      done: false,
+    })),
+    estimateMinutes: plan.rows.reduce((total, row) => total + row.minutes, 0),
+    trackedMinutes: 0,
+    attachments: [],
+    comments: [
+      {
+        id: `${timestamp}-planner-comment`,
+        body: `Generated by Focus Planner on ${formatActivityTime(new Date().toISOString())}.`,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    order: timestamp,
+  };
 }
 
 function sortStudyNotes(notes: StudyNote[]) {
