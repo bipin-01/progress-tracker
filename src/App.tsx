@@ -1845,6 +1845,24 @@ type TodayQueueItem = {
   recommendation?: AgentRecommendation;
 };
 
+type ForecastBalanceSnapshot = {
+  label: string;
+  createdAt: string;
+  task?: {
+    projectId: string;
+    projectName: string;
+    task: ProjectTask;
+    fromDay: number;
+    toDay: number;
+  };
+  card?: {
+    cardId: string;
+    cardTitle: string;
+    fromDate?: string;
+    toDate: string;
+  };
+};
+
 function TodayView({
   goals,
   habits,
@@ -1874,6 +1892,7 @@ function TodayView({
   const todayKey = toDateInputValue(now);
   const [protocolStatus, setProtocolStatus] = useState("");
   const [forecastStatus, setForecastStatus] = useState("");
+  const [lastForecastBalance, setLastForecastBalance] = useState<ForecastBalanceSnapshot | null>(null);
   const todayLabel = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "short",
@@ -2141,6 +2160,10 @@ function TodayView({
 
     const writes: Promise<unknown>[] = [];
     const movedLabels: string[] = [];
+    const snapshot: ForecastBalanceSnapshot = {
+      label: "",
+      createdAt: new Date().toISOString(),
+    };
 
     const taskMove = mitigation.task;
     if (taskMove) {
@@ -2153,6 +2176,13 @@ function TodayView({
             .then(() => taskProjectCrud.addTask(project.id, taskMove.toDay, task)),
         );
         movedLabels.push(`${task.name} to D${taskMove.toDay}`);
+        snapshot.task = {
+          projectId: project.id,
+          projectName: project.name,
+          task: { ...task },
+          fromDay: taskMove.fromDay,
+          toDay: taskMove.toDay,
+        };
         logActivityEvent({
           domain: "task",
           action: "deferred",
@@ -2177,6 +2207,12 @@ function TodayView({
       if (card && card.dueDate !== cardMove.toDate) {
         writes.push(kanbanCrud.update(card.id, { dueDate: cardMove.toDate }));
         movedLabels.push(`${card.title} due ${formatShortDate(cardMove.toDate)}`);
+        snapshot.card = {
+          cardId: card.id,
+          cardTitle: card.title,
+          fromDate: card.dueDate,
+          toDate: cardMove.toDate,
+        };
         logActivityEvent({
           domain: "kanban",
           action: "deferred",
@@ -2199,7 +2235,68 @@ function TodayView({
     }
 
     await Promise.all(writes);
-    setForecastStatus(`Balanced ${movedLabels.join(" and ")}.`);
+    snapshot.label = movedLabels.join(" and ");
+    setLastForecastBalance(snapshot);
+    setForecastStatus(`Balanced ${snapshot.label}.`);
+  }
+
+  async function undoForecastBalance() {
+    if (!lastForecastBalance) {
+      setForecastStatus("No forecast balance move is available to undo.");
+      return;
+    }
+
+    const writes: Promise<unknown>[] = [];
+    const restoredLabels: string[] = [];
+
+    if (lastForecastBalance.task) {
+      const { projectId, projectName, task, fromDay, toDay } = lastForecastBalance.task;
+      const project = projects.find((item) => item.id === projectId);
+      const targetTask = project?.tasksByDay[toDay]?.find((item) => item.id === task.id);
+      if (project && targetTask) {
+        writes.push(
+          taskProjectCrud
+            .deleteTask(projectId, toDay, task.id)
+            .then(() => taskProjectCrud.addTask(projectId, fromDay, { ...targetTask })),
+        );
+        restoredLabels.push(`${task.name} to D${fromDay}`);
+        logActivityEvent({
+          domain: "task",
+          action: "updated",
+          entityId: task.id,
+          entityTitle: task.name,
+          source: "Forecast load balancer undo",
+          metadata: { projectId, projectName, fromDay: toDay, toDay: fromDay },
+        });
+      }
+    }
+
+    if (lastForecastBalance.card) {
+      const { cardId, cardTitle, fromDate, toDate } = lastForecastBalance.card;
+      const card = kanbanCards.find((item) => item.id === cardId);
+      if (card) {
+        writes.push(kanbanCrud.update(cardId, { dueDate: fromDate }));
+        restoredLabels.push(`${cardTitle} due ${fromDate ? formatShortDate(fromDate) : "unset"}`);
+        logActivityEvent({
+          domain: "kanban",
+          action: "updated",
+          entityId: cardId,
+          entityTitle: cardTitle,
+          source: "Forecast load balancer undo",
+          metadata: { oldDueDate: toDate, newDueDate: fromDate, priority: card.priority },
+        });
+      }
+    }
+
+    if (writes.length === 0) {
+      setForecastStatus("Undo could not find the moved task or card. Nothing changed.");
+      setLastForecastBalance(null);
+      return;
+    }
+
+    await Promise.all(writes);
+    setForecastStatus(`Undo complete: ${restoredLabels.join(" and ")}.`);
+    setLastForecastBalance(null);
   }
 
   return (
@@ -2250,8 +2347,10 @@ function TodayView({
 
       <LoadForecastPanel
         forecast={context.loadForecast}
+        lastBalance={lastForecastBalance}
         mitigationStatus={forecastStatus}
         onMitigate={(forecast) => void stabilizeForecastLoad(forecast)}
+        onUndo={lastForecastBalance ? () => void undoForecastBalance() : undefined}
         onNavigate={onNavigate}
       />
 
@@ -2586,14 +2685,18 @@ function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: n
 
 function LoadForecastPanel({
   forecast,
+  lastBalance,
   mitigationStatus,
   onMitigate,
+  onUndo,
   onNavigate,
   compact = false,
 }: {
   forecast: ReturnType<typeof getLoadForecast>;
+  lastBalance?: ForecastBalanceSnapshot | null;
   mitigationStatus?: string;
   onMitigate?: (forecast: ReturnType<typeof getLoadForecast>) => void;
+  onUndo?: () => void;
   onNavigate?: (view: View) => void;
   compact?: boolean;
 }) {
@@ -2669,6 +2772,12 @@ function LoadForecastPanel({
           <span>Balancer</span>
           <strong>{forecast.mitigation.title}</strong>
           <p>{forecast.mitigation.summary}</p>
+          <div className="load-forecast-projection">
+            <span><strong>{forecast.peakDay.load}%</strong> current peak</span>
+            <span><strong>{forecast.mitigation.peakLoadAfter}%</strong> projected peak</span>
+            <span><strong>-{forecast.mitigation.loadReduction}</strong> load relief</span>
+            <span><strong>{forecast.mitigation.targetLoadAfter}%</strong> {forecast.mitigation.targetDayLabel}</span>
+          </div>
         </div>
         {onMitigate && (
           <button type="button" disabled={!forecast.mitigation.hasAction} onClick={() => onMitigate(forecast)}>
@@ -2676,6 +2785,16 @@ function LoadForecastPanel({
           </button>
         )}
       </div>
+      {lastBalance && onUndo && (
+        <div className="load-forecast-undo">
+          <div>
+            <span>Last Balance</span>
+            <strong>{lastBalance.label}</strong>
+            <p>{formatActivityTime(lastBalance.createdAt)}</p>
+          </div>
+          <button type="button" onClick={onUndo}>Undo Balance</button>
+        </div>
+      )}
       {mitigationStatus && <div className="load-forecast-status">{mitigationStatus}</div>}
       {(onNavigate || onMitigate) && (
         <div className="load-forecast-actions">
@@ -8390,6 +8509,10 @@ type LoadForecastMitigation = {
   title: string;
   summary: string;
   buttonLabel: string;
+  loadReduction: number;
+  peakLoadAfter: number;
+  targetLoadAfter: number;
+  targetDayLabel: string;
   task?: {
     projectId: string;
     projectName: string;
@@ -8594,6 +8717,18 @@ function getLoadForecastMitigation(
           toDate: cardTarget.key,
         }
       : undefined;
+  const taskRelief = task ? 13 : 0;
+  const cardRelief = cardSignal && card ? getForecastCardRelief(cardSignal) : 0;
+  const loadReduction = Math.min(peakDay.load, taskRelief + cardRelief);
+  const targetLoadAfter = Math.round(clamp(
+    Math.max(
+      task && taskTarget ? taskTarget.day.load + taskRelief : 0,
+      card && cardTarget ? cardTarget.load + cardRelief : 0,
+      recoveryDay.load,
+    ),
+    0,
+    100,
+  ));
   const hasAction = Boolean(task || card);
   const title = hasAction
     ? `Stabilize ${peakDay.dayLabel}`
@@ -8611,9 +8746,18 @@ function getLoadForecastMitigation(
     title,
     summary,
     buttonLabel: hasAction ? "Stabilize Peak" : "No Move",
+    loadReduction,
+    peakLoadAfter: Math.round(clamp(peakDay.load - loadReduction, 0, 100)),
+    targetLoadAfter,
+    targetDayLabel: task && taskTarget ? taskTarget.day.dayLabel : cardTarget.dayLabel,
     task,
     card,
   };
+}
+
+function getForecastCardRelief(card: LoadForecastCardSignal) {
+  const overdueBoost = card.dueDate && getDueState(card.dueDate) === "overdue" ? 20 : 0;
+  return Math.round(10 + priorityToScore(card.priority) * 0.16 + overdueBoost);
 }
 
 function getForecastTaskTargetDay(

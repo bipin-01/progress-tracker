@@ -2066,7 +2066,8 @@ button {
 
 .load-forecast-hero p,
 .load-forecast-signals p,
-.load-forecast-mitigation p {
+.load-forecast-mitigation p,
+.load-forecast-undo p {
   margin: 0;
   color: var(--ink-2);
   font-size: 12px;
@@ -2080,7 +2081,8 @@ button {
 
 .load-forecast-metrics span,
 .load-forecast-signals section,
-.load-forecast-mitigation {
+.load-forecast-mitigation,
+.load-forecast-undo {
   border: 1px solid var(--hair-soft);
   background: rgba(2, 7, 15, 0.34);
   padding: 10px;
@@ -2187,7 +2189,8 @@ button.load-forecast-day:hover {
   white-space: nowrap;
 }
 
-.load-forecast-mitigation {
+.load-forecast-mitigation,
+.load-forecast-undo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
@@ -2197,20 +2200,32 @@ button.load-forecast-day:hover {
   background: rgba(170, 114, 255, 0.07);
 }
 
-.load-forecast-mitigation > div {
+.load-forecast-undo {
+  border-left-color: var(--amber);
+  background: rgba(255, 181, 71, 0.06);
+}
+
+.load-forecast-mitigation > div,
+.load-forecast-undo > div {
   display: grid;
   min-width: 0;
   gap: 6px;
 }
 
-.load-forecast-mitigation span {
+.load-forecast-mitigation span,
+.load-forecast-undo span {
   color: var(--violet);
   font-size: 9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
-.load-forecast-mitigation strong {
+.load-forecast-undo span {
+  color: var(--amber);
+}
+
+.load-forecast-mitigation strong,
+.load-forecast-undo strong {
   overflow: hidden;
   color: var(--ink);
   font-size: 12.5px;
@@ -2219,7 +2234,29 @@ button.load-forecast-day:hover {
   white-space: nowrap;
 }
 
-.load-forecast-mitigation button {
+.load-forecast-projection {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.load-forecast-projection span {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.32);
+  color: var(--muted);
+  padding: 7px;
+}
+
+.load-forecast-projection strong {
+  margin-right: 5px;
+  color: var(--cyan);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+}
+
+.load-forecast-mitigation button,
+.load-forecast-undo button {
   height: 34px;
   border: 1px solid var(--violet);
   color: var(--violet);
@@ -2230,8 +2267,17 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.load-forecast-undo button {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
 .load-forecast-mitigation button:hover:not(:disabled) {
   background: rgba(170, 114, 255, 0.12);
+}
+
+.load-forecast-undo button:hover {
+  background: rgba(255, 181, 71, 0.1);
 }
 
 .load-forecast-mitigation button:disabled {
@@ -8080,6 +8126,8 @@ button.load-forecast-day:hover {
   .load-forecast-card.compact .load-forecast-strip,
   .load-forecast-signals,
   .load-forecast-mitigation,
+  .load-forecast-undo,
+  .load-forecast-projection,
   .weekly-review-hero,
   .weekly-review-grid,
   .weekly-day-strip,
