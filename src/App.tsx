@@ -1867,6 +1867,7 @@ function TodayView({
 }) {
   const now = new Date();
   const todayKey = toDateInputValue(now);
+  const [protocolStatus, setProtocolStatus] = useState("");
   const todayLabel = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "short",
@@ -2015,6 +2016,101 @@ function TodayView({
     });
   }
 
+  async function sealProtocolDay(packet: TodayProtocolPacket) {
+    const timestamp = new Date().toISOString();
+    const openTasks = packet.tasks.filter((task) => !task.done);
+    const nextDay = packet.day + 1;
+    const nextDayTasks = packet.project.tasksByDay[nextDay] ?? [];
+    const noteTitle = `Shutdown Review - ${packet.project.name} D${packet.day}`;
+    const existingNote = notes.find((note) => !note.deletedAt && note.title === noteTitle);
+    const carryTasks =
+      nextDay <= packet.project.deadlineDays
+        ? openTasks
+            .filter((task) => !nextDayTasks.some((item) => item.name === `Carry forward: ${task.name}`))
+            .map((task, index) => ({
+              id: `${Date.now()}-carry-d${nextDay}-${index}-${slugify(task.name)}`,
+              name: `Carry forward: ${task.name}`,
+              done: false,
+            }))
+        : [];
+    const note: StudyNote = {
+      id: existingNote?.id ?? `${Date.now()}-shutdown-${packet.project.id}-d${packet.day}`,
+      title: noteTitle,
+      body: formatProtocolShutdownNote(packet, openTasks, carryTasks, now),
+      tags: ["shutdown-review", "weekly-protocol", "activity-ledger"],
+      pinned: packet.progress < 100,
+      kind: "note",
+      flashcards: [],
+      askHistory: [],
+      readingProgress: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const writes: Promise<unknown>[] = [
+      existingNote
+        ? studyNoteCrud.update(existingNote.id, {
+            title: note.title,
+            body: note.body,
+            tags: note.tags,
+            pinned: note.pinned,
+            updatedAt: timestamp,
+          })
+        : studyNoteCrud.add(note),
+      ...carryTasks.map((task) => taskProjectCrud.addTask(packet.project.id, nextDay, task)),
+    ];
+    const hasShutdownComment = packet.card?.comments.some((comment) => comment.body.startsWith(`Shutdown D${packet.day}:`));
+
+    if (packet.card && !hasShutdownComment) {
+      writes.push(
+        kanbanCrud.update(packet.card.id, {
+          comments: [
+            ...packet.card.comments,
+            {
+              id: `${Date.now()}-shutdown-d${packet.day}`,
+              body: `Shutdown D${packet.day}: ${packet.completedTasks}/${packet.totalTasks} tasks complete. Carried ${carryTasks.length} task${carryTasks.length === 1 ? "" : "s"} forward.`,
+              createdAt: timestamp,
+            },
+          ],
+        }),
+      );
+    }
+
+    await Promise.all(writes);
+    logActivityEvent({
+      domain: "notes",
+      action: existingNote ? "updated" : "created",
+      entityId: note.id,
+      entityTitle: note.title,
+      source: "Today protocol shutdown",
+      metadata: { projectId: packet.project.id, day: packet.day, progress: packet.progress, openTasks: openTasks.length },
+    });
+    if (carryTasks.length > 0) {
+      logActivityEvent({
+        domain: "task",
+        action: "deferred",
+        entityId: `${packet.project.id}-d${packet.day}-carry-forward`,
+        entityTitle: `${packet.project.name} carry forward`,
+        source: "Today protocol shutdown",
+        metadata: { projectId: packet.project.id, fromDay: packet.day, toDay: nextDay, taskCount: carryTasks.length },
+      });
+    }
+    if (packet.card && !hasShutdownComment) {
+      logActivityEvent({
+        domain: "kanban",
+        action: "updated",
+        entityId: packet.card.id,
+        entityTitle: packet.card.title,
+        source: "Today protocol shutdown",
+        metadata: { projectId: packet.project.id, day: packet.day, carryForward: carryTasks.length },
+      });
+    }
+    setProtocolStatus(
+      nextDay <= packet.project.deadlineDays
+        ? `Shutdown note saved. ${carryTasks.length} task${carryTasks.length === 1 ? "" : "s"} carried to D${nextDay}.`
+        : "Shutdown note saved. Final protocol day has no next-day carry-forward.",
+    );
+  }
+
   async function acceptRecommendation(recommendation: AgentRecommendation) {
     if (recommendation.action) {
       await executeAgentAction(recommendation.action);
@@ -2097,6 +2193,7 @@ function TodayView({
             </div>
             <div className="today-protocol-actions">
               <button type="button" onClick={() => syncProtocolDay(protocolPacket)}>Sync Day</button>
+              <button type="button" onClick={() => void sealProtocolDay(protocolPacket)}>Seal Day</button>
               <button type="button" onClick={() => onNavigate("calendar")}>Calendar</button>
               <button type="button" onClick={() => onNavigate("kanban")}>Board</button>
               <button type="button" onClick={() => onNavigate("progress")}>Review</button>
@@ -2114,6 +2211,7 @@ function TodayView({
               ))
             )}
           </div>
+          {protocolStatus && <div className="today-protocol-status">{protocolStatus}</div>}
         </HudCard>
       )}
 
@@ -2469,6 +2567,41 @@ function getTodayProtocolPacket(
     status,
     directive,
   };
+}
+
+function formatProtocolShutdownNote(
+  packet: TodayProtocolPacket,
+  openTasks: ProjectTask[],
+  carryTasks: ProjectTask[],
+  now: Date,
+) {
+  return [
+    `# Shutdown Review - ${packet.project.name} D${packet.day}`,
+    "",
+    `**Date:** ${formatTaskDate(now)}`,
+    `**Progress:** ${packet.completedTasks}/${packet.totalTasks} tasks complete (${packet.progress}%)`,
+    `**Status:** ${packet.status}`,
+    "",
+    "## Completed Today",
+    ...(packet.tasks.filter((task) => task.done).length
+      ? packet.tasks.filter((task) => task.done).map((task) => `- ${task.name}`)
+      : ["- No protocol tasks completed yet."]),
+    "",
+    "## Open Loops",
+    ...(openTasks.length ? openTasks.map((task) => `- ${task.name}`) : ["- No open protocol tasks."]),
+    "",
+    "## Carry Forward",
+    ...(carryTasks.length ? carryTasks.map((task) => `- ${task.name}`) : ["- Nothing carried forward."]),
+    "",
+    "## Linked Signals",
+    `- Calendar anchor: ${packet.event ? `${packet.event.title} at ${packet.event.time}` : "missing"}`,
+    `- Board control card: ${packet.card ? packet.card.title : "missing"}`,
+    "",
+    "## Tomorrow",
+    "- What is the first visible proof step?",
+    "- What should be removed if the packet feels heavy?",
+    "- What evidence will show that the day was protected?",
+  ].join("\n");
 }
 
 function getTodayQueueItems({

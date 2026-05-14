@@ -2128,6 +2128,18 @@ button {
   line-height: 1.45;
 }
 
+.today-protocol-status {
+  margin-top: 12px;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid var(--lime);
+  background: rgba(136, 255, 92, 0.07);
+  color: var(--lime);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 10px 12px;
+  text-transform: uppercase;
+}
+
 .today-focus-list,
 .today-timeline-list,
 .today-risk-stack,
@@ -7545,7 +7557,7 @@ button {
 
   .today-protocol-actions {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
   .today-lane-grid {
