@@ -1236,7 +1236,7 @@ function App() {
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
-            <ProgressView events={activityEvents} />
+            <ProgressView events={activityEvents} onNavigate={navigateTo} />
           ) : activeView === "insights" ? (
             <InsightsView events={activityEvents} />
           ) : (
@@ -7364,8 +7364,38 @@ function CalendarView({
   );
 }
 
-function ProgressView({ events }: { events: ActivityEvent[] }) {
+function ProgressView({ events, onNavigate }: { events: ActivityEvent[]; onNavigate: (view: View) => void }) {
   const metrics = useMemo(() => getActivityDashboard(events), [events]);
+  const review = useMemo(() => getWeeklyReview(events), [events]);
+  const [reviewStatus, setReviewStatus] = useState("");
+
+  async function createWeeklyReviewNote() {
+    const timestamp = new Date().toISOString();
+    const note: StudyNote = {
+      id: `${Date.now()}-weekly-review-${slugify(review.weekLabel)}`,
+      title: `Weekly Review - ${review.weekLabel}`,
+      body: formatWeeklyReviewNote(review),
+      tags: ["weekly-review", "activity-ledger", "reflection"],
+      pinned: true,
+      kind: "note",
+      flashcards: [],
+      askHistory: [],
+      readingProgress: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    await studyNoteCrud.add(note);
+    logActivityEvent({
+      domain: "notes",
+      action: "created",
+      entityId: note.id,
+      entityTitle: note.title,
+      source: "Weekly review engine",
+      metadata: { score: review.score, eventCount: review.eventCount, productiveCount: review.productiveCount },
+    });
+    setReviewStatus(`Saved ${note.title} to Notes.`);
+    onNavigate("notes");
+  }
 
   return (
     <>
@@ -7412,6 +7442,49 @@ function ProgressView({ events }: { events: ActivityEvent[] }) {
           </div>
         </HudCard>
       </section>
+      <HudCard className="weekly-review-card" active>
+        <CardHeader title="Weekly Review Engine" meta={review.weekLabel} />
+        <div className="weekly-review-hero">
+          <div className="weekly-review-score">
+            <strong>{review.score}</strong>
+            <span>review score</span>
+          </div>
+          <div>
+            <span className="today-eyebrow">Coach synthesis</span>
+            <strong>{review.headline}</strong>
+            <p>{review.summary}</p>
+            <div className="weekly-review-actions">
+              <button type="button" onClick={() => void createWeeklyReviewNote()}>Create Review Note</button>
+              <button type="button" onClick={() => onNavigate("today")}>Open Today</button>
+              <button type="button" onClick={() => onNavigate("agents")}>Run Agents</button>
+            </div>
+            {reviewStatus && <em>{reviewStatus}</em>}
+          </div>
+        </div>
+        <div className="weekly-review-grid">
+          <section>
+            <span>Wins</span>
+            {review.wins.map((item) => <p key={item}>{item}</p>)}
+          </section>
+          <section>
+            <span>Friction</span>
+            {review.friction.map((item) => <p key={item}>{item}</p>)}
+          </section>
+          <section>
+            <span>Next Protocol</span>
+            {review.nextActions.map((item) => <p key={item}>{item}</p>)}
+          </section>
+        </div>
+        <div className="weekly-day-strip" aria-label="Weekly activity distribution">
+          {review.days.map((day) => (
+            <div className={day.total === 0 ? "quiet" : ""} key={day.key}>
+              <span>{day.label}</span>
+              <strong>{day.total}</strong>
+              <em>{day.productive} wins / {day.friction} slips</em>
+            </div>
+          ))}
+        </div>
+      </HudCard>
       <SystemTrace label="Progress metrics online" />
     </>
   );
@@ -7540,6 +7613,104 @@ function getBehaviorInsights(events: ActivityEvent[]) {
       },
     ],
   };
+}
+
+function getWeeklyReview(events: ActivityEvent[], now = new Date()) {
+  const start = startOfDay(addDays(now, -6));
+  const sorted = sortActivityEvents(events).filter((event) => new Date(event.timestamp) >= start);
+  const productive = sorted.filter(isProductiveActivity);
+  const frictionEvents = sorted.filter((event) => ["deferred", "reopened", "deleted"].includes(event.action));
+  const domainCounts = countBy(sorted, (event) => event.domain);
+  const strongestDomain = [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  const productiveDomains = countBy(productive, (event) => event.domain);
+  const strongestProductiveDomain = [...productiveDomains.entries()].sort((a, b) => b[1] - a[1])[0];
+  const frictionDomain = [...countBy(frictionEvents, (event) => event.domain).entries()].sort((a, b) => b[1] - a[1])[0];
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(start, index);
+    const key = toDateInputValue(date);
+    const dayEvents = sorted.filter((event) => event.dayKey === key);
+    return {
+      key,
+      label: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date),
+      total: dayEvents.length,
+      productive: dayEvents.filter(isProductiveActivity).length,
+      friction: dayEvents.filter((event) => ["deferred", "reopened", "deleted"].includes(event.action)).length,
+    };
+  });
+  const quietDays = days.filter((day) => day.total === 0).length;
+  const score = Math.round(clamp(productive.length * 12 + sorted.length * 2 - frictionEvents.length * 8 - quietDays * 5, 0, 100));
+  const weekLabel = `${formatTaskDate(start)} - ${formatTaskDate(now)}`;
+  const headline =
+    sorted.length === 0
+      ? "No behavior data captured yet."
+      : score >= 72
+        ? "Strong execution week. Keep the operating rhythm."
+        : score >= 42
+          ? "Mixed week. Tighten the handoff between plans and proof."
+          : "Recovery week. Reduce surface area and rebuild momentum.";
+  const summary =
+    sorted.length === 0
+      ? "The review engine is waiting for ledger signals. Complete tasks, review notes, move cards, or accept agent actions to generate a meaningful recap."
+      : `${sorted.length} events were logged, including ${productive.length} productive signals and ${frictionEvents.length} friction signals. ${strongestDomain ? formatActivityDomain(strongestDomain[0]) : "No domain"} carried the most activity.`;
+  const wins = [
+    productive.length > 0 ? `${productive.length} productive signal${productive.length === 1 ? "" : "s"} logged this week.` : "No productive signals logged yet.",
+    strongestProductiveDomain ? `${formatActivityDomain(strongestProductiveDomain[0])} produced the most wins.` : "No strongest productive domain yet.",
+    quietDays < 3 ? `${7 - quietDays} active day${7 - quietDays === 1 ? "" : "s"} in the week.` : "The week has several quiet days, which gives a clean baseline.",
+  ];
+  const friction = [
+    frictionEvents.length > 0 ? `${frictionEvents.length} friction signal${frictionEvents.length === 1 ? "" : "s"} detected.` : "No defer/reopen/delete friction logged.",
+    frictionDomain ? `${formatActivityDomain(frictionDomain[0])} is the main friction domain.` : "No single friction domain stands out.",
+    quietDays > 0 ? `${quietDays} quiet day${quietDays === 1 ? "" : "s"} with no captured behavior.` : "No quiet days in this review window.",
+  ];
+  const nextActions = [
+    frictionEvents.length > 2 ? "Pick one repeated deferral and shrink it into a 15-minute proof step." : "Keep deferrals rare by making Today the only place work is carried forward.",
+    strongestProductiveDomain ? `Schedule one protected ${formatActivityDomain(strongestProductiveDomain[0]).toLowerCase()} block early in the day.` : "Create one small completion signal today.",
+    quietDays > 2 ? "Add one daily shutdown review so low-activity days still create useful data." : "Save this review note and let agents use it as memory.",
+  ];
+
+  return {
+    weekLabel,
+    score,
+    headline,
+    summary,
+    wins,
+    friction,
+    nextActions,
+    days,
+    eventCount: sorted.length,
+    productiveCount: productive.length,
+    frictionCount: frictionEvents.length,
+  };
+}
+
+function formatWeeklyReviewNote(review: ReturnType<typeof getWeeklyReview>) {
+  return [
+    `# Weekly Review - ${review.weekLabel}`,
+    "",
+    `**Review score:** ${review.score}`,
+    "",
+    `## Summary`,
+    "",
+    review.summary,
+    "",
+    `## Wins`,
+    ...review.wins.map((item) => `- ${item}`),
+    "",
+    `## Friction`,
+    ...review.friction.map((item) => `- ${item}`),
+    "",
+    `## Next Protocol`,
+    ...review.nextActions.map((item) => `- ${item}`),
+    "",
+    `## Day Signals`,
+    ...review.days.map((day) => `- ${day.label}: ${day.total} events, ${day.productive} wins, ${day.friction} slips`),
+    "",
+    `## Reflection`,
+    "",
+    "- What did I protect well?",
+    "- What kept getting moved forward?",
+    "- What is the smallest proof step for tomorrow?",
+  ].join("\n");
 }
 
 function sortActivityEvents(events: ActivityEvent[]) {

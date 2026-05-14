@@ -7022,6 +7022,140 @@ button {
   line-height: 1.6;
 }
 
+.weekly-review-card {
+  margin-top: 16px;
+  padding: 18px 20px;
+}
+
+.weekly-review-hero {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.weekly-review-score {
+  display: grid;
+  min-height: 132px;
+  place-items: center;
+  border: 1px solid var(--violet);
+  background:
+    radial-gradient(circle, rgba(170, 114, 255, 0.18), transparent 64%),
+    rgba(6, 15, 28, 0.68);
+  text-align: center;
+}
+
+.weekly-review-score strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 42px;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(170, 114, 255, 0.45);
+}
+
+.weekly-review-score span,
+.weekly-review-hero em,
+.weekly-review-grid span,
+.weekly-day-strip span,
+.weekly-day-strip em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.weekly-review-hero > div:last-child > strong {
+  display: block;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(18px, 2vw, 26px);
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+  margin: 8px 0;
+  text-transform: uppercase;
+}
+
+.weekly-review-hero p,
+.weekly-review-grid p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.weekly-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.weekly-review-actions button {
+  min-height: 34px;
+  border: 1px solid var(--hair);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.weekly-review-actions button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.weekly-review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.weekly-review-grid section {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid var(--cyan);
+  background: rgba(6, 15, 28, 0.54);
+  padding: 13px;
+}
+
+.weekly-review-grid section:nth-child(2) {
+  border-left-color: var(--amber);
+}
+
+.weekly-review-grid section:nth-child(3) {
+  border-left-color: var(--violet);
+}
+
+.weekly-day-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(96px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.weekly-day-strip div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.36);
+  padding: 10px;
+}
+
+.weekly-day-strip div.quiet {
+  opacity: 0.55;
+}
+
+.weekly-day-strip strong {
+  color: var(--cyan);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 18px;
+}
+
 .agents-overview {
   display: grid;
   grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.5fr);
@@ -7357,6 +7491,9 @@ button {
   .review-card-grid,
   .activity-command-grid,
   .activity-insight-list,
+  .weekly-review-hero,
+  .weekly-review-grid,
+  .weekly-day-strip,
   .queue-stats,
   .queue-actions,
   .queue-upcoming-list button,
