@@ -1162,6 +1162,10 @@ function App() {
               recommendations={agentRecommendations}
               onQuickCapture={openQuickCapture}
               onNavigate={navigateTo}
+              onOpenProject={(projectId) => {
+                setActiveTaskProjectId(projectId);
+                navigateTo("tasks");
+              }}
             />
           ) : activeView === "planner" ? (
             <PlannerView
@@ -1847,6 +1851,7 @@ function TodayView({
   recommendations,
   onQuickCapture,
   onNavigate,
+  onOpenProject,
 }: {
   goals: Goal[];
   habits: Habit[];
@@ -1858,6 +1863,7 @@ function TodayView({
   recommendations: AgentRecommendation[];
   onQuickCapture: () => void;
   onNavigate: (view: View) => void;
+  onOpenProject: (projectId: string) => void;
 }) {
   const now = new Date();
   const todayKey = toDateInputValue(now);
@@ -1924,6 +1930,10 @@ function TodayView({
   const carryForward = queueItems
     .filter((item) => item.kind !== "event" && item.kind !== "habit")
     .slice(0, 3);
+  const protocolPacket = useMemo(
+    () => getTodayProtocolPacket(projects, calendarEvents, kanbanCards, now),
+    [calendarEvents, kanbanCards, projects, todayKey],
+  );
 
   function completeTask(task: DashboardTask) {
     void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({ ...item, done: true }));
@@ -1977,6 +1987,31 @@ function TodayView({
       entityTitle: card.title,
       source: "Today queue",
       metadata: { oldDueDate: card.dueDate, newDueDate: toDateInputValue(addDays(now, 1)), priority: card.priority },
+    });
+  }
+
+  function syncProtocolDay(packet: TodayProtocolPacket) {
+    void taskProjectCrud.setCurrentDay(packet.project.id, packet.day);
+    logActivityEvent({
+      domain: "task",
+      action: "updated",
+      entityId: packet.project.id,
+      entityTitle: packet.project.name,
+      source: "Today protocol packet",
+      metadata: { currentDay: packet.day, progress: packet.progress, daysLeft: packet.daysLeft },
+    });
+    onOpenProject(packet.project.id);
+  }
+
+  function toggleProtocolTask(packet: TodayProtocolPacket, task: ProjectTask) {
+    void taskProjectCrud.updateTask(packet.project.id, packet.day, task.id, (item) => ({ ...item, done: !item.done }));
+    logActivityEvent({
+      domain: "task",
+      action: task.done ? "reopened" : "completed",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Today protocol packet",
+      metadata: { projectId: packet.project.id, projectName: packet.project.name, day: packet.day },
     });
   }
 
@@ -2040,6 +2075,47 @@ function TodayView({
           <TodayRiskRow label="Habit completion" value={Math.round(context.habitCompletion)} tone="good" />
         </HudCard>
       </section>
+
+      {protocolPacket && (
+        <HudCard className="today-protocol-card" active>
+          <CardHeader title="Weekly Protocol Packet" meta={`D${protocolPacket.day} - ${protocolPacket.dateLabel}`} />
+          <div className="today-protocol-layout">
+            <div className="today-protocol-gauge">
+              <strong>{protocolPacket.progress}%</strong>
+              <span>{protocolPacket.status}</span>
+            </div>
+            <div className="today-protocol-main">
+              <span className="today-eyebrow">Active operating packet</span>
+              <strong>{protocolPacket.project.name}</strong>
+              <p>{protocolPacket.directive}</p>
+              <div className="today-protocol-meta">
+                <span><strong>{protocolPacket.completedTasks}/{protocolPacket.totalTasks}</strong> today tasks</span>
+                <span><strong>{protocolPacket.daysLeft}</strong> days left</span>
+                <span><strong>{protocolPacket.event ? "yes" : "missing"}</strong> calendar anchor</span>
+                <span><strong>{protocolPacket.card ? "linked" : "missing"}</strong> board card</span>
+              </div>
+            </div>
+            <div className="today-protocol-actions">
+              <button type="button" onClick={() => syncProtocolDay(protocolPacket)}>Sync Day</button>
+              <button type="button" onClick={() => onNavigate("calendar")}>Calendar</button>
+              <button type="button" onClick={() => onNavigate("kanban")}>Board</button>
+              <button type="button" onClick={() => onNavigate("progress")}>Review</button>
+            </div>
+          </div>
+          <div className="today-protocol-task-strip">
+            {protocolPacket.tasks.length === 0 ? (
+              <div className="kanban-empty">// no protocol tasks assigned to this day</div>
+            ) : (
+              protocolPacket.tasks.map((task) => (
+                <button className={`today-protocol-task ${task.done ? "done" : ""}`} type="button" onClick={() => toggleProtocolTask(protocolPacket, task)} key={task.id}>
+                  <span className="checkbox">{task.done && <Check />}</span>
+                  <strong>{task.name}</strong>
+                </button>
+              ))
+            )}
+          </div>
+        </HudCard>
+      )}
 
       <section className="today-command-center-grid">
         <HudCard className="today-queue-card">
@@ -2325,6 +2401,74 @@ function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: n
       <ProgressBar value={value} />
     </div>
   );
+}
+
+type TodayProtocolPacket = {
+  project: TaskProject;
+  day: number;
+  dateLabel: string;
+  tasks: ProjectTask[];
+  completedTasks: number;
+  totalTasks: number;
+  progress: number;
+  daysLeft: number;
+  event?: CalendarEvent;
+  card?: KanbanCard;
+  status: string;
+  directive: string;
+};
+
+function getTodayProtocolPacket(
+  projects: TaskProject[],
+  calendarEvents: CalendarEvent[],
+  kanbanCards: KanbanCard[],
+  now: Date,
+): TodayProtocolPacket | null {
+  const protocolProjects = projects
+    .filter((project) => project.name.startsWith("Weekly Protocol -"))
+    .sort((a, b) => getProjectEndDate(b).getTime() - getProjectEndDate(a).getTime());
+  if (protocolProjects.length === 0) return null;
+
+  const today = startOfDay(now);
+  const activeProject =
+    protocolProjects.find((project) => {
+      const start = startOfDay(getProjectStartDate(project));
+      const end = startOfDay(getProjectEndDate(project));
+      return today >= start && today <= end;
+    }) ?? protocolProjects[0];
+  const start = startOfDay(getProjectStartDate(activeProject));
+  const end = startOfDay(getProjectEndDate(activeProject));
+  const day = Math.round(clamp(daysBetween(start, today) + 1, 1, Math.max(activeProject.deadlineDays, 1)));
+  const tasks = activeProject.tasksByDay[day] ?? [];
+  const completedTasks = tasks.filter((task) => task.done).length;
+  const totalTasks = tasks.length;
+  const progress = Math.round((completedTasks / Math.max(totalTasks, 1)) * 100);
+  const dateKey = toDateInputValue(addDays(start, day - 1));
+  const event = calendarEvents.find((item) => item.id === `${activeProject.id}-calendar-d${day}` || (item.date === dateKey && item.title.startsWith(`Protocol D${day}:`)));
+  const card = kanbanCards.find((item) => item.id === `${activeProject.id}-control-card` || item.linkedTaskProjectId === activeProject.id);
+  const daysLeft = Math.max(0, daysBetween(today, end));
+  const status = progress >= 100 ? "sealed" : progress > 0 ? "in motion" : daysLeft <= 1 ? "urgent" : "ready";
+  const directive =
+    progress >= 100
+      ? "Today protocol is complete. Use the remaining window to clear the linked board card or write a short proof note."
+      : tasks[0]
+        ? `Execute ${tasks[0].name} first, then clear the remaining protocol checks before shutdown.`
+        : "Sync the protocol day and add one concrete task before the packet goes quiet.";
+
+  return {
+    project: activeProject,
+    day,
+    dateLabel: formatTaskDate(addDays(start, day - 1)),
+    tasks,
+    completedTasks,
+    totalTasks,
+    progress,
+    daysLeft,
+    event,
+    card,
+    status,
+    directive,
+  };
 }
 
 function getTodayQueueItems({

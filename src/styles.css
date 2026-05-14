@@ -1528,6 +1528,7 @@ button {
 .today-upcoming-card,
 .today-queue-card,
 .today-lanes-card,
+.today-protocol-card,
 .planner-hero-card,
 .planner-health-card,
 .planner-sources-card,
@@ -1981,6 +1982,150 @@ button {
 
 .today-risk-row.good .progress-bar i {
   background: linear-gradient(90deg, var(--lime), var(--cyan));
+}
+
+.today-protocol-card {
+  margin-top: 16px;
+}
+
+.today-protocol-layout {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.today-protocol-gauge {
+  display: grid;
+  min-height: 112px;
+  place-items: center;
+  border: 1px solid var(--violet);
+  background:
+    radial-gradient(circle, rgba(170, 114, 255, 0.18), rgba(170, 114, 255, 0.04) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.68);
+  text-align: center;
+}
+
+.today-protocol-gauge strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(170, 114, 255, 0.44);
+}
+
+.today-protocol-gauge span,
+.today-protocol-meta span {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.today-protocol-main {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.today-protocol-main > strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.today-protocol-main p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.today-protocol-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.today-protocol-meta span {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.34);
+  padding: 8px;
+}
+
+.today-protocol-meta strong {
+  margin-right: 5px;
+  color: var(--cyan);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 12px;
+}
+
+.today-protocol-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 132px;
+}
+
+.today-protocol-actions button {
+  height: 32px;
+  border: 1px solid var(--hair);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.13em;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.today-protocol-actions button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.today-protocol-task-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.today-protocol-task {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid var(--violet);
+  background: rgba(6, 15, 28, 0.58);
+  color: var(--ink-2);
+  padding: 10px;
+  text-align: left;
+}
+
+.today-protocol-task:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.today-protocol-task.done {
+  opacity: 0.62;
+}
+
+.today-protocol-task.done strong {
+  text-decoration: line-through;
+  text-decoration-color: var(--cyan-dim);
+}
+
+.today-protocol-task strong {
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 1.45;
 }
 
 .today-focus-list,
@@ -7394,6 +7539,15 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .today-protocol-layout {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .today-protocol-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+  }
+
   .today-lane-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
@@ -7510,6 +7664,9 @@ button {
   .today-lane-grid,
   .today-queue-item,
   .today-risk-summary,
+  .today-protocol-layout,
+  .today-protocol-meta,
+  .today-protocol-actions,
   .activity-row,
   .activity-domain-row,
   .planner-command-grid,
