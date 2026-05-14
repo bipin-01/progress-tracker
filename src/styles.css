@@ -1529,6 +1529,7 @@ button {
 .today-queue-card,
 .today-lanes-card,
 .today-protocol-card,
+.load-forecast-card,
 .planner-hero-card,
 .planner-health-card,
 .planner-sources-card,
@@ -1986,6 +1987,225 @@ button {
 
 .today-protocol-card {
   margin-top: 16px;
+}
+
+.load-forecast-card {
+  margin-top: 16px;
+}
+
+.load-forecast-card.compact {
+  margin-top: 16px;
+}
+
+.load-forecast-hero {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) minmax(240px, 0.42fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.load-forecast-score {
+  display: grid;
+  min-height: 112px;
+  place-items: center;
+  border: 1px solid var(--cyan-dim);
+  background:
+    radial-gradient(circle, rgba(53, 215, 255, 0.18), rgba(53, 215, 255, 0.04) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.68);
+  text-align: center;
+}
+
+.load-forecast-score.loaded {
+  border-color: var(--amber);
+  background:
+    radial-gradient(circle, rgba(255, 181, 71, 0.16), rgba(255, 181, 71, 0.04) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.68);
+}
+
+.load-forecast-score.collision {
+  border-color: var(--red);
+  background:
+    radial-gradient(circle, rgba(255, 85, 114, 0.18), rgba(255, 85, 114, 0.04) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.68);
+}
+
+.load-forecast-score strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(53, 215, 255, 0.44);
+}
+
+.load-forecast-score span,
+.load-forecast-metrics span,
+.load-forecast-day span,
+.load-forecast-day em,
+.load-forecast-signals span {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.load-forecast-hero > div:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.load-forecast-hero > div:nth-child(2) > strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.load-forecast-hero p,
+.load-forecast-signals p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.load-forecast-metrics {
+  display: grid;
+  gap: 8px;
+}
+
+.load-forecast-metrics span,
+.load-forecast-signals section {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.34);
+  padding: 10px;
+}
+
+.load-forecast-metrics strong {
+  margin-right: 6px;
+  color: var(--cyan);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 15px;
+}
+
+.load-forecast-strip {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(54px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.load-forecast-card.compact .load-forecast-strip {
+  grid-template-columns: repeat(10, minmax(54px, 1fr));
+}
+
+.load-forecast-day {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(6, 15, 28, 0.58);
+  color: var(--ink-2);
+  padding: 9px;
+  text-align: left;
+}
+
+button.load-forecast-day:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.load-forecast-day.active {
+  border-color: var(--cyan-dim);
+}
+
+.load-forecast-day.loaded {
+  border-color: rgba(255, 181, 71, 0.48);
+}
+
+.load-forecast-day.collision {
+  border-color: rgba(255, 85, 114, 0.62);
+  box-shadow: inset 0 0 18px rgba(255, 85, 114, 0.08);
+}
+
+.load-forecast-day strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.load-forecast-day i {
+  display: block;
+  width: 100%;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.load-forecast-day i::before {
+  content: "";
+  display: block;
+  width: var(--forecast-load);
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 9px rgba(53, 215, 255, 0.36);
+}
+
+.load-forecast-day.loaded i::before {
+  background: linear-gradient(90deg, var(--amber), var(--violet));
+}
+
+.load-forecast-day.collision i::before {
+  background: linear-gradient(90deg, var(--red), var(--amber));
+}
+
+.load-forecast-signals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.load-forecast-signals section {
+  display: grid;
+  gap: 7px;
+}
+
+.load-forecast-signals strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.load-forecast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.load-forecast-actions button {
+  height: 32px;
+  border: 1px solid var(--hair);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.13em;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.load-forecast-actions button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
 }
 
 .today-protocol-layout {
@@ -7674,6 +7894,20 @@ button {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
+  .load-forecast-hero {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .load-forecast-metrics {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(130px, 1fr));
+  }
+
+  .load-forecast-strip,
+  .load-forecast-card.compact .load-forecast-strip {
+    grid-template-columns: repeat(7, minmax(70px, 1fr));
+  }
+
   .today-lane-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
@@ -7774,6 +8008,11 @@ button {
   .protocol-memory-hero,
   .protocol-memory-grid,
   .protocol-memory-row,
+  .load-forecast-hero,
+  .load-forecast-metrics,
+  .load-forecast-strip,
+  .load-forecast-card.compact .load-forecast-strip,
+  .load-forecast-signals,
   .weekly-review-hero,
   .weekly-review-grid,
   .weekly-day-strip,

@@ -1252,7 +1252,12 @@ function App() {
               }}
             />
           ) : activeView === "insights" ? (
-            <InsightsView events={activityEvents} />
+            <InsightsView
+              events={activityEvents}
+              projects={taskProjects}
+              calendarEvents={calendarEvents}
+              kanbanCards={kanbanCards}
+            />
           ) : (
             <AgentsView
               goals={goals}
@@ -2172,6 +2177,8 @@ function TodayView({
         </HudCard>
       </section>
 
+      <LoadForecastPanel forecast={context.loadForecast} onNavigate={onNavigate} />
+
       {protocolPacket && (
         <HudCard className="today-protocol-card" active>
           <CardHeader title="Weekly Protocol Packet" meta={`D${protocolPacket.day} - ${protocolPacket.dateLabel}`} />
@@ -2498,6 +2505,93 @@ function TodayRiskRow({ label, value, tone = "risk" }: { label: string; value: n
       </div>
       <ProgressBar value={value} />
     </div>
+  );
+}
+
+function LoadForecastPanel({
+  forecast,
+  onNavigate,
+  compact = false,
+}: {
+  forecast: ReturnType<typeof getLoadForecast>;
+  onNavigate?: (view: View) => void;
+  compact?: boolean;
+}) {
+  const visibleDays = forecast.days.slice(0, compact ? 10 : 14);
+
+  return (
+    <HudCard className={`load-forecast-card ${compact ? "compact" : ""}`} active={!compact}>
+      <CardHeader title="Two-Week Load Forecast" meta={`${forecast.collisionDays} collision day${forecast.collisionDays === 1 ? "" : "s"}`} />
+      <div className="load-forecast-hero">
+        <div className={`load-forecast-score ${forecast.peakDay.tone}`}>
+          <strong>{forecast.peakDay.load}%</strong>
+          <span>peak load</span>
+        </div>
+        <div>
+          <span className="today-eyebrow">Predictive schedule model</span>
+          <strong>{forecast.headline}</strong>
+          <p>{forecast.directive}</p>
+        </div>
+        <div className="load-forecast-metrics">
+          <span><strong>{forecast.averageLoad}%</strong> avg load</span>
+          <span><strong>{forecast.openTaskCount}</strong> open tasks</span>
+          <span><strong>{forecast.scheduledCount}</strong> scheduled signals</span>
+        </div>
+      </div>
+      <div className="load-forecast-strip" aria-label="Fourteen day load forecast">
+        {visibleDays.map((day) => (
+          onNavigate ? (
+            <button
+              className={`load-forecast-day ${day.tone}`}
+              type="button"
+              onClick={() => onNavigate(day.primaryView)}
+              style={{ "--forecast-load": `${day.load}%` } as CSSProperties}
+              key={day.key}
+            >
+              <span>{day.weekday}</span>
+              <strong>{day.dayLabel}</strong>
+              <i />
+              <em>{day.load}%</em>
+            </button>
+          ) : (
+            <div
+              className={`load-forecast-day ${day.tone}`}
+              style={{ "--forecast-load": `${day.load}%` } as CSSProperties}
+              key={day.key}
+            >
+              <span>{day.weekday}</span>
+              <strong>{day.dayLabel}</strong>
+              <i />
+              <em>{day.load}%</em>
+            </div>
+          )
+        ))}
+      </div>
+      <div className="load-forecast-signals">
+        <section>
+          <span>Peak Day</span>
+          <strong>{forecast.peakDay.label}</strong>
+          <p>{forecast.peakDay.topSignals.join(" / ")}</p>
+        </section>
+        <section>
+          <span>Best Recovery</span>
+          <strong>{forecast.recoveryDay.label}</strong>
+          <p>{forecast.recoveryDay.load}% load with {forecast.recoveryDay.openTaskCount} open task{forecast.recoveryDay.openTaskCount === 1 ? "" : "s"}.</p>
+        </section>
+        <section>
+          <span>Next Move</span>
+          <strong>{forecast.nextActionTitle}</strong>
+          <p>{forecast.nextActionBody}</p>
+        </section>
+      </div>
+      {onNavigate && (
+        <div className="load-forecast-actions">
+          <button type="button" onClick={() => onNavigate("calendar")}>Open Calendar</button>
+          <button type="button" onClick={() => onNavigate("tasks")}>Open Tasks</button>
+          <button type="button" onClick={() => onNavigate("kanban")}>Open Board</button>
+        </div>
+      )}
+    </HudCard>
   );
 }
 
@@ -7923,9 +8017,23 @@ function ProgressView({
   );
 }
 
-function InsightsView({ events }: { events: ActivityEvent[] }) {
+function InsightsView({
+  events,
+  projects,
+  calendarEvents,
+  kanbanCards,
+}: {
+  events: ActivityEvent[];
+  projects: TaskProject[];
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+}) {
   const insights = useMemo(() => getBehaviorInsights(events), [events]);
   const protocolMemory = useMemo(() => getProtocolMemory(events), [events]);
+  const forecast = useMemo(
+    () => getLoadForecast({ projects, calendarEvents, kanbanCards }),
+    [calendarEvents, kanbanCards, projects],
+  );
 
   return (
     <>
@@ -7996,6 +8104,7 @@ function InsightsView({ events }: { events: ActivityEvent[] }) {
           )}
         </div>
       </HudCard>
+      <LoadForecastPanel forecast={forecast} compact />
       <SystemTrace label="Pattern analysis online" />
     </>
   );
@@ -8148,6 +8257,214 @@ function getActivityNumber(event: ActivityEvent, key: string) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+type LoadForecastTone = "calm" | "active" | "loaded" | "collision";
+type LoadForecastProjectSignal = {
+  projectId: string;
+  projectName: string;
+  day: number;
+  openTaskCount: number;
+  totalTaskCount: number;
+};
+type LoadForecastDay = {
+  key: string;
+  date: Date;
+  label: string;
+  weekday: string;
+  dayLabel: string;
+  load: number;
+  tone: LoadForecastTone;
+  primaryView: View;
+  openTaskCount: number;
+  totalTaskCount: number;
+  eventCount: number;
+  dueCardCount: number;
+  scheduledCount: number;
+  projectSignals: LoadForecastProjectSignal[];
+  topSignals: string[];
+};
+
+function getLoadForecast({
+  projects,
+  calendarEvents,
+  kanbanCards,
+  now = new Date(),
+  windowDays = 14,
+}: {
+  projects: TaskProject[];
+  calendarEvents: CalendarEvent[];
+  kanbanCards: KanbanCard[];
+  now?: Date;
+  windowDays?: number;
+}) {
+  const start = startOfDay(now);
+  const normalizedProjects = projects.map(normalizeTaskProject);
+  const openCards = kanbanCards.map(normalizeKanbanCard).filter((card) => card.columnId !== "done" && !card.archivedAt);
+  const days: LoadForecastDay[] = Array.from({ length: windowDays }, (_, index) => {
+    const date = addDays(start, index);
+    const key = toDateInputValue(date);
+    const projectSignals: LoadForecastProjectSignal[] = normalizedProjects
+      .map((project) => {
+        const day = getProjectDayForDate(project, date);
+        if (!day) return null;
+        const tasks = project.tasksByDay[day] ?? [];
+        const openTasks = tasks.filter((task) => !task.done);
+        if (tasks.length === 0 && project.currentDay !== day) return null;
+        return {
+          projectId: project.id,
+          projectName: project.name,
+          day,
+          openTaskCount: openTasks.length,
+          totalTaskCount: tasks.length,
+        };
+      })
+      .filter((signal): signal is LoadForecastProjectSignal => Boolean(signal));
+    const dayEvents = calendarEvents
+      .map((event) => ({ event, date: getEventDate(event) }))
+      .filter((item) => toDateInputValue(item.date) === key);
+    const dueCards = openCards.filter((card) => {
+      const due = parseDateInput(card.dueDate);
+      if (!due) return false;
+      const dueKey = toDateInputValue(due);
+      return dueKey === key || (index === 0 && startOfDay(due).getTime() < start.getTime());
+    });
+    const openTaskCount = projectSignals.reduce((total, signal) => total + signal.openTaskCount, 0);
+    const totalTaskCount = projectSignals.reduce((total, signal) => total + signal.totalTaskCount, 0);
+    const eventWeight = dayEvents.reduce((total, item) => total + getCalendarLoadWeight(item.event.kind), 0);
+    const cardWeight = dueCards.reduce((total, card) => {
+      const overdueBoost = getDueState(card.dueDate) === "overdue" ? 20 : 0;
+      return total + 10 + priorityToScore(card.priority) * 0.16 + overdueBoost + (card.blockedBy ? 12 : 0);
+    }, 0);
+    const taskWeight = openTaskCount * 13 + Math.max(0, totalTaskCount - openTaskCount) * 2 + projectSignals.length * 3;
+    const load = Math.round(clamp(taskWeight + eventWeight + cardWeight, 0, 100));
+    const tone = getLoadForecastTone(load);
+    const primaryView: View = cardWeight > taskWeight && cardWeight >= eventWeight ? "kanban" : eventWeight > taskWeight ? "calendar" : "tasks";
+    const topSignals = [
+      openTaskCount ? `${openTaskCount} open task${openTaskCount === 1 ? "" : "s"}` : "",
+      dayEvents.length ? `${dayEvents.length} calendar signal${dayEvents.length === 1 ? "" : "s"}` : "",
+      dueCards.length ? `${dueCards.length} board due signal${dueCards.length === 1 ? "" : "s"}` : "",
+      projectSignals.some((signal) => signal.projectName.startsWith("Weekly Protocol -")) ? "weekly protocol active" : "",
+    ].filter(Boolean);
+
+    return {
+      key,
+      date,
+      label: formatUpcomingDate(date),
+      weekday: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date),
+      dayLabel: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date),
+      load,
+      tone,
+      primaryView,
+      openTaskCount,
+      totalTaskCount,
+      eventCount: dayEvents.length,
+      dueCardCount: dueCards.length,
+      scheduledCount: openTaskCount + dayEvents.length + dueCards.length,
+      projectSignals,
+      topSignals: topSignals.length ? topSignals : ["maintenance window"],
+    };
+  });
+  const peakDay = [...days].sort((a, b) => b.load - a.load || a.date.getTime() - b.date.getTime())[0] ?? makeEmptyForecastDay(start);
+  const recoveryDay =
+    days
+      .filter((day) => day.key !== peakDay.key)
+      .sort((a, b) => a.load - b.load || a.date.getTime() - b.date.getTime())[0] ?? peakDay;
+  const averageLoad = Math.round(days.reduce((total, day) => total + day.load, 0) / Math.max(days.length, 1));
+  const collisionDays = days.filter((day) => day.load >= 75).length;
+  const openTaskCount = days.reduce((total, day) => total + day.openTaskCount, 0);
+  const scheduledCount = days.reduce((total, day) => total + day.eventCount + day.dueCardCount, 0);
+  const headline = getLoadForecastHeadline(peakDay, collisionDays, averageLoad);
+  const nextActionTitle =
+    peakDay.load >= 75
+      ? `Pre-clear ${peakDay.dayLabel}`
+      : averageLoad >= 55
+        ? "Balance the week"
+        : "Keep capacity open";
+  const nextActionBody =
+    peakDay.load >= 75
+      ? `Move or finish one flexible item before ${peakDay.label}; that is the next predicted collision point.`
+      : averageLoad >= 55
+        ? `The next 14 days are moderately loaded. Use ${recoveryDay.label} as the recovery or review window.`
+        : `No heavy collision is visible yet. Keep ${recoveryDay.label} protected for review and note synthesis.`;
+
+  return {
+    days,
+    peakDay,
+    recoveryDay,
+    averageLoad,
+    collisionDays,
+    openTaskCount,
+    scheduledCount,
+    headline,
+    directive: getLoadForecastDirective(peakDay, collisionDays, averageLoad),
+    nextActionTitle,
+    nextActionBody,
+  };
+}
+
+function makeEmptyForecastDay(date: Date): LoadForecastDay {
+  return {
+    key: toDateInputValue(date),
+    date,
+    label: formatUpcomingDate(date),
+    weekday: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date),
+    dayLabel: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date),
+    load: 0,
+    tone: "calm" as LoadForecastTone,
+    primaryView: "calendar" as View,
+    openTaskCount: 0,
+    totalTaskCount: 0,
+    eventCount: 0,
+    dueCardCount: 0,
+    scheduledCount: 0,
+    projectSignals: [],
+    topSignals: ["maintenance window"],
+  };
+}
+
+function getProjectDayForDate(project: TaskProject, date: Date) {
+  const start = getProjectStartDate(project);
+  const end = getProjectEndDate(project);
+  if (date < startOfDay(start) || date > startOfDay(end)) return null;
+  const day = daysBetween(start, date) + 1;
+  const deadline = getProjectDeadlineDays(project);
+  return day >= 1 && day <= deadline ? day : null;
+}
+
+function getCalendarLoadWeight(kind: CalendarEvent["kind"]) {
+  if (kind === "deadline") return 28;
+  if (kind === "project") return 20;
+  if (kind === "meeting") return 17;
+  if (kind === "appointment") return 16;
+  return 10;
+}
+
+function getLoadForecastTone(load: number): LoadForecastTone {
+  if (load >= 75) return "collision";
+  if (load >= 55) return "loaded";
+  if (load >= 30) return "active";
+  return "calm";
+}
+
+function getLoadForecastHeadline(peakDay: LoadForecastDay, collisionDays: number, averageLoad: number) {
+  if (collisionDays > 1) return `${collisionDays} load collisions visible in the next 14 days.`;
+  if (peakDay.load >= 75) return `${peakDay.label} is the next schedule collision.`;
+  if (averageLoad >= 55) return "The next two weeks are active but manageable.";
+  return "Capacity is available if it stays protected.";
+}
+
+function getLoadForecastDirective(peakDay: LoadForecastDay, collisionDays: number, averageLoad: number) {
+  if (collisionDays > 1) {
+    return "Reduce scope before the overloaded days arrive: close small tasks early, move flexible board cards, and keep calendar anchors realistic.";
+  }
+  if (peakDay.load >= 75) {
+    return `${peakDay.label} combines ${peakDay.topSignals.join(", ")}. Treat it as a protected execution day, not a place to add more work.`;
+  }
+  if (averageLoad >= 55) {
+    return "Load is spread across the window. Keep task creation tied to existing goals so the week does not become noisy.";
+  }
+  return "The forecast is quiet. Use the slack for study review, cleanup, and one durable progress artifact.";
 }
 
 function getWeeklyReview(events: ActivityEvent[], now = new Date()) {
@@ -9566,6 +9883,7 @@ type AgentContext = {
   activityDashboard: ReturnType<typeof getActivityDashboard>;
   behaviorInsights: ReturnType<typeof getBehaviorInsights>;
   protocolMemory: ReturnType<typeof getProtocolMemory>;
+  loadForecast: ReturnType<typeof getLoadForecast>;
   topGoal?: Goal;
   activeProject?: TaskProject;
   overdueCards: KanbanCard[];
@@ -9628,6 +9946,7 @@ function buildAgentContext({
   const activityDashboard = getActivityDashboard(activityEvents, now);
   const behaviorInsights = getBehaviorInsights(activityEvents);
   const protocolMemory = getProtocolMemory(activityEvents, now);
+  const loadForecast = getLoadForecast({ projects, calendarEvents, kanbanCards, now });
 
   return {
     now,
@@ -9640,6 +9959,7 @@ function buildAgentContext({
     activityDashboard,
     behaviorInsights,
     protocolMemory,
+    loadForecast,
     topGoal: sortGoals(goals)[0],
     activeProject: projects.map((project) => ({ project, pressure: getProjectPressure(project, now) })).sort((a, b) => b.pressure - a.pressure)[0]?.project,
     overdueCards,
@@ -9759,18 +10079,19 @@ function getTodayCardMeta(card: KanbanCard) {
 
 function runPlannerAgent(context: AgentContext): AgentDraft[] {
   const { activeProject, topGoal, incompleteTasks, projectPressure, dailyTaskCompletion, executionLoad } = context;
-  if (!activeProject || !topGoal) return [];
-  const dayTasks = activeProject.tasksByDay[activeProject.currentDay] ?? [];
-  const dayHasGoalTask = dayTasks.some((task) => task.name.toLowerCase().includes(topGoal.title.toLowerCase().split(" ")[0] ?? ""));
-  const score = weightedScore([
-    [projectPressure, 0.36],
-    [100 - dailyTaskCompletion, 0.26],
-    [executionLoad, 0.18],
-    [dayHasGoalTask ? 10 : 78, 0.2],
-  ]);
+  const drafts: AgentDraft[] = [];
 
-  return [
-    {
+  if (activeProject && topGoal) {
+    const dayTasks = activeProject.tasksByDay[activeProject.currentDay] ?? [];
+    const dayHasGoalTask = dayTasks.some((task) => task.name.toLowerCase().includes(topGoal.title.toLowerCase().split(" ")[0] ?? ""));
+    const score = weightedScore([
+      [projectPressure, 0.36],
+      [100 - dailyTaskCompletion, 0.26],
+      [executionLoad, 0.18],
+      [dayHasGoalTask ? 10 : 78, 0.2],
+    ]);
+
+    drafts.push({
       agentId: "planner",
       agentName: "Planner Agent",
       title: `Convert ${topGoal.title} into today's execution block`,
@@ -9791,8 +10112,37 @@ function runPlannerAgent(context: AgentContext): AgentDraft[] {
         day: activeProject.currentDay,
         taskName: `Advance ${topGoal.title}: 25-minute measurable block`,
       },
-    },
-  ];
+    });
+  }
+
+  const peakProject = [...context.loadForecast.peakDay.projectSignals].sort((a, b) => b.openTaskCount - a.openTaskCount)[0];
+  if (peakProject && context.loadForecast.peakDay.load >= 68) {
+    const score = clamp(context.loadForecast.peakDay.load + context.loadForecast.collisionDays * 6 + peakProject.openTaskCount * 4, 45, 96);
+    drafts.push({
+      agentId: "planner",
+      agentName: "Planner Agent",
+      title: `Pre-clear load before ${context.loadForecast.peakDay.dayLabel}`,
+      body: `The forecast model sees ${context.loadForecast.peakDay.label} becoming crowded. Add one preparation task now so that day starts with fewer decisions and less carry-forward pressure.`,
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([context.loadForecast.peakDay.load, peakProject.openTaskCount * 16, context.loadForecast.collisionDays * 18]),
+      source: "two-week load forecast",
+      evidence: [
+        `${context.loadForecast.peakDay.load}% forecast peak`,
+        `${peakProject.projectName}: D${peakProject.day}`,
+        `${context.loadForecast.peakDay.topSignals.join(", ")}`,
+      ],
+      action: {
+        type: "create_task",
+        label: "Create pre-clear task",
+        projectId: peakProject.projectId,
+        day: peakProject.day,
+        taskName: `Pre-clear ${context.loadForecast.peakDay.dayLabel}: close or move one flexible item`,
+      },
+    });
+  }
+
+  return drafts;
 }
 
 function runReviewerAgent(context: AgentContext): AgentDraft[] {
@@ -10029,6 +10379,37 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
         title: "Protocol reset: reduce tomorrow packet",
         date: toDateInputValue(addDays(context.now, 1)),
         time: "08:15",
+        kind: "project",
+      },
+    });
+  }
+
+  if (context.loadForecast.collisionDays >= 2 || context.loadForecast.peakDay.load >= 85) {
+    const score = clamp(context.loadForecast.peakDay.load + context.loadForecast.collisionDays * 7, 58, 98);
+    drafts.push({
+      agentId: "discipline",
+      agentName: "Discipline Agent",
+      title: `Schedule load intervention for ${context.loadForecast.peakDay.dayLabel}`,
+      body: "The two-week forecast shows a likely load collision. Protect the peak day by making a calendar checkpoint before it arrives, then move one flexible item out of the collision window.",
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([context.loadForecast.peakDay.load, context.loadForecast.collisionDays * 20, context.executionLoad]),
+      source: "forecast-collision model",
+      evidence: [
+        `${context.loadForecast.peakDay.load}% peak load`,
+        `${context.loadForecast.collisionDays} collision day${context.loadForecast.collisionDays === 1 ? "" : "s"}`,
+        `${context.loadForecast.peakDay.topSignals.join(", ")}`,
+      ],
+      action: {
+        type: "create_calendar",
+        label: "Schedule load intervention",
+        title: `Load intervention: ${context.loadForecast.peakDay.dayLabel}`,
+        date: toDateInputValue(
+          context.loadForecast.peakDay.date <= startOfDay(context.now)
+            ? context.now
+            : addDays(context.loadForecast.peakDay.date, -1),
+        ),
+        time: "17:00",
         kind: "project",
       },
     });
