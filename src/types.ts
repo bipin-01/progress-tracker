@@ -81,6 +81,7 @@ export type StudyNote = {
   flashcards?: StudyFlashcard[];
   askHistory?: StudyAskMessage[];
   readingProgress?: number;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -118,6 +119,7 @@ export type StudyFolder = {
   parentId?: string;
   examDate?: string;
   objectives?: StudyObjective[];
+  deletedAt?: string;
   createdAt: string;
 };
 

@@ -4064,6 +4064,17 @@ button {
   color: var(--cyan);
 }
 
+.folder-system > button.danger {
+  border-color: rgba(255, 85, 114, 0.26);
+}
+
+.folder-system > button.danger.active,
+.folder-system > button.danger:hover {
+  border-color: rgba(255, 85, 114, 0.72);
+  background: rgba(255, 85, 114, 0.08);
+  color: var(--red);
+}
+
 .folder-delete-trigger:hover {
   border-color: rgba(255, 85, 114, 0.75);
   background: rgba(255, 85, 114, 0.08);
@@ -4197,6 +4208,8 @@ button {
 
 .folder-create input,
 .folder-create select,
+.folder-manager-row input,
+.folder-manager-row select,
 .note-directory-row select {
   min-width: 0;
   border: 1px solid var(--hair);
@@ -4217,7 +4230,10 @@ button {
   padding: 0 8px;
 }
 
-.folder-create button {
+.folder-create button,
+.folder-manager-row button,
+.trash-panel-head button,
+.trash-row button {
   border: 1px solid var(--cyan-dim);
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
@@ -4227,7 +4243,8 @@ button {
   text-transform: uppercase;
 }
 
-.folder-create button:disabled {
+.folder-create button:disabled,
+.trash-panel-head button:disabled {
   border-color: var(--hair);
   color: var(--muted);
   cursor: wait;
@@ -4237,6 +4254,68 @@ button {
 .folder-create-status {
   border-left: 2px solid var(--cyan);
   padding: 4px 0 4px 8px;
+}
+
+.folder-manager-panel,
+.trash-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 9px;
+}
+
+.folder-manager-head,
+.trash-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.folder-manager-head span,
+.trash-panel-head span,
+.trash-row span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.folder-manager-head strong,
+.trash-row strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-manager-row,
+.trash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.folder-manager-row input,
+.folder-manager-row select {
+  height: 32px;
+  color: var(--ink);
+  padding: 0 9px;
+}
+
+.folder-manager-row select {
+  color: var(--cyan);
+}
+
+.trash-row {
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  border-top: 1px dashed var(--hair-soft);
+  padding-top: 8px;
 }
 
 .notes-search input,
@@ -4338,6 +4417,11 @@ button {
   box-shadow: inset 0 0 18px rgba(53, 215, 255, 0.1);
 }
 
+.note-list-item.dragging {
+  border-color: var(--violet);
+  opacity: 0.55;
+}
+
 .note-list-item span,
 .note-list-item em,
 .notes-status span,
@@ -4376,6 +4460,35 @@ button {
   letter-spacing: 0.08em;
   margin-bottom: 12px;
   padding: 8px 10px;
+}
+
+.note-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: -2px 0 12px;
+}
+
+.note-breadcrumbs button {
+  border: 1px solid var(--hair-soft);
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 5px 7px;
+  text-transform: uppercase;
+}
+
+.note-breadcrumbs button:not(:last-child)::after {
+  content: "/";
+  color: var(--cyan);
+  padding-left: 8px;
+}
+
+.note-breadcrumbs button:hover {
+  border-color: var(--cyan-dim);
+  color: var(--cyan);
 }
 
 .note-directory-row {

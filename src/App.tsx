@@ -514,6 +514,7 @@ type AppCommand = {
 
 const STUDY_FOLDER_ROOT_ID = "root";
 const STUDY_FOLDER_UNCATEGORIZED_ID = "uncategorized";
+const STUDY_FOLDER_TRASH_ID = "trash";
 
 function isTypingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
@@ -539,6 +540,8 @@ function App() {
   const agentRecommendations = useAgentRecommendationsData(remoteSeedVersion);
   const studyFolders = useStudyFoldersData(initialStudyFolders, remoteSeedVersion);
   const studyNotes = useStudyNotesData(initialStudyNotes, remoteSeedVersion);
+  const activeStudyFolders = useMemo(() => studyFolders.filter((folder) => !folder.deletedAt), [studyFolders]);
+  const activeStudyNotes = useMemo(() => studyNotes.filter((note) => !note.deletedAt), [studyNotes]);
   const backendLabel = useDataBackendLabel();
 
   useEffect(() => {
@@ -935,8 +938,8 @@ function App() {
           ) : activeView === "planner" ? (
             <PlannerView
               goals={goals}
-              folders={studyFolders}
-              notes={studyNotes}
+              folders={activeStudyFolders}
+              notes={activeStudyNotes}
               projects={taskProjects}
               calendarEvents={calendarEvents}
               kanbanCards={kanbanCards}
@@ -3140,6 +3143,9 @@ function NotesView({
   const [folderCreateStatus, setFolderCreateStatus] = useState("");
   const [folderCreateBusy, setFolderCreateBusy] = useState(false);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
+  const [folderRenameInput, setFolderRenameInput] = useState("");
+  const [folderMoveParentId, setFolderMoveParentId] = useState(STUDY_FOLDER_ROOT_ID);
+  const [draggingNoteId, setDraggingNoteId] = useState("");
   const [activeCertificationId, setActiveCertificationId] = useState("");
   const [objectiveInput, setObjectiveInput] = useState("");
   const [certPlanStatus, setCertPlanStatus] = useState("");
@@ -3155,21 +3161,29 @@ function NotesView({
   const searchRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const textSaveRef = useRef<number | null>(null);
-  const sortedNotes = useMemo(() => sortStudyNotes(notes), [notes]);
-  const activeNote = notes.find((note) => note.id === activeNoteId) ?? sortedNotes[0];
+  const liveNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
+  const trashedNotes = useMemo(() => sortStudyNotes(notes.filter((note) => note.deletedAt)), [notes]);
+  const liveFolders = useMemo(() => folders.filter((folder) => !folder.deletedAt), [folders]);
+  const trashedFolders = useMemo(
+    () => folders.filter((folder) => folder.deletedAt).sort((a, b) => (b.deletedAt ?? "").localeCompare(a.deletedAt ?? "")),
+    [folders],
+  );
+  const sortedNotes = useMemo(() => sortStudyNotes(liveNotes), [liveNotes]);
+  const activeNote = liveNotes.find((note) => note.id === activeNoteId) ?? sortedNotes[0];
   const reviewCards = useMemo(() => buildStudyReviewCards(activeNote), [activeNote]);
   const savedFlashcards = activeNote?.flashcards ?? [];
   const askHistory = activeNote?.askHistory ?? [];
-  const allSavedFlashcards = useMemo(() => getAllSavedFlashcards(notes), [notes]);
+  const allSavedFlashcards = useMemo(() => getAllSavedFlashcards(liveNotes), [liveNotes]);
   const dueFlashcards = useMemo(() => getDueFlashcards(allSavedFlashcards), [allSavedFlashcards]);
   const nextScheduledCard = useMemo(() => getNextScheduledFlashcard(allSavedFlashcards), [allSavedFlashcards]);
   const activeQueueItem = dueFlashcards[0] ?? nextScheduledCard;
   const continueReadingNote = useMemo(() => sortedNotes.find((note) => note.kind === "document") ?? sortedNotes[0], [sortedNotes]);
-  const weakNotes = useMemo(() => getWeakStudyNotes(notes), [notes]);
+  const weakNotes = useMemo(() => getWeakStudyNotes(liveNotes), [liveNotes]);
   const reviewedToday = useMemo(() => allSavedFlashcards.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length, [allSavedFlashcards]);
   const recentStudyNotes = sortedNotes.slice(0, 4);
-  const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags))).sort(), [notes]);
-  const folderIndex = useMemo(() => buildStudyFolderIndex(folders, notes), [folders, notes]);
+  const allTags = useMemo(() => Array.from(new Set(liveNotes.flatMap((note) => note.tags))).sort(), [liveNotes]);
+  const folderIndex = useMemo(() => buildStudyFolderIndex(liveFolders, liveNotes), [liveFolders, liveNotes]);
+  const allFolderIndex = useMemo(() => buildStudyFolderIndex(folders, notes), [folders, notes]);
   const folderTree = folderIndex.tree;
   const folderStructureKey = useMemo(
     () => folderTree.map((folder) => `${folder.id}:${folder.depth}:${folder.childCount}:${folder.parentId ?? STUDY_FOLDER_ROOT_ID}`).join("|"),
@@ -3180,16 +3194,41 @@ function NotesView({
     [expandedFolderIds, folderTree],
   );
   const selectedFolderParent = folderParentId === STUDY_FOLDER_ROOT_ID ? null : folderIndex.itemById.get(folderParentId) ?? null;
-  const certificationTracks = useMemo(() => getCertificationTracks(folders, notes, folderIndex), [folderIndex, folders, notes]);
+  const activeManagedFolder =
+    activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && activeFolderId !== STUDY_FOLDER_TRASH_ID
+      ? folderIndex.itemById.get(activeFolderId) ?? null
+      : null;
+  const activeManagedBranchIds = useMemo(
+    () => (activeManagedFolder ? getStudyFolderBranchIdsFromIndex(folderIndex, activeManagedFolder.id) : []),
+    [activeManagedFolder, folderIndex],
+  );
+  const folderMoveOptions = useMemo(
+    () => folderTree.filter((folder) => !activeManagedBranchIds.includes(folder.id)),
+    [activeManagedBranchIds, folderTree],
+  );
+  const certificationTracks = useMemo(() => getCertificationTracks(liveFolders, liveNotes, folderIndex), [folderIndex, liveFolders, liveNotes]);
   const activeCertification = certificationTracks.find((track) => track.folder.id === activeCertificationId) ?? certificationTracks[0];
   const activeCertificationPlan = useMemo(() => (activeCertification ? getCertificationStudyPlan(activeCertification) : []), [activeCertification]);
   const activeCertificationWeakTopics = useMemo(() => (activeCertification ? getCertificationWeakTopics(activeCertification) : []), [activeCertification]);
   const activeFolderScope = useMemo(
     () =>
-      activeFolderId === "all" || activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID
+      activeFolderId === "all" || activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID || activeFolderId === STUDY_FOLDER_TRASH_ID
         ? []
         : getStudyFolderBranchIdsFromIndex(folderIndex, activeFolderId),
     [activeFolderId, folderIndex],
+  );
+  const activeNoteFolder = activeNote?.folderId ? folderIndex.itemById.get(activeNote.folderId) ?? null : null;
+  const activeNoteBreadcrumbs = useMemo(
+    () =>
+      activeNoteFolder
+        ? [
+            ...activeNoteFolder.ancestorIds
+              .map((folderId) => folderIndex.itemById.get(folderId))
+              .filter((folder): folder is StudyFolderTreeItem => Boolean(folder)),
+            activeNoteFolder,
+          ]
+        : [],
+    [activeNoteFolder, folderIndex],
   );
   const filteredNotes = sortedNotes.filter((note) => {
     const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
@@ -3206,16 +3245,26 @@ function NotesView({
   }, [activeNote, sortedNotes]);
 
   useEffect(() => {
-    if (activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && !folderIndex.byId.has(activeFolderId)) {
+    if (
+      activeFolderId !== "all" &&
+      activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID &&
+      activeFolderId !== STUDY_FOLDER_TRASH_ID &&
+      !folderIndex.byId.has(activeFolderId)
+    ) {
       setActiveFolderId("all");
     }
   }, [activeFolderId, folderIndex]);
 
   useEffect(() => {
-    if (activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && folderIndex.byId.has(activeFolderId)) {
+    if (activeManagedFolder) {
       setFolderParentId(activeFolderId);
     }
-  }, [activeFolderId, folderIndex]);
+  }, [activeFolderId, activeManagedFolder]);
+
+  useEffect(() => {
+    setFolderRenameInput(activeManagedFolder?.name ?? "");
+    setFolderMoveParentId(activeManagedFolder?.parentId ?? STUDY_FOLDER_ROOT_ID);
+  }, [activeManagedFolder?.id, activeManagedFolder?.name, activeManagedFolder?.parentId]);
 
   useEffect(() => {
     if (folderParentId !== STUDY_FOLDER_ROOT_ID && !folderIndex.byId.has(folderParentId)) {
@@ -3263,7 +3312,10 @@ function NotesView({
   async function createNote(kind: StudyNote["kind"] = "note", seed?: Partial<StudyNote>) {
     const now = new Date().toISOString();
     const fallbackFolderId =
-      activeFolderId !== "all" && activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID && folderIndex.byId.has(activeFolderId)
+      activeFolderId !== "all" &&
+      activeFolderId !== STUDY_FOLDER_UNCATEGORIZED_ID &&
+      activeFolderId !== STUDY_FOLDER_TRASH_ID &&
+      folderIndex.byId.has(activeFolderId)
         ? activeFolderId
         : folderParentId !== STUDY_FOLDER_ROOT_ID && folderIndex.byId.has(folderParentId)
           ? folderParentId
@@ -3373,27 +3425,86 @@ function NotesView({
     }
   }
 
-  async function deleteFolder(folder: StudyFolderTreeItem) {
-    const branchIds = getStudyFolderBranchIdsFromIndex(folderIndex, folder.id);
-    const affectedNotes = notes.filter((note) => note.folderId && branchIds.includes(note.folderId));
+  function isDuplicateFolderName(name: string, parentId: string | undefined, ignoredFolderId?: string) {
+    const parentKey = parentId ?? STUDY_FOLDER_ROOT_ID;
+    return (folderIndex.childrenByParentId.get(parentKey) ?? []).some(
+      (folder) => folder.id !== ignoredFolderId && folder.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+  }
+
+  async function renameActiveFolder() {
+    if (!activeManagedFolder) return;
+    const cleanName = folderRenameInput.trim();
+    if (!cleanName || cleanName === activeManagedFolder.name) return;
+    if (isDuplicateFolderName(cleanName, activeManagedFolder.parentId, activeManagedFolder.id)) {
+      setFolderCreateStatus(`Directory already exists under ${activeManagedFolder.parentId ? folderIndex.itemById.get(activeManagedFolder.parentId)?.path ?? "root" : "root"}.`);
+      return;
+    }
+    await studyFolderCrud.update(activeManagedFolder.id, { name: cleanName });
+    setFolderCreateStatus(`Renamed directory to ${cleanName}.`);
+  }
+
+  async function moveActiveFolder() {
+    if (!activeManagedFolder) return;
+    const targetParentId = folderMoveParentId === STUDY_FOLDER_ROOT_ID ? undefined : folderMoveParentId;
+    if (targetParentId === activeManagedFolder.id || (targetParentId && activeManagedBranchIds.includes(targetParentId))) {
+      setFolderCreateStatus("Cannot move a directory inside itself.");
+      return;
+    }
+    if (targetParentId && !folderIndex.byId.has(targetParentId)) {
+      setFolderCreateStatus("Move target no longer exists.");
+      return;
+    }
+    if (isDuplicateFolderName(activeManagedFolder.name, targetParentId, activeManagedFolder.id)) {
+      setFolderCreateStatus(`Directory already exists under ${targetParentId ? folderIndex.itemById.get(targetParentId)?.path ?? "root" : "root"}.`);
+      return;
+    }
+    await studyFolderCrud.update(activeManagedFolder.id, { parentId: targetParentId });
+    if (targetParentId) expandFolderPath(targetParentId);
+    setFolderCreateStatus(`Moved ${activeManagedFolder.name} to ${targetParentId ? folderIndex.itemById.get(targetParentId)?.path ?? "selected directory" : "library root"}.`);
+  }
+
+  function startNoteDrag(event: DragEvent<HTMLButtonElement>, noteId: string) {
+    setDraggingNoteId(noteId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", noteId);
+  }
+
+  async function moveDraggedNote(event: DragEvent<HTMLElement>, folderId?: string) {
+    event.preventDefault();
+    const noteId = event.dataTransfer.getData("text/plain") || draggingNoteId;
+    const note = liveNotes.find((item) => item.id === noteId);
+    if (!note) return;
+    await studyNoteCrud.update(note.id, { folderId });
+    setDraggingNoteId("");
+    setFolderCreateStatus(`Moved ${note.title || "Untitled note"} to ${folderId ? folderIndex.itemById.get(folderId)?.path ?? "directory" : "Uncategorized"}.`);
+  }
+
+  async function trashFolder(folder: StudyFolderTreeItem) {
+    const branchIds = getStudyFolderBranchIdsFromIndex(allFolderIndex, folder.id);
+    const affectedNotes = liveNotes.filter((note) => note.folderId && branchIds.includes(note.folderId));
     const nestedDirectoryCount = Math.max(branchIds.length - 1, 0);
     const confirmMessage = [
-      `Delete "${folder.name}" directory?`,
+      `Move "${folder.name}" directory to Trash?`,
       nestedDirectoryCount
-        ? `${nestedDirectoryCount} nested director${nestedDirectoryCount === 1 ? "y" : "ies"} will also be deleted.`
+        ? `${nestedDirectoryCount} nested director${nestedDirectoryCount === 1 ? "y" : "ies"} will move with it.`
         : "",
       affectedNotes.length
-        ? `${affectedNotes.length} note${affectedNotes.length === 1 ? "" : "s"} will be moved to Uncategorized.`
-        : "No notes will be deleted.",
-      "This cannot be undone.",
+        ? `${affectedNotes.length} note${affectedNotes.length === 1 ? "" : "s"} inside this branch will also move to Trash.`
+        : "No notes will move with it.",
+      "You can restore items from Trash later.",
     ]
       .filter(Boolean)
       .join("\n\n");
     if (!window.confirm(confirmMessage)) return;
-    setFolderCreateStatus(`Deleting ${folder.name}...`);
+    const deletedAt = new Date().toISOString();
+    setFolderCreateStatus(`Moving ${folder.name} to Trash...`);
     try {
-      await Promise.all(affectedNotes.map((note) => studyNoteCrud.update(note.id, { folderId: undefined })));
-      await Promise.all([...branchIds].reverse().map((folderId) => studyFolderCrud.delete(folderId)));
+      await Promise.all(branchIds.map((folderId) => studyFolderCrud.update(folderId, { deletedAt })));
+      await Promise.all(affectedNotes.map((note) => studyNoteCrud.update(note.id, { deletedAt })));
+      if (activeNote && affectedNotes.some((note) => note.id === activeNote.id)) {
+        setActiveNoteId(liveNotes.find((note) => !affectedNotes.some((affectedNote) => affectedNote.id === note.id))?.id ?? "");
+      }
       if (branchIds.includes(activeFolderId)) setActiveFolderId("all");
       if (folderParentId !== STUDY_FOLDER_ROOT_ID && branchIds.includes(folderParentId)) {
         setFolderParentId(STUDY_FOLDER_ROOT_ID);
@@ -3403,12 +3514,56 @@ function NotesView({
         branchIds.forEach((folderId) => next.delete(folderId));
         return next;
       });
-      setFolderCreateStatus(
-        `Deleted ${folder.name}. ${affectedNotes.length ? "Notes moved to Uncategorized." : "No notes were moved."}`,
-      );
+      setFolderCreateStatus(`Moved ${folder.name} to Trash.`);
     } catch (error) {
-      setFolderCreateStatus(`Could not delete directory: ${error instanceof Error ? error.message : "delete failed"}`);
+      setFolderCreateStatus(`Could not move directory to Trash: ${error instanceof Error ? error.message : "trash failed"}`);
     }
+  }
+
+  async function restoreFolder(folder: StudyFolder) {
+    const branchIds = getStudyFolderBranchIdsFromIndex(allFolderIndex, folder.id);
+    const branchSet = new Set(branchIds);
+    const notesToRestore = notes.filter((note) => note.deletedAt && note.folderId && branchSet.has(note.folderId));
+    await Promise.all(
+      branchIds.map((folderId) => {
+        const current = allFolderIndex.byId.get(folderId);
+        if (!current) return Promise.resolve();
+        const parentIsOutsideDeletedBranch = current.parentId && !branchSet.has(current.parentId) && !folderIndex.byId.has(current.parentId);
+        return studyFolderCrud.update(folderId, {
+          deletedAt: undefined,
+          parentId: parentIsOutsideDeletedBranch ? undefined : current.parentId,
+        });
+      }),
+    );
+    await Promise.all(notesToRestore.map((note) => studyNoteCrud.update(note.id, { deletedAt: undefined })));
+    setActiveFolderId(folder.id);
+    expandFolderPath(folder.id);
+    setFolderCreateStatus(`Restored ${folder.name}.`);
+  }
+
+  async function restoreNote(note: StudyNote) {
+    await studyNoteCrud.update(note.id, {
+      deletedAt: undefined,
+      folderId: note.folderId && folderIndex.byId.has(note.folderId) ? note.folderId : undefined,
+    });
+    setActiveNoteId(note.id);
+    setActiveFolderId(note.folderId && folderIndex.byId.has(note.folderId) ? note.folderId : STUDY_FOLDER_UNCATEGORIZED_ID);
+    setFolderCreateStatus(`Restored ${note.title || "Untitled note"}.`);
+  }
+
+  async function emptyTrash() {
+    const itemCount = trashedFolders.length + trashedNotes.length;
+    if (itemCount === 0) return;
+    if (!window.confirm(`Permanently delete ${itemCount} trashed item${itemCount === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const trashedFolderIds = trashedFolders
+      .map((folder) => allFolderIndex.itemById.get(folder.id))
+      .filter(Boolean)
+      .sort((a, b) => (b?.depth ?? 0) - (a?.depth ?? 0))
+      .map((folder) => folder?.id)
+      .filter((id): id is string => Boolean(id));
+    await Promise.all(trashedNotes.map((note) => studyNoteCrud.delete(note.id)));
+    await Promise.all(trashedFolderIds.map((folderId) => studyFolderCrud.delete(folderId)));
+    setFolderCreateStatus("Trash emptied.");
   }
 
   function updateActive(patch: Partial<Omit<StudyNote, "id" | "createdAt">>) {
@@ -3490,8 +3645,8 @@ function NotesView({
 
   async function deleteActive() {
     if (!activeNote) return;
-    if (!window.confirm(`Delete "${activeNote.title}"?`)) return;
-    await studyNoteCrud.delete(activeNote.id);
+    if (!window.confirm(`Move "${activeNote.title}" to Trash? You can restore it later.`)) return;
+    await studyNoteCrud.update(activeNote.id, { deletedAt: new Date().toISOString() });
     setActiveNoteId(sortedNotes.find((note) => note.id !== activeNote.id)?.id ?? "");
   }
 
@@ -3685,7 +3840,7 @@ function NotesView({
       <section className={`notes-workspace ${libraryCollapsed ? "library-collapsed" : ""} ${notesFullscreen ? "notes-fullscreen" : ""}`}>
         <HudCard className={`notes-sidebar ${libraryCollapsed ? "collapsed" : ""}`}>
           <div className="notes-library-head">
-            {!libraryCollapsed && <CardHeader title="Study Library" meta={`${notes.length} entries`} />}
+            {!libraryCollapsed && <CardHeader title="Study Library" meta={`${liveNotes.length} entries`} />}
             <button className="library-toggle" type="button" onClick={() => setLibraryCollapsed((value) => !value)} aria-label={libraryCollapsed ? "Open study library" : "Collapse study library"}>
               {libraryCollapsed ? "library" : "collapse"}
             </button>
@@ -3698,7 +3853,7 @@ function NotesView({
                   <strong>{folderIndex.tree.length}</strong>
                 </div>
                 <button className={activeFolderId === "all" ? "active" : ""} type="button" onClick={() => setActiveFolderId("all")}>
-                  <span className="folder-dot cyan" /> All Notes <em>{notes.length}</em>
+                  <span className="folder-dot cyan" /> All Notes <em>{liveNotes.length}</em>
                 </button>
                 {visibleFolderTree.map((folder) => {
                   const expanded = expandedFolderIds.has(folder.id);
@@ -3717,7 +3872,7 @@ function NotesView({
                       <button className={`folder-select-button ${activeFolderId === folder.id ? "active" : ""}`} type="button" onClick={() => {
                         setActiveFolderId(folder.id);
                         expandFolderPath(folder.id);
-                      }}>
+                      }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveDraggedNote(event, folder.id)}>
                         <span className={`folder-dot ${folder.color}`} />
                         <span>
                           {folder.name}
@@ -3736,17 +3891,87 @@ function NotesView({
                       <button
                         className="folder-delete-trigger"
                         type="button"
-                        onClick={() => void deleteFolder(folder)}
-                        aria-label={`Delete directory ${folder.name}`}
+                        onClick={() => void trashFolder(folder)}
+                        aria-label={`Move directory ${folder.name} to Trash`}
                       >
                         <Trash2 />
                       </button>
                     </div>
                   );
                 })}
-                <button className={activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID ? "active" : ""} type="button" onClick={() => setActiveFolderId(STUDY_FOLDER_UNCATEGORIZED_ID)}>
-                  <span className="folder-dot amber" /> Uncategorized <em>{notes.filter((note) => !note.folderId).length}</em>
+                <button
+                  className={activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID ? "active" : ""}
+                  type="button"
+                  onClick={() => setActiveFolderId(STUDY_FOLDER_UNCATEGORIZED_ID)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => void moveDraggedNote(event)}
+                >
+                  <span className="folder-dot amber" /> Uncategorized <em>{liveNotes.filter((note) => !note.folderId).length}</em>
                 </button>
+                <button className={activeFolderId === STUDY_FOLDER_TRASH_ID ? "active danger" : "danger"} type="button" onClick={() => setActiveFolderId(STUDY_FOLDER_TRASH_ID)}>
+                  <span className="folder-dot red" /> Trash <em>{trashedFolders.length + trashedNotes.length}</em>
+                </button>
+                {activeManagedFolder && (
+                  <div className="folder-manager-panel">
+                    <div className="folder-manager-head">
+                      <span>Manage</span>
+                      <strong>{activeManagedFolder.path}</strong>
+                    </div>
+                    <div className="folder-manager-row">
+                      <input
+                        value={folderRenameInput}
+                        onChange={(event) => setFolderRenameInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void renameActiveFolder();
+                          }
+                        }}
+                        aria-label={`Rename ${activeManagedFolder.name}`}
+                      />
+                      <button type="button" onClick={() => void renameActiveFolder()}>rename</button>
+                    </div>
+                    <div className="folder-manager-row">
+                      <select value={folderMoveParentId} onChange={(event) => setFolderMoveParentId(event.target.value)} aria-label={`Move ${activeManagedFolder.name}`}>
+                        <option value={STUDY_FOLDER_ROOT_ID}>root</option>
+                        {folderMoveOptions.map((folder) => (
+                          <option value={folder.id} key={folder.id}>
+                            {getStudyFolderOptionLabel(folder)}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => void moveActiveFolder()}>move</button>
+                    </div>
+                  </div>
+                )}
+                {activeFolderId === STUDY_FOLDER_TRASH_ID && (
+                  <div className="trash-panel">
+                    <div className="trash-panel-head">
+                      <span>Recoverable Trash</span>
+                      <button type="button" onClick={() => void emptyTrash()} disabled={trashedFolders.length + trashedNotes.length === 0}>empty</button>
+                    </div>
+                    {trashedFolders.length + trashedNotes.length === 0 ? (
+                      <div className="kanban-empty">// trash is empty</div>
+                    ) : (
+                      <>
+                        {trashedFolders.map((folder) => (
+                          <div className="trash-row" key={folder.id}>
+                            <span>directory</span>
+                            <strong>{allFolderIndex.itemById.get(folder.id)?.path ?? folder.name}</strong>
+                            <button type="button" onClick={() => void restoreFolder(folder)}>restore</button>
+                          </div>
+                        ))}
+                        {trashedNotes.map((note) => (
+                          <div className="trash-row" key={note.id}>
+                            <span>{note.kind}</span>
+                            <strong>{note.title || "Untitled"}</strong>
+                            <button type="button" onClick={() => void restoreNote(note)}>restore</button>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="folder-create-context">
                   <span>Create inside</span>
                   <strong>{selectedFolderParent?.path ?? "Library root"}</strong>
@@ -3795,7 +4020,15 @@ function NotesView({
                   <div className="kanban-empty">// no notes match current filter</div>
                 ) : (
                   filteredNotes.map((note) => (
-                    <button className={`note-list-item ${activeNote?.id === note.id ? "active" : ""}`} type="button" onClick={() => setActiveNoteId(note.id)} key={note.id}>
+                    <button
+                      className={`note-list-item ${activeNote?.id === note.id ? "active" : ""} ${draggingNoteId === note.id ? "dragging" : ""}`}
+                      type="button"
+                      draggable
+                      onDragStart={(event) => startNoteDrag(event, note.id)}
+                      onDragEnd={() => setDraggingNoteId("")}
+                      onClick={() => setActiveNoteId(note.id)}
+                      key={note.id}
+                    >
                       <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
                       <strong>{note.title || "Untitled"}</strong>
                       <em>{getWordCount(note.body)} words · {formatActivityTime(note.updatedAt)}</em>
@@ -3845,7 +4078,7 @@ function NotesView({
                 <div className="notes-actions">
                   <button type="button" onClick={() => setNotesFullscreen((value) => !value)}>{notesFullscreen ? "exit full" : "full screen"}</button>
                   <button type="button" onClick={() => updateActive({ pinned: !activeNote.pinned })}>{activeNote.pinned ? "unpin" : "pin"}</button>
-                  <button type="button" onClick={() => void deleteActive()}>delete</button>
+                  <button type="button" onClick={() => void deleteActive()}>trash</button>
                 </div>
               </div>
 
@@ -3858,9 +4091,26 @@ function NotesView({
                     }
                   }} />
 
+                  <div className="note-breadcrumbs" aria-label="Note directory path">
+                    <button type="button" onClick={() => setActiveFolderId("all")}>Library</button>
+                    {activeNoteBreadcrumbs.length === 0 ? (
+                      <button type="button" onClick={() => setActiveFolderId(STUDY_FOLDER_UNCATEGORIZED_ID)}>Uncategorized</button>
+                    ) : (
+                      activeNoteBreadcrumbs.map((folder) => (
+                        <button type="button" onClick={() => {
+                          setActiveFolderId(folder.id);
+                          expandFolderPath(folder.id);
+                        }} key={folder.id}>{folder.name}</button>
+                      ))
+                    )}
+                  </div>
+
                   <div className="note-directory-row">
                     <span>Directory</span>
-                    <select value={activeNote.folderId ?? STUDY_FOLDER_UNCATEGORIZED_ID} onChange={(event) => updateActive({ folderId: event.target.value === STUDY_FOLDER_UNCATEGORIZED_ID ? undefined : event.target.value })}>
+                    <select
+                      value={activeNote.folderId && folderIndex.byId.has(activeNote.folderId) ? activeNote.folderId : STUDY_FOLDER_UNCATEGORIZED_ID}
+                      onChange={(event) => updateActive({ folderId: event.target.value === STUDY_FOLDER_UNCATEGORIZED_ID ? undefined : event.target.value })}
+                    >
                       <option value={STUDY_FOLDER_UNCATEGORIZED_ID}>Uncategorized</option>
                       {folderTree.map((folder) => (
                         <option value={folder.id} key={folder.id}>{getStudyFolderOptionLabel(folder)}</option>
@@ -3925,7 +4175,7 @@ function NotesView({
                         <strong>{reviewedToday} reviewed today</strong>
                       </div>
                       <div className="notes-health-grid">
-                        <div><strong>{notes.length}</strong><span>notes</span></div>
+                        <div><strong>{liveNotes.length}</strong><span>notes</span></div>
                         <div><strong>{allSavedFlashcards.length}</strong><span>cards</span></div>
                         <div><strong>{weakNotes.length}</strong><span>weak</span></div>
                       </div>
