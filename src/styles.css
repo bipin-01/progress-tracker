@@ -7161,6 +7161,11 @@ button {
   margin-top: 16px;
 }
 
+.protocol-memory-card {
+  margin-top: 16px;
+  padding: 18px 20px;
+}
+
 .activity-insight-list {
   grid-template-columns: repeat(3, minmax(240px, 1fr));
 }
@@ -7177,6 +7182,115 @@ button {
   color: var(--ink-2);
   font-size: 11.5px;
   line-height: 1.6;
+}
+
+.protocol-memory-hero {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.protocol-memory-score {
+  display: grid;
+  min-height: 116px;
+  place-items: center;
+  border: 1px solid var(--lime);
+  background:
+    radial-gradient(circle, rgba(136, 255, 92, 0.16), rgba(136, 255, 92, 0.04) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.66);
+  text-align: center;
+}
+
+.protocol-memory-score strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 36px;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(136, 255, 92, 0.35);
+}
+
+.protocol-memory-score span,
+.protocol-memory-grid span,
+.protocol-memory-row span,
+.protocol-memory-row em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.protocol-memory-hero > div:last-child > strong {
+  display: block;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  margin: 7px 0;
+  text-transform: uppercase;
+}
+
+.protocol-memory-hero p,
+.protocol-memory-grid p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.protocol-memory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.protocol-memory-grid section {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid var(--lime);
+  background: rgba(6, 15, 28, 0.54);
+  padding: 12px;
+}
+
+.protocol-memory-grid section:nth-child(2) {
+  border-left-color: var(--amber);
+}
+
+.protocol-memory-grid section:nth-child(3) {
+  border-left-color: var(--violet);
+}
+
+.protocol-memory-grid strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 22px;
+}
+
+.protocol-memory-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.protocol-memory-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px dashed var(--hair-soft);
+  padding: 9px 0 0;
+}
+
+.protocol-memory-row strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .weekly-review-card {
@@ -7657,6 +7771,9 @@ button {
   .review-card-grid,
   .activity-command-grid,
   .activity-insight-list,
+  .protocol-memory-hero,
+  .protocol-memory-grid,
+  .protocol-memory-row,
   .weekly-review-hero,
   .weekly-review-grid,
   .weekly-day-strip,

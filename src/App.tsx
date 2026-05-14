@@ -7925,6 +7925,7 @@ function ProgressView({
 
 function InsightsView({ events }: { events: ActivityEvent[] }) {
   const insights = useMemo(() => getBehaviorInsights(events), [events]);
+  const protocolMemory = useMemo(() => getProtocolMemory(events), [events]);
 
   return (
     <>
@@ -7949,6 +7950,50 @@ function InsightsView({ events }: { events: ActivityEvent[] }) {
               <p>{item.body}</p>
             </article>
           ))}
+        </div>
+      </HudCard>
+      <HudCard className="protocol-memory-card" active>
+        <CardHeader title="Protocol Memory" meta={`${protocolMemory.shutdownCount} shutdowns`} />
+        <div className="protocol-memory-hero">
+          <div className="protocol-memory-score">
+            <strong>{protocolMemory.score}</strong>
+            <span>memory score</span>
+          </div>
+          <div>
+            <span className="today-eyebrow">Shutdown intelligence</span>
+            <strong>{protocolMemory.headline}</strong>
+            <p>{protocolMemory.summary}</p>
+          </div>
+        </div>
+        <div className="protocol-memory-grid">
+          <section>
+            <span>Close Rate</span>
+            <strong>{protocolMemory.averageProgress}%</strong>
+            <p>{protocolMemory.closedDays} sealed day{protocolMemory.closedDays === 1 ? "" : "s"} captured.</p>
+          </section>
+          <section>
+            <span>Carry Forward</span>
+            <strong>{protocolMemory.carryForwardCount}</strong>
+            <p>{protocolMemory.openLoopCount} open loop{protocolMemory.openLoopCount === 1 ? "" : "s"} recorded at shutdown.</p>
+          </section>
+          <section>
+            <span>Cadence</span>
+            <strong>{protocolMemory.last7Shutdowns}</strong>
+            <p>Shutdown review{protocolMemory.last7Shutdowns === 1 ? "" : "s"} logged in the last 7 days.</p>
+          </section>
+        </div>
+        <div className="protocol-memory-list">
+          {protocolMemory.recent.length === 0 ? (
+            <div className="kanban-empty">// seal protocol days from Today to build memory</div>
+          ) : (
+            protocolMemory.recent.map((item) => (
+              <div className="protocol-memory-row" key={item.id}>
+                <span>{item.date}</span>
+                <strong>{item.title}</strong>
+                <em>{item.progress}% closed - {item.openTasks} open</em>
+              </div>
+            ))
+          )}
         </div>
       </HudCard>
       <SystemTrace label="Pattern analysis online" />
@@ -8046,6 +8091,63 @@ function getBehaviorInsights(events: ActivityEvent[]) {
       },
     ],
   };
+}
+
+function getProtocolMemory(events: ActivityEvent[], now = new Date()) {
+  const sorted = sortActivityEvents(events);
+  const shutdowns = sorted.filter((event) => event.source === "Today protocol shutdown" && event.domain === "notes");
+  const carryEvents = sorted.filter((event) => event.source === "Today protocol shutdown" && event.domain === "task" && event.action === "deferred");
+  const recentShutdowns = shutdowns.filter((event) => daysBetween(new Date(event.timestamp), now) <= 30);
+  const last7Shutdowns = shutdowns.filter((event) => daysBetween(new Date(event.timestamp), now) <= 7).length;
+  const progressValues = recentShutdowns.map((event) => getActivityNumber(event, "progress")).filter((value) => Number.isFinite(value));
+  const averageProgress = Math.round(progressValues.reduce((total, value) => total + value, 0) / Math.max(progressValues.length, 1));
+  const openLoopCount = recentShutdowns.reduce((total, event) => total + getActivityNumber(event, "openTasks"), 0);
+  const carryForwardCount = carryEvents.reduce((total, event) => total + Math.max(1, getActivityNumber(event, "taskCount")), 0);
+  const closedDays = recentShutdowns.filter((event) => getActivityNumber(event, "progress") >= 100).length;
+  const score = Math.round(clamp(averageProgress * 0.54 + Math.min(last7Shutdowns, 7) * 8 - carryForwardCount * 5 - openLoopCount * 2, 0, 100));
+  const headline =
+    shutdowns.length === 0
+      ? "No protocol memory captured yet."
+      : score >= 72
+        ? "Shutdown rhythm is protecting execution."
+        : score >= 44
+          ? "Protocol memory shows useful but leaky follow-through."
+          : "Carry-forward pressure is becoming the pattern.";
+  const summary =
+    shutdowns.length === 0
+      ? "Use Seal Day from Today to capture close rate, open loops, and tomorrow carry-forward. Those signals will train the next review cycle."
+      : `${recentShutdowns.length} shutdown review${recentShutdowns.length === 1 ? "" : "s"} were captured in the last 30 days with ${averageProgress}% average close rate and ${carryForwardCount} carry-forward signal${carryForwardCount === 1 ? "" : "s"}.`;
+
+  return {
+    shutdownCount: shutdowns.length,
+    recentCount: recentShutdowns.length,
+    last7Shutdowns,
+    averageProgress,
+    openLoopCount,
+    carryForwardCount,
+    closedDays,
+    score,
+    headline,
+    summary,
+    recent: recentShutdowns.slice(0, 5).map((event) => ({
+      id: event.id,
+      title: event.entityTitle,
+      date: formatTaskDate(new Date(event.timestamp)),
+      progress: getActivityNumber(event, "progress"),
+      openTasks: getActivityNumber(event, "openTasks"),
+      projectId: String(event.metadata?.projectId ?? ""),
+    })),
+  };
+}
+
+function getActivityNumber(event: ActivityEvent, key: string) {
+  const value = event.metadata?.[key];
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 }
 
 function getWeeklyReview(events: ActivityEvent[], now = new Date()) {
@@ -9463,6 +9565,7 @@ type AgentContext = {
   activityEvents: ActivityEvent[];
   activityDashboard: ReturnType<typeof getActivityDashboard>;
   behaviorInsights: ReturnType<typeof getBehaviorInsights>;
+  protocolMemory: ReturnType<typeof getProtocolMemory>;
   topGoal?: Goal;
   activeProject?: TaskProject;
   overdueCards: KanbanCard[];
@@ -9524,6 +9627,7 @@ function buildAgentContext({
   const driftScore = clamp((100 - dailyTaskCompletion) * 0.28 + (100 - habitCompletion) * 0.32 + kanbanPressure * 0.28 + Math.max(0, projectPressure - avgGoalProgress) * 0.12, 0, 100);
   const activityDashboard = getActivityDashboard(activityEvents, now);
   const behaviorInsights = getBehaviorInsights(activityEvents);
+  const protocolMemory = getProtocolMemory(activityEvents, now);
 
   return {
     now,
@@ -9535,6 +9639,7 @@ function buildAgentContext({
     activityEvents,
     activityDashboard,
     behaviorInsights,
+    protocolMemory,
     topGoal: sortGoals(goals)[0],
     activeProject: projects.map((project) => ({ project, pressure: getProjectPressure(project, now) })).sort((a, b) => b.pressure - a.pressure)[0]?.project,
     overdueCards,
@@ -9749,17 +9854,17 @@ function runReviewerAgent(context: AgentContext): AgentDraft[] {
 }
 
 function runMotivationAgent(context: AgentContext): AgentDraft[] {
+  const drafts: AgentDraft[] = [];
   const recoveryNeed = weightedScore([
     [100 - context.habitCompletion, 0.42],
     [100 - context.dailyTaskCompletion, 0.24],
     [context.executionLoad, 0.2],
     [context.calendarPressure, 0.14],
   ]);
-  if (context.missedHabits.length === 0 && recoveryNeed < 35) return [];
   const easiestHabit = context.missedHabits.sort((a, b) => getHabitFriction(a) - getHabitFriction(b))[0];
 
-  return [
-    {
+  if (context.missedHabits.length > 0 || recoveryNeed >= 35) {
+    drafts.push({
       agentId: "motivation",
       agentName: "Motivation Agent",
       title: easiestHabit ? `Recovery ladder: start with ${easiestHabit.name}` : "Protect momentum before the day fragments",
@@ -9773,8 +9878,33 @@ function runMotivationAgent(context: AgentContext): AgentDraft[] {
         `${Math.round(context.executionLoad)} execution load`,
         easiestHabit ? `${easiestHabit.time} suggested start` : "habit loop stable",
       ],
-    },
-  ];
+    });
+  }
+
+  if (context.protocolMemory.shutdownCount > 0 && context.protocolMemory.averageProgress < 60) {
+    const score = weightedScore([
+      [100 - context.protocolMemory.averageProgress, 0.48],
+      [Math.min(context.protocolMemory.carryForwardCount * 18, 100), 0.34],
+      [context.executionLoad, 0.18],
+    ]);
+    drafts.push({
+      agentId: "motivation",
+      agentName: "Motivation Agent",
+      title: "Lower the shutdown threshold",
+      body: "Protocol memory shows the day is being sealed, but too much remains open. Tomorrow should begin with a smaller first promise so the shutdown review records proof instead of carry-forward.",
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([100 - context.protocolMemory.averageProgress, context.protocolMemory.carryForwardCount * 18, context.protocolMemory.last7Shutdowns * 12]),
+      source: "protocol-memory model",
+      evidence: [
+        `${context.protocolMemory.averageProgress}% average protocol close rate`,
+        `${context.protocolMemory.carryForwardCount} carry-forward signal${context.protocolMemory.carryForwardCount === 1 ? "" : "s"}`,
+        `${context.protocolMemory.last7Shutdowns} shutdown review${context.protocolMemory.last7Shutdowns === 1 ? "" : "s"} in 7 days`,
+      ],
+    });
+  }
+
+  return drafts;
 }
 
 function runProjectAgent(context: AgentContext): AgentDraft[] {
@@ -9872,6 +10002,33 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
         title: "Scope reset: reduce carry-forward",
         date: toDateInputValue(context.now),
         time: "17:30",
+        kind: "project",
+      },
+    });
+  }
+
+  if (context.protocolMemory.carryForwardCount >= 2) {
+    const score = clamp(52 + context.protocolMemory.carryForwardCount * 8 + (100 - context.protocolMemory.averageProgress) * 0.22, 48, 94);
+    drafts.push({
+      agentId: "discipline",
+      agentName: "Discipline Agent",
+      title: "Protocol carry-forward loop detected",
+      body: "Shutdown memory shows repeated carry-forward inside the weekly protocol. Reduce tomorrow's packet before execution starts: one proof task, one recovery task, and no extra expansion until the proof task is closed.",
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([context.protocolMemory.carryForwardCount * 16, 100 - context.protocolMemory.averageProgress, context.protocolMemory.openLoopCount * 10]),
+      source: "protocol-memory model",
+      evidence: [
+        `${context.protocolMemory.carryForwardCount} carried protocol task${context.protocolMemory.carryForwardCount === 1 ? "" : "s"}`,
+        `${context.protocolMemory.openLoopCount} open loop${context.protocolMemory.openLoopCount === 1 ? "" : "s"} at shutdown`,
+        `${context.protocolMemory.averageProgress}% average close rate`,
+      ],
+      action: {
+        type: "create_calendar",
+        label: "Schedule protocol reset",
+        title: "Protocol reset: reduce tomorrow packet",
+        date: toDateInputValue(addDays(context.now, 1)),
+        time: "08:15",
         kind: "project",
       },
     });
