@@ -1236,7 +1236,15 @@ function App() {
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
-            <ProgressView events={activityEvents} onNavigate={navigateTo} />
+            <ProgressView
+              events={activityEvents}
+              projects={taskProjects}
+              onNavigate={navigateTo}
+              onOpenProject={(projectId) => {
+                setActiveTaskProjectId(projectId);
+                navigateTo("tasks");
+              }}
+            />
           ) : activeView === "insights" ? (
             <InsightsView events={activityEvents} />
           ) : (
@@ -7364,7 +7372,17 @@ function CalendarView({
   );
 }
 
-function ProgressView({ events, onNavigate }: { events: ActivityEvent[]; onNavigate: (view: View) => void }) {
+function ProgressView({
+  events,
+  projects,
+  onNavigate,
+  onOpenProject,
+}: {
+  events: ActivityEvent[];
+  projects: TaskProject[];
+  onNavigate: (view: View) => void;
+  onOpenProject: (projectId: string) => void;
+}) {
   const metrics = useMemo(() => getActivityDashboard(events), [events]);
   const review = useMemo(() => getWeeklyReview(events), [events]);
   const [reviewStatus, setReviewStatus] = useState("");
@@ -7395,6 +7413,60 @@ function ProgressView({ events, onNavigate }: { events: ActivityEvent[]; onNavig
     });
     setReviewStatus(`Saved ${note.title} to Notes.`);
     onNavigate("notes");
+  }
+
+  async function commitWeeklyProtocol() {
+    const projectName = `Weekly Protocol - ${review.weekLabel}`;
+    const existing = projects.find((project) => project.name === projectName);
+    if (existing) {
+      setReviewStatus(`${projectName} already exists. Opening Tasks.`);
+      onOpenProject(existing.id);
+      return;
+    }
+
+    const now = new Date();
+    const timestamp = Date.now();
+    const id = `${timestamp}-weekly-protocol-${slugify(review.weekLabel)}`;
+    const tasksByDay: Record<number, ProjectTask[]> = {
+      1: review.nextActions.map((action, index) => ({
+        id: `${id}-d1-${index + 1}`,
+        name: action,
+        done: false,
+      })),
+      2: [{ id: `${id}-d2-review`, name: "Check protocol progress and remove one blocker.", done: false }],
+      3: [{ id: `${id}-d3-proof`, name: "Capture visible proof from the strongest execution block.", done: false }],
+      4: [{ id: `${id}-d4-friction`, name: "Resolve or shrink the biggest friction signal.", done: false }],
+      5: [{ id: `${id}-d5-stack`, name: "Repeat the strongest productive domain pairing.", done: false }],
+      6: [{ id: `${id}-d6-cleanup`, name: "Clear stale work from Today, Kanban, or Notes.", done: false }],
+      7: [{ id: `${id}-d7-review`, name: "Run the next weekly review and save a reflection note.", done: false }],
+    };
+    const project: TaskProject = {
+      id,
+      name: projectName,
+      outcome: review.headline,
+      startDate: toDateInputValue(now),
+      endDate: toDateInputValue(addDays(now, 6)),
+      deadlineDays: 7,
+      currentDay: 1,
+      tasksByDay,
+    };
+
+    await taskProjectCrud.add(project);
+    logActivityEvent({
+      domain: "task",
+      action: "generated",
+      entityId: project.id,
+      entityTitle: project.name,
+      source: "Weekly review engine",
+      metadata: {
+        score: review.score,
+        weekLabel: review.weekLabel,
+        dayCount: project.deadlineDays,
+        taskCount: Object.values(tasksByDay).reduce((total, tasks) => total + tasks.length, 0),
+      },
+    });
+    setReviewStatus(`${projectName} committed to Tasks.`);
+    onOpenProject(project.id);
   }
 
   return (
@@ -7455,6 +7527,7 @@ function ProgressView({ events, onNavigate }: { events: ActivityEvent[]; onNavig
             <p>{review.summary}</p>
             <div className="weekly-review-actions">
               <button type="button" onClick={() => void createWeeklyReviewNote()}>Create Review Note</button>
+              <button type="button" onClick={() => void commitWeeklyProtocol()}>Commit Protocol</button>
               <button type="button" onClick={() => onNavigate("today")}>Open Today</button>
               <button type="button" onClick={() => onNavigate("agents")}>Run Agents</button>
             </div>
