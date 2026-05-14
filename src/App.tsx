@@ -3138,6 +3138,7 @@ function NotesView({
   const [folderInput, setFolderInput] = useState("");
   const [folderParentId, setFolderParentId] = useState(STUDY_FOLDER_ROOT_ID);
   const [folderCreateStatus, setFolderCreateStatus] = useState("");
+  const [folderCreateBusy, setFolderCreateBusy] = useState(false);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
   const [activeCertificationId, setActiveCertificationId] = useState("");
   const [objectiveInput, setObjectiveInput] = useState("");
@@ -3331,6 +3332,7 @@ function NotesView({
   async function createFolder() {
     const cleanName = folderInput.trim();
     if (!cleanName) return;
+    if (folderCreateBusy) return;
     const parentId = folderParentId !== STUDY_FOLDER_ROOT_ID && folderIndex.byId.has(folderParentId) ? folderParentId : undefined;
     const parentKey = parentId ?? STUDY_FOLDER_ROOT_ID;
     const duplicate = (folderIndex.childrenByParentId.get(parentKey) ?? []).some(
@@ -3347,21 +3349,28 @@ function NotesView({
       parentId,
       createdAt: new Date().toISOString(),
     };
-    await studyFolderCrud.add(folder);
-    setFolderInput("");
-    setActiveFolderId(folder.id);
-    setFolderParentId(folder.id);
-    setFolderCreateStatus(`Created ${folder.name} under ${selectedFolderParent?.path ?? "root"}.`);
-    setExpandedFolderIds((current) => {
-      const next = new Set(current);
-      if (parentId) {
-        const parent = folderIndex.itemById.get(parentId);
-        parent?.ancestorIds.forEach((ancestorId) => next.add(ancestorId));
-        next.add(parentId);
-      }
-      next.add(folder.id);
-      return next;
-    });
+    setFolderCreateBusy(true);
+    try {
+      await studyFolderCrud.add(folder);
+      setFolderInput("");
+      setActiveFolderId(folder.id);
+      setFolderParentId(folder.id);
+      setFolderCreateStatus(`Created ${folder.name} under ${selectedFolderParent?.path ?? "root"}.`);
+      setExpandedFolderIds((current) => {
+        const next = new Set(current);
+        if (parentId) {
+          const parent = folderIndex.itemById.get(parentId);
+          parent?.ancestorIds.forEach((ancestorId) => next.add(ancestorId));
+          next.add(parentId);
+        }
+        next.add(folder.id);
+        return next;
+      });
+    } catch (error) {
+      setFolderCreateStatus(`Could not create directory: ${error instanceof Error ? error.message : "save failed"}`);
+    } finally {
+      setFolderCreateBusy(false);
+    }
   }
 
   function updateActive(patch: Partial<Omit<StudyNote, "id" | "createdAt">>) {
@@ -3715,7 +3724,9 @@ function NotesView({
                       </option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => void createFolder()}>add</button>
+                  <button type="button" disabled={folderCreateBusy} onClick={() => void createFolder()}>
+                    {folderCreateBusy ? "saving" : "add"}
+                  </button>
                 </div>
                 {folderCreateStatus && <div className="folder-create-status">{folderCreateStatus}</div>}
               </div>

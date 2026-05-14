@@ -459,6 +459,18 @@ function toStudyNoteRow(note: StudyNote, userId = currentUserId) {
   };
 }
 
+function toStudyNoteLegacyRow(note: StudyNote, userId = currentUserId) {
+  return {
+    ...toRemoteRow(note, userId),
+    title: note.title,
+    kind: note.kind,
+    pinned: note.pinned,
+    tags: note.tags,
+    source_name: note.sourceName ?? null,
+    updated_at: note.updatedAt,
+  };
+}
+
 function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
   return {
     ...toRemoteRow(folder, userId),
@@ -471,24 +483,70 @@ function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
   };
 }
 
+function toStudyFolderParentRow(folder: StudyFolder, userId = currentUserId) {
+  return {
+    ...toRemoteRow(folder, userId),
+    name: folder.name,
+    color: folder.color,
+    parent_id: folder.parentId ?? null,
+    created_at: folder.createdAt,
+  };
+}
+
+function toStudyFolderLegacyRow(folder: StudyFolder, userId = currentUserId) {
+  return {
+    ...toRemoteRow(folder, userId),
+    name: folder.name,
+    color: folder.color,
+    created_at: folder.createdAt,
+  };
+}
+
 async function remoteUpsertStudyNote(note: StudyNote, userId = currentUserId) {
   if (!supabase || !userId) return;
-  const { error } = await supabase.from("study_notes").upsert(toStudyNoteRow(note, userId), { onConflict: "user_id,id" });
-  if (error) {
-    setBackendStatus({ error: `Supabase save failed for study_notes: ${error.message}` });
-    throw error;
-  }
+  await remoteUpsertWithSchemaFallback("study_notes", [toStudyNoteRow(note, userId), toStudyNoteLegacyRow(note, userId)]);
   setBackendStatus({ label: "Supabase realtime", error: null });
 }
 
 async function remoteUpsertStudyFolder(folder: StudyFolder, userId = currentUserId) {
   if (!supabase || !userId) return;
-  const { error } = await supabase.from("study_folders").upsert(toStudyFolderRow(folder, userId), { onConflict: "user_id,id" });
-  if (error) {
-    setBackendStatus({ error: `Supabase save failed for study_folders: ${error.message}` });
-    throw error;
-  }
+  await remoteUpsertWithSchemaFallback("study_folders", [
+    toStudyFolderRow(folder, userId),
+    toStudyFolderParentRow(folder, userId),
+    toStudyFolderLegacyRow(folder, userId),
+  ]);
   setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertWithSchemaFallback(table: TableName, rows: object[]) {
+  if (!supabase) return;
+  let lastError: unknown = null;
+  for (const row of rows) {
+    const { error } = await supabase.from(table).upsert(row, { onConflict: "user_id,id" });
+    if (!error) return;
+    lastError = error;
+    if (!isRetryableSchemaError(error)) break;
+  }
+  for (const row of rows) {
+    const { error } = await supabase.from(table).upsert(row);
+    if (!error) return;
+    lastError = error;
+    if (!isRetryableSchemaError(error)) break;
+  }
+  const message = lastError instanceof Error ? lastError.message : "Unknown Supabase save error";
+  setBackendStatus({ error: `Supabase save failed for ${table}: ${message}` });
+  throw new Error(message);
+}
+
+function isRetryableSchemaError(error: { message?: string; code?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("column") ||
+    message.includes("on conflict") ||
+    message.includes("unique or exclusion constraint")
+  );
 }
 
 async function remoteUpsertAgentRecommendation(recommendation: AgentRecommendation, userId = currentUserId) {
