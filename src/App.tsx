@@ -9086,6 +9086,117 @@ const agentProfiles: Array<{ id: AgentId; name: string; signal: string; descript
   { id: "discipline", name: "Discipline Agent", signal: "Drift watch", description: "Flags overdue cards, missed habits, and stale priorities." },
 ];
 
+function getAgentLearningMemory(recommendations: AgentRecommendation[], activityEvents: ActivityEvent[], now = new Date()) {
+  const agentEvents = activityEvents.filter((event) => event.domain === "agent");
+  const runEvents = agentEvents.filter((event) => event.source === "Agents command" && event.action === "generated");
+  const actionEvents = agentEvents.filter((event) => ["accepted", "dismissed"].includes(event.action));
+  const recentStart = startOfDay(addDays(now, -13));
+
+  const rows = agentProfiles.map((profile) => {
+    const ownRecommendations = recommendations
+      .filter((recommendation) => recommendation.agentId === profile.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const pending = ownRecommendations.filter((recommendation) => recommendation.status === "pending").length;
+    const accepted = ownRecommendations.filter((recommendation) => recommendation.status === "accepted").length;
+    const dismissed = ownRecommendations.filter((recommendation) => recommendation.status === "dismissed").length;
+    const actioned = accepted + dismissed;
+    const precision = actioned === 0 ? 50 : Math.round((accepted / actioned) * 100);
+    const scored = ownRecommendations.filter((recommendation) => typeof recommendation.score === "number");
+    const confident = ownRecommendations.filter((recommendation) => typeof recommendation.confidence === "number");
+    const avgScore = scored.length ? Math.round(scored.reduce((total, recommendation) => total + (recommendation.score ?? 0), 0) / scored.length) : 50;
+    const avgConfidence = confident.length ? Math.round(confident.reduce((total, recommendation) => total + (recommendation.confidence ?? 0), 0) / confident.length) : 50;
+    const recent = ownRecommendations.filter((recommendation) => new Date(recommendation.createdAt) >= recentStart);
+    const recentAccepted = recent.filter((recommendation) => recommendation.status === "accepted").length;
+    const recentDismissed = recent.filter((recommendation) => recommendation.status === "dismissed").length;
+    const acceptedSources = ownRecommendations.filter((recommendation) => recommendation.status === "accepted").map((recommendation) => recommendation.source);
+    const topSource = [...countBy(acceptedSources, (source) => source).entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? profile.signal;
+    const recencyBoost = recent.length === 0 ? 0 : Math.min(recent.length * 5, 16);
+    const noisePenalty = Math.max(0, dismissed - accepted) * 8 + Math.max(0, pending - 3) * 4;
+    const trustScore = ownRecommendations.length === 0
+      ? 56
+      : Math.round(clamp(precision * 0.38 + avgConfidence * 0.2 + avgScore * 0.18 + recencyBoost + recentAccepted * 8 - recentDismissed * 7 - noisePenalty, 0, 100));
+    const state =
+      ownRecommendations.length === 0
+        ? "calibrating"
+        : trustScore >= 76
+          ? "trusted"
+          : pending >= 4
+            ? "queue heavy"
+            : trustScore < 42 && dismissed > accepted
+              ? "too noisy"
+              : "learning";
+    const tuning =
+      ownRecommendations.length === 0
+        ? "Needs a few runs before the model can judge signal quality."
+        : state === "trusted"
+          ? `Accepted signals cluster around ${topSource}; keep this agent active.`
+          : state === "queue heavy"
+            ? "Review or dismiss old reports before asking for more output."
+            : state === "too noisy"
+              ? "Tighten thresholds before this agent writes more work."
+              : "Keep watching acceptance and dismissal patterns.";
+
+    return {
+      id: profile.id,
+      name: profile.name,
+      signal: profile.signal,
+      pending,
+      accepted,
+      dismissed,
+      actioned,
+      precision,
+      avgScore,
+      avgConfidence,
+      trustScore,
+      state,
+      tuning,
+      topSource,
+      lastSignal: ownRecommendations[0] ? formatActivityTime(ownRecommendations[0].createdAt) : "no reports",
+    };
+  });
+
+  const actionedRecommendations = recommendations.filter((recommendation) => recommendation.status !== "pending");
+  const acceptedCount = actionedRecommendations.filter((recommendation) => recommendation.status === "accepted").length;
+  const dismissedCount = actionedRecommendations.filter((recommendation) => recommendation.status === "dismissed").length;
+  const totalTrust = Math.round(rows.reduce((total, row) => total + row.trustScore, 0) / Math.max(rows.length, 1));
+  const strongest = [...rows].sort((a, b) => b.trustScore - a.trustScore || b.accepted - a.accepted)[0];
+  const weakest = [...rows].sort((a, b) => a.trustScore - b.trustScore || b.dismissed - a.dismissed)[0];
+  const recentActions = actionEvents
+    .filter((event) => new Date(event.timestamp) >= recentStart)
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, 5)
+    .map((event) => ({
+      id: event.id,
+      label: `${formatActivityAction(event.action)} - ${event.entityTitle}`,
+      meta: `${event.metadata?.agent ?? "Agent"} - ${formatActivityTime(event.timestamp)}`,
+    }));
+
+  return {
+    rows,
+    totalTrust,
+    runCount: runEvents.length,
+    acceptedCount,
+    dismissedCount,
+    pendingCount: recommendations.filter((recommendation) => recommendation.status === "pending").length,
+    actionRate: Math.round((actionedRecommendations.length / Math.max(recommendations.length, 1)) * 100),
+    strongest,
+    weakest,
+    recentActions,
+    headline:
+      recommendations.length === 0
+        ? "Agent learning memory is waiting for the first run."
+        : totalTrust >= 72
+          ? "Agent output is becoming reliable enough to trust faster."
+          : totalTrust <= 42
+            ? "Agent output needs tighter review before automation expands."
+            : "Agent learning is active and still calibrating.",
+    summary:
+      recommendations.length === 0
+        ? "Run the agents, then accept or dismiss reports so the system learns which recommendations deserve weight."
+        : `${acceptedCount} accepted and ${dismissedCount} dismissed recommendations are shaping agent trust. ${strongest.name} is strongest; ${weakest.name} needs the most calibration.`,
+  };
+}
+
 function AgentsView({
   goals,
   habits,
@@ -9109,6 +9220,10 @@ function AgentsView({
   const pendingRecommendations = sortedRecommendations.filter((recommendation) => recommendation.status === "pending");
   const acceptedCount = recommendations.filter((recommendation) => recommendation.status === "accepted").length;
   const dismissedCount = recommendations.filter((recommendation) => recommendation.status === "dismissed").length;
+  const learningMemory = useMemo(
+    () => getAgentLearningMemory(recommendations, activityEvents),
+    [activityEvents, recommendations],
+  );
 
   function runAgents() {
     const generated = generateAgentRecommendations({
@@ -9119,7 +9234,7 @@ function AgentsView({
       calendarEvents,
       kanbanCards,
       activityEvents,
-      existing: pendingRecommendations,
+      existing: recommendations,
     });
     generated.forEach((recommendation) => void agentRecommendationCrud.add(recommendation));
     if (generated.length > 0) {
@@ -9179,6 +9294,68 @@ function AgentsView({
           })}
         </div>
       </section>
+
+      <HudCard className="agent-learning-card" active>
+        <CardHeader title="Agent Learning Memory" meta={`${learningMemory.totalTrust}% trust`} />
+        <div className="agent-learning-hero">
+          <div className="agent-learning-score">
+            <strong>{learningMemory.totalTrust}</strong>
+            <span>trust index</span>
+          </div>
+          <div>
+            <span className="today-eyebrow">Feedback-weighted coaching</span>
+            <strong>{learningMemory.headline}</strong>
+            <p>{learningMemory.summary}</p>
+          </div>
+        </div>
+        <div className="agent-learning-metrics">
+          <section>
+            <span>Action Rate</span>
+            <strong>{learningMemory.actionRate}%</strong>
+            <p>{learningMemory.pendingCount} pending report{learningMemory.pendingCount === 1 ? "" : "s"} still need a decision.</p>
+          </section>
+          <section>
+            <span>Accepted</span>
+            <strong>{learningMemory.acceptedCount}</strong>
+            <p>Reports converted into real tasks, calendar items, or board cards.</p>
+          </section>
+          <section>
+            <span>Runs</span>
+            <strong>{learningMemory.runCount}</strong>
+            <p>Agent command cycles recorded in the activity ledger.</p>
+          </section>
+        </div>
+        <div className="agent-learning-list">
+          {learningMemory.rows.map((row) => (
+            <article className={`agent-learning-row ${row.state.replace(/\s+/g, "-")}`} key={row.id}>
+              <div>
+                <span>{row.name}</span>
+                <strong>{row.trustScore}%</strong>
+              </div>
+              <div className="agent-learning-bar">
+                <i style={{ width: `${row.trustScore}%` }} />
+              </div>
+              <p>{row.tuning}</p>
+              <div className="agent-learning-meta">
+                <span>{row.state}</span>
+                <span>{row.precision}% precision</span>
+                <span>{row.avgConfidence}% confidence</span>
+                <span>{row.lastSignal}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+        {learningMemory.recentActions.length > 0 && (
+          <div className="agent-learning-actions">
+            {learningMemory.recentActions.map((item) => (
+              <span key={item.id}>
+                <strong>{item.label}</strong>
+                <em>{item.meta}</em>
+              </span>
+            ))}
+          </div>
+        )}
+      </HudCard>
 
       <HudCard className="agent-recommendations-card">
         <CardHeader title="Agent Reports" meta={`${pendingRecommendations.length} actionable`} />
@@ -10301,13 +10478,25 @@ function generateAgentRecommendations({
 }) {
   const now = new Date();
   const context = buildAgentContext({ goals, habits, projects, dashboardTasks, calendarEvents, kanbanCards, activityEvents, now });
+  const learningMemory = getAgentLearningMemory(existing, activityEvents, now);
+  const learningRows = new Map(learningMemory.rows.map((row) => [row.id, row]));
   const recommendations = [
     ...runPlannerAgent(context),
     ...runReviewerAgent(context),
     ...runMotivationAgent(context),
     ...runProjectAgent(context),
     ...runDisciplineAgent(context),
-  ];
+  ].map((recommendation) => {
+    const memory = learningRows.get(recommendation.agentId);
+    if (!memory) return recommendation;
+    const trustAdjustment = (memory.trustScore - 58) * 0.12 - Math.max(0, memory.pending - 2) * 2;
+    const confidenceAdjustment = (memory.precision - 50) * 0.08;
+    return {
+      ...recommendation,
+      score: Math.round(clamp(recommendation.score + trustAdjustment, 0, 100)),
+      confidence: Math.round(clamp(recommendation.confidence + confidenceAdjustment, 35, 98)),
+    };
+  });
 
   const existingKeys = new Set(existing.map((recommendation) => getAgentRecommendationKey(recommendation)));
   return recommendations
