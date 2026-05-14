@@ -1529,6 +1529,7 @@ button {
 .today-queue-card,
 .today-lanes-card,
 .today-protocol-card,
+.today-coach-card,
 .load-forecast-card,
 .planner-hero-card,
 .planner-health-card,
@@ -1956,6 +1957,142 @@ button {
 .today-timeline-row:hover {
   border-color: var(--cyan-dim);
   background: rgba(53, 215, 255, 0.08);
+}
+
+.today-coach-card {
+  margin-top: 16px;
+}
+
+.today-coach-layout {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) minmax(180px, 0.34fr);
+  gap: 16px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.today-coach-score {
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid var(--violet);
+  background:
+    radial-gradient(circle, rgba(170, 114, 255, 0.18), rgba(53, 215, 255, 0.05) 64%, transparent 65%),
+    rgba(6, 15, 28, 0.7);
+  box-shadow: inset 0 0 26px rgba(170, 114, 255, 0.1), 0 0 22px rgba(53, 215, 255, 0.08);
+}
+
+.today-coach-score strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(170, 114, 255, 0.42);
+}
+
+.today-coach-score span,
+.today-coach-report span,
+.today-coach-report em,
+.today-coach-metrics span,
+.today-coach-status {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.today-coach-main {
+  display: grid;
+  gap: 9px;
+}
+
+.today-coach-main > strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(16px, 2vw, 24px);
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.today-coach-main p {
+  max-width: 820px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.today-coach-report {
+  display: grid;
+  gap: 4px;
+  border-left: 2px solid var(--violet);
+  background: rgba(170, 114, 255, 0.08);
+  padding: 10px 12px;
+}
+
+.today-coach-report strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-coach-actions {
+  display: grid;
+  gap: 9px;
+}
+
+.today-coach-actions button {
+  min-height: 34px;
+  border: 1px solid var(--cyan-dim);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  padding: 0 11px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.today-coach-actions button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.today-coach-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.today-coach-metrics span {
+  border: 1px solid var(--hair-soft);
+  background: rgba(7, 21, 37, 0.52);
+  padding: 9px 10px;
+}
+
+.today-coach-metrics strong {
+  display: block;
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-coach-status {
+  margin-top: 12px;
+  border-left: 2px solid var(--lime);
+  color: var(--lime);
+  padding-left: 10px;
+  line-height: 1.6;
 }
 
 .today-risk-row {
@@ -8207,6 +8344,15 @@ button.load-forecast-day:hover {
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
+  .today-coach-layout {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .today-coach-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
   .load-forecast-hero {
     grid-template-columns: 120px minmax(0, 1fr);
   }
@@ -8354,6 +8500,9 @@ button.load-forecast-day:hover {
   .today-work-grid,
   .today-lane-grid,
   .today-queue-item,
+  .today-coach-layout,
+  .today-coach-actions,
+  .today-coach-metrics,
   .today-risk-summary,
   .today-protocol-layout,
   .today-protocol-meta,

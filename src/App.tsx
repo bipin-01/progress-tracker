@@ -1160,6 +1160,7 @@ function App() {
               kanbanCards={kanbanCards}
               notes={activeStudyNotes}
               recommendations={agentRecommendations}
+              activityEvents={activityEvents}
               onQuickCapture={openQuickCapture}
               onNavigate={navigateTo}
               onOpenProject={(projectId) => {
@@ -1872,6 +1873,7 @@ function TodayView({
   kanbanCards,
   notes,
   recommendations,
+  activityEvents,
   onQuickCapture,
   onNavigate,
   onOpenProject,
@@ -1884,6 +1886,7 @@ function TodayView({
   kanbanCards: KanbanCard[];
   notes: StudyNote[];
   recommendations: AgentRecommendation[];
+  activityEvents: ActivityEvent[];
   onQuickCapture: () => void;
   onNavigate: (view: View) => void;
   onOpenProject: (projectId: string) => void;
@@ -1892,6 +1895,7 @@ function TodayView({
   const todayKey = toDateInputValue(now);
   const [protocolStatus, setProtocolStatus] = useState("");
   const [forecastStatus, setForecastStatus] = useState("");
+  const [coachStatus, setCoachStatus] = useState("");
   const [lastForecastBalance, setLastForecastBalance] = useState<ForecastBalanceSnapshot | null>(null);
   const todayLabel = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -1929,6 +1933,14 @@ function TodayView({
   const pendingReports = useMemo(
     () => recommendations.filter((item) => item.status === "pending").sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3),
     [recommendations],
+  );
+  const agentLearningMemory = useMemo(
+    () => getAgentLearningMemory(recommendations, activityEvents, now),
+    [activityEvents, recommendations, todayKey],
+  );
+  const trustedCoachReport = useMemo(
+    () => getTrustedCoachReport(recommendations, agentLearningMemory),
+    [agentLearningMemory, recommendations],
   );
   const queueItems = useMemo(
     () =>
@@ -2151,6 +2163,35 @@ function TodayView({
     });
   }
 
+  async function refreshCoachBrief() {
+    const generated = generateAgentRecommendations({
+      goals,
+      habits,
+      projects,
+      dashboardTasks,
+      calendarEvents,
+      kanbanCards,
+      activityEvents,
+      existing: recommendations,
+    });
+
+    if (generated.length === 0) {
+      setCoachStatus("Coach brief is already current. No new high-value reports were generated.");
+      return;
+    }
+
+    await Promise.all(generated.map((recommendation) => agentRecommendationCrud.add(recommendation)));
+    logActivityEvent({
+      domain: "agent",
+      action: "generated",
+      entityId: `today-coach-brief-${Date.now()}`,
+      entityTitle: "Today coach brief refresh",
+      source: "Today coach autopilot",
+      metadata: { count: generated.length, trust: agentLearningMemory.totalTrust },
+    });
+    setCoachStatus(`Generated ${generated.length} coach report${generated.length === 1 ? "" : "s"} with memory weighting.`);
+  }
+
   async function stabilizeForecastLoad(forecast: ReturnType<typeof getLoadForecast>) {
     const { mitigation } = forecast;
     if (!mitigation.hasAction) {
@@ -2353,6 +2394,42 @@ function TodayView({
         onUndo={lastForecastBalance ? () => void undoForecastBalance() : undefined}
         onNavigate={onNavigate}
       />
+
+      <HudCard className="today-coach-card" active>
+        <CardHeader title="Coach Autopilot" meta={`${agentLearningMemory.totalTrust}% trust`} />
+        <div className="today-coach-layout">
+          <div className="today-coach-score">
+            <strong>{agentLearningMemory.totalTrust}</strong>
+            <span>agent trust</span>
+          </div>
+          <div className="today-coach-main">
+            <span className="today-eyebrow">Memory-weighted decisions</span>
+            <strong>{getTodayCoachHeadline(agentLearningMemory, trustedCoachReport)}</strong>
+            <p>{getTodayCoachDirective(agentLearningMemory, trustedCoachReport)}</p>
+            {trustedCoachReport && (
+              <div className="today-coach-report">
+                <span>{trustedCoachReport.agentName} - {trustedCoachReport.confidence ?? 0}% confidence</span>
+                <strong>{trustedCoachReport.title}</strong>
+                <em>{trustedCoachReport.source}</em>
+              </div>
+            )}
+          </div>
+          <div className="today-coach-actions">
+            <button type="button" onClick={() => void refreshCoachBrief()}>Refresh Coach Brief</button>
+            {trustedCoachReport?.action && (
+              <button type="button" onClick={() => void acceptRecommendation(trustedCoachReport)}>Accept Trusted Report</button>
+            )}
+            <button type="button" onClick={() => onNavigate("agents")}>Open Agents</button>
+          </div>
+        </div>
+        <div className="today-coach-metrics">
+          <span><strong>{agentLearningMemory.strongest.name}</strong> strongest</span>
+          <span><strong>{agentLearningMemory.weakest.name}</strong> needs review</span>
+          <span><strong>{agentLearningMemory.pendingCount}</strong> pending</span>
+          <span><strong>{agentLearningMemory.actionRate}%</strong> actioned</span>
+        </div>
+        {coachStatus && <div className="today-coach-status">{coachStatus}</div>}
+      </HudCard>
 
       {protocolPacket && (
         <HudCard className="today-protocol-card" active>
@@ -9195,6 +9272,48 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
         ? "Run the agents, then accept or dismiss reports so the system learns which recommendations deserve weight."
         : `${acceptedCount} accepted and ${dismissedCount} dismissed recommendations are shaping agent trust. ${strongest.name} is strongest; ${weakest.name} needs the most calibration.`,
   };
+}
+
+function getTrustedCoachReport(recommendations: AgentRecommendation[], memory: ReturnType<typeof getAgentLearningMemory>) {
+  const trustByAgent = new Map(memory.rows.map((row) => [row.id, row]));
+  return recommendations
+    .filter((recommendation) => recommendation.status === "pending")
+    .map((recommendation) => {
+      const trust = trustByAgent.get(recommendation.agentId)?.trustScore ?? 50;
+      const confidence = recommendation.confidence ?? 50;
+      const score = recommendation.score ?? 50;
+      const urgency = priorityToScore(agentSeverityToPriority(recommendation.severity));
+      return {
+        recommendation,
+        rank: trust * 0.38 + confidence * 0.24 + score * 0.24 + urgency * 0.14,
+      };
+    })
+    .filter(({ rank }) => rank >= 58)
+    .sort((a, b) => b.rank - a.rank || b.recommendation.createdAt.localeCompare(a.recommendation.createdAt))[0]?.recommendation;
+}
+
+function getTodayCoachHeadline(memory: ReturnType<typeof getAgentLearningMemory>, report?: AgentRecommendation) {
+  if (report) return `Trusted report ready: ${report.agentName}`;
+  if (memory.pendingCount >= 4) return "Agent queue needs a decision pass.";
+  if (memory.totalTrust >= 72) return "Coach memory is healthy and ready to guide Today.";
+  if (memory.totalTrust <= 42) return "Coach memory is asking for tighter calibration.";
+  return "Coach memory is learning from your decisions.";
+}
+
+function getTodayCoachDirective(memory: ReturnType<typeof getAgentLearningMemory>, report?: AgentRecommendation) {
+  if (report) {
+    return `${report.agentName} has a pending recommendation strong enough to surface inside Today. Accept it if the next step still fits the day, or open Agents for deeper review.`;
+  }
+  if (memory.pendingCount >= 4) {
+    return `There are ${memory.pendingCount} pending reports. Clear old recommendations before generating more so the system learns from real accept/dismiss signals.`;
+  }
+  if (memory.totalTrust >= 72) {
+    return `${memory.strongest.name} is the strongest signal right now. Refresh the coach brief when the daily queue changes materially.`;
+  }
+  if (memory.totalTrust <= 42) {
+    return `${memory.weakest.name} is pulling trust down. Dismiss weak reports or accept useful ones before expanding automation.`;
+  }
+  return "Use Refresh Coach Brief after major task, calendar, or board changes so recommendations stay attached to the current operating state.";
 }
 
 function AgentsView({
