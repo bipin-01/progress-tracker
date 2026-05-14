@@ -503,6 +503,37 @@ function getPathForView(view: View) {
 }
 
 type NotesMode = "home" | "writing" | "reading" | "review" | "queue" | "certifications" | "ai";
+type QuickCaptureIntent = "note" | "task" | "calendar" | "goal" | "kanban";
+
+type QuickCapturePreview = {
+  intent: QuickCaptureIntent;
+  suggestedIntent: QuickCaptureIntent;
+  title: string;
+  raw: string;
+  priority: Priority;
+  date?: string;
+  dateLabel?: string;
+  time?: string;
+  calendarKind: CalendarEvent["kind"];
+  taskProjectId?: string;
+  taskProjectName?: string;
+  taskDay?: number;
+  folderId?: string;
+  folderName?: string;
+  tags: string[];
+  confidence: number;
+  actionLabel: string;
+  summary: string;
+  warnings: string[];
+};
+
+type QuickCaptureContext = {
+  now: Date;
+  taskProjects: TaskProject[];
+  activeTaskProjectId: string;
+  studyFolders: StudyFolder[];
+  kanbanCards: KanbanCard[];
+};
 
 type AppCommand = {
   id: string;
@@ -531,6 +562,11 @@ function App() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [notesModeRequest, setNotesModeRequest] = useState<{ mode: NotesMode; nonce: number } | null>(null);
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
+  const [quickCaptureText, setQuickCaptureText] = useState("");
+  const [quickCaptureIntent, setQuickCaptureIntent] = useState<QuickCaptureIntent | null>(null);
+  const [quickCaptureStatus, setQuickCaptureStatus] = useState("");
+  const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
   const goals = useGoalsData(initialGoals, remoteSeedVersion);
   const habits = useHabitsData(initialHabits, remoteSeedVersion);
   const taskProjects = useTaskProjectsData(initialTaskProjects, remoteSeedVersion);
@@ -543,6 +579,17 @@ function App() {
   const activeStudyFolders = useMemo(() => studyFolders.filter((folder) => !folder.deletedAt), [studyFolders]);
   const activeStudyNotes = useMemo(() => studyNotes.filter((note) => !note.deletedAt), [studyNotes]);
   const backendLabel = useDataBackendLabel();
+  const quickCapturePreview = useMemo(
+    () =>
+      buildQuickCapturePreview(quickCaptureText, quickCaptureIntent, {
+        now: new Date(),
+        taskProjects,
+        activeTaskProjectId,
+        studyFolders: activeStudyFolders,
+        kanbanCards,
+      }),
+    [activeStudyFolders, activeTaskProjectId, kanbanCards, quickCaptureIntent, quickCaptureText, taskProjects],
+  );
 
   useEffect(() => {
     void seedDatabase({
@@ -588,9 +635,133 @@ function App() {
     navigateTo("notes");
   }
 
+  function openQuickCapture(seed = "") {
+    setCommandOpen(false);
+    setQuickCaptureStatus("");
+    if (seed) setQuickCaptureText(seed);
+    setQuickCaptureOpen(true);
+  }
+
+  function closeQuickCapture() {
+    if (quickCaptureBusy) return;
+    setQuickCaptureOpen(false);
+    setQuickCaptureStatus("");
+    setQuickCaptureIntent(null);
+  }
+
+  async function saveQuickCapture() {
+    const preview = quickCapturePreview;
+    if (!preview.title || quickCaptureBusy) return;
+    if (preview.intent === "task" && !preview.taskProjectId) {
+      setQuickCaptureStatus("No task project is available for this capture.");
+      return;
+    }
+    setQuickCaptureBusy(true);
+    const now = new Date();
+    const timestamp = now.getTime();
+    const id = `${timestamp}-${slugify(preview.title)}`;
+
+    try {
+      if (preview.intent === "note") {
+        await studyNoteCrud.add({
+          id,
+          title: preview.title,
+          body: `# ${preview.title}\n\n${preview.raw}`,
+          tags: preview.tags.length ? preview.tags : ["capture"],
+          pinned: false,
+          kind: "note",
+          folderId: preview.folderId,
+          flashcards: [],
+          askHistory: [],
+          readingProgress: 0,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        });
+        openNotesMode("writing");
+      } else if (preview.intent === "task" && preview.taskProjectId && preview.taskDay) {
+        await taskProjectCrud.addTask(preview.taskProjectId, preview.taskDay, {
+          id,
+          name: preview.title,
+          done: false,
+        });
+        setActiveTaskProjectId(preview.taskProjectId);
+        navigateTo("tasks");
+      } else if (preview.intent === "calendar") {
+        const date = parseDateInput(preview.date) ?? now;
+        await calendarCrud.add({
+          id,
+          date: toDateInputValue(date),
+          day: date.getDate(),
+          title: preview.title,
+          kind: preview.calendarKind,
+          time: preview.time ?? "09:00",
+        });
+        navigateTo("calendar");
+      } else if (preview.intent === "goal") {
+        await goalCrud.add({
+          id,
+          title: preview.title,
+          due: preview.date ? formatQuickCaptureGoalDate(preview.date) : "Ongoing",
+          level: preview.priority,
+          progress: 0,
+          meta: "Captured from quick capture",
+          iconKey: "target",
+          chart: "line",
+          milestones: makeGoalMilestones([
+            ["Define success criteria", false, 25],
+            ["Create execution plan", false, 25],
+            ["Complete first visible milestone", false, 25],
+            ["Review and close loop", false, 25],
+          ]),
+        });
+        navigateTo("goals");
+      } else {
+        const columnCards = kanbanCards.filter((card) => card.columnId === "backlog" && !card.archivedAt);
+        const card: KanbanCard = {
+          id,
+          title: preview.title,
+          description: preview.raw,
+          columnId: "backlog",
+          priority: preview.priority,
+          dueDate: preview.date,
+          tags: preview.tags.length ? preview.tags : ["capture"],
+          labels: (preview.tags.length ? preview.tags : ["capture"]).slice(0, 2).map((tag, index) => ({
+            name: tag,
+            color: index === 0 ? getQuickCapturePriorityColor(preview.priority) : "cyan",
+          })),
+          subtasks: [],
+          trackedMinutes: 0,
+          attachments: [],
+          comments: [],
+          order: columnCards.length + 1,
+        };
+        await kanbanCrud.add(card);
+        logKanbanActivity({ card, action: "created", toColumnId: card.columnId });
+        navigateTo("kanban");
+      }
+
+      setQuickCaptureStatus(`Captured as ${preview.actionLabel}.`);
+      setQuickCaptureText("");
+      setQuickCaptureIntent(null);
+      window.setTimeout(() => {
+        setQuickCaptureOpen(false);
+        setQuickCaptureStatus("");
+      }, 450);
+    } catch (error) {
+      setQuickCaptureStatus(`Capture failed: ${error instanceof Error ? error.message : "unknown error"}`);
+    } finally {
+      setQuickCaptureBusy(false);
+    }
+  }
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && key === "j") {
+        event.preventDefault();
+        openQuickCapture();
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && key === "k") {
         event.preventDefault();
         setCommandOpen((value) => !value);
@@ -688,6 +859,7 @@ function App() {
                       ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
                     : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
   const appCommands: AppCommand[] = [
+    { id: "quick-capture", group: "Capture", title: "Universal Quick Capture", hint: "Open Cmd+J capture and route an idea to notes, tasks, calendar, goals, or board.", action: () => openQuickCapture() },
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
     { id: "nav-today", group: "Navigate", title: "Today Command Brief", hint: "Open the daily operating plan.", action: () => navigateTo("today") },
     { id: "nav-planner", group: "Navigate", title: "Focus Planner", hint: "Generate tasks, calendar blocks, and Kanban cards from goals or cert tracks.", action: () => navigateTo("planner") },
@@ -752,6 +924,9 @@ function App() {
               <strong>{clock.time}</strong>
               <button className="command-trigger" type="button" aria-label="Open command palette" onClick={() => setCommandOpen(true)}>
                 <Search />
+              </button>
+              <button className="capture-trigger" type="button" aria-label="Open quick capture" onClick={() => openQuickCapture()}>
+                <Sparkles />
               </button>
               <button aria-label="Alerts">
                 <Bell />
@@ -1002,6 +1177,21 @@ function App() {
           setCommandQuery("");
         }}
       />
+      <QuickCapture
+        open={quickCaptureOpen}
+        text={quickCaptureText}
+        preview={quickCapturePreview}
+        overrideIntent={quickCaptureIntent}
+        status={quickCaptureStatus}
+        busy={quickCaptureBusy}
+        onTextChange={(value) => {
+          setQuickCaptureText(value);
+          setQuickCaptureStatus("");
+        }}
+        onOverrideIntent={setQuickCaptureIntent}
+        onClose={closeQuickCapture}
+        onSave={() => void saveQuickCapture()}
+      />
     </>
   );
 }
@@ -1085,6 +1275,422 @@ function CommandPalette({
       </section>
     </div>
   );
+}
+
+const quickCaptureDestinations: Array<{ intent: QuickCaptureIntent; label: string; hint: string }> = [
+  { intent: "note", label: "Note", hint: "Study note" },
+  { intent: "task", label: "Task", hint: "Project day task" },
+  { intent: "calendar", label: "Calendar", hint: "Timed event" },
+  { intent: "goal", label: "Goal", hint: "Objective" },
+  { intent: "kanban", label: "Card", hint: "Board card" },
+];
+
+function QuickCapture({
+  open,
+  text,
+  preview,
+  overrideIntent,
+  status,
+  busy,
+  onTextChange,
+  onOverrideIntent,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  text: string;
+  preview: QuickCapturePreview;
+  overrideIntent: QuickCaptureIntent | null;
+  status: string;
+  busy: boolean;
+  onTextChange: (value: string) => void;
+  onOverrideIntent: (intent: QuickCaptureIntent | null) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const canSave = Boolean(preview.title) && !(preview.intent === "task" && !preview.taskProjectId);
+
+  useEffect(() => {
+    if (!open) return;
+    const id = window.requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.cancelAnimationFrame(id);
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="quick-capture-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="quick-capture" role="dialog" aria-modal="true" aria-label="Universal quick capture">
+        <div className="quick-capture-head">
+          <div>
+            <span>Universal Capture</span>
+            <strong>{preview.actionLabel}</strong>
+          </div>
+          <button type="button" onClick={onClose}>close</button>
+        </div>
+        <div className="quick-capture-input">
+          <Sparkles />
+          <textarea
+            ref={inputRef}
+            value={text}
+            onChange={(event) => onTextChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                onClose();
+              }
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                onSave();
+              }
+            }}
+            placeholder="Try: Meeting with HR June 25 2pm, Task finish onboarding D12 high, Note Security+ ports, Goal save $5000 by Dec 31"
+          />
+        </div>
+        <div className="quick-capture-destinations" aria-label="Capture destination">
+          <button className={!overrideIntent ? "active" : ""} type="button" onClick={() => onOverrideIntent(null)}>
+            auto <em>{preview.suggestedIntent}</em>
+          </button>
+          {quickCaptureDestinations.map((destination) => (
+            <button
+              className={overrideIntent === destination.intent || (!overrideIntent && preview.intent === destination.intent) ? "active" : ""}
+              type="button"
+              onClick={() => onOverrideIntent(destination.intent)}
+              key={destination.intent}
+            >
+              {destination.label}
+              <em>{destination.hint}</em>
+            </button>
+          ))}
+        </div>
+        <div className="quick-capture-preview">
+          <div>
+            <span>Title</span>
+            <strong>{preview.title || "Waiting for signal"}</strong>
+          </div>
+          <div>
+            <span>Route</span>
+            <strong>{preview.actionLabel}</strong>
+          </div>
+          <div>
+            <span>When</span>
+            <strong>{preview.dateLabel ? `${preview.dateLabel}${preview.time ? ` · ${preview.time}` : ""}` : "No date"}</strong>
+          </div>
+          <div>
+            <span>Priority</span>
+            <strong>{preview.priority}</strong>
+          </div>
+          <div>
+            <span>Target</span>
+            <strong>{preview.taskProjectName ?? preview.folderName ?? preview.calendarKind ?? "Backlog"}</strong>
+          </div>
+          <div>
+            <span>Tags</span>
+            <strong>{preview.tags.length ? preview.tags.join(", ") : "capture"}</strong>
+          </div>
+        </div>
+        <p className="quick-capture-summary">{preview.summary}</p>
+        {preview.warnings.length > 0 && (
+          <div className="quick-capture-warnings">
+            {preview.warnings.map((warning) => (
+              <span key={warning}>{warning}</span>
+            ))}
+          </div>
+        )}
+        {status && <div className="quick-capture-status">{status}</div>}
+        <div className="quick-capture-actions">
+          <span>{preview.confidence}% route confidence</span>
+          <button type="button" onClick={onClose}>cancel</button>
+          <button type="button" disabled={!canSave || busy} onClick={onSave}>
+            {busy ? "saving" : "save capture"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function buildQuickCapturePreview(input: string, overrideIntent: QuickCaptureIntent | null, context: QuickCaptureContext): QuickCapturePreview {
+  const raw = input.trim();
+  const dateMatch = parseQuickCaptureDate(raw, context.now);
+  const timeMatch = parseQuickCaptureTime(raw);
+  const suggestedIntent = inferQuickCaptureIntent(raw, dateMatch?.date, timeMatch?.time);
+  const intent = overrideIntent ?? suggestedIntent;
+  const priority = parseQuickCapturePriority(raw);
+  const project = pickQuickCaptureProject(raw, context.taskProjects, context.activeTaskProjectId);
+  const folder = pickQuickCaptureFolder(raw, context.studyFolders);
+  const parsedTaskDay = parseQuickCaptureTaskDay(raw);
+  const taskDay =
+    project && intent === "task"
+      ? Math.min(Math.max(parsedTaskDay ?? project.currentDay ?? 1, 1), Math.max(project.deadlineDays, 1))
+      : undefined;
+  const date = dateMatch?.date ?? (intent === "calendar" ? toDateInputValue(context.now) : undefined);
+  const time = timeMatch?.time ?? (intent === "calendar" ? "09:00" : undefined);
+  const calendarKind = parseQuickCaptureCalendarKind(raw, intent);
+  const tags = parseQuickCaptureTags(raw, intent);
+  const title = cleanQuickCaptureTitle(raw, { intent, dateRaw: dateMatch?.raw, timeRaw: timeMatch?.raw, priority });
+  const warnings: string[] = [];
+
+  if (intent === "task" && !project) warnings.push("No task project exists yet.");
+  if (intent === "task" && project && parsedTaskDay && parsedTaskDay > project.deadlineDays) {
+    warnings.push(`D${parsedTaskDay} is outside ${project.name}; routing to D${taskDay}.`);
+  }
+  if (intent === "calendar" && !dateMatch) warnings.push("No date detected; routing to today.");
+  if (intent === "calendar" && !timeMatch) warnings.push("No time detected; defaulting to 09:00.");
+  if (intent === "goal" && !dateMatch) warnings.push("No goal due date detected; saving as ongoing.");
+
+  return {
+    intent,
+    suggestedIntent,
+    title,
+    raw,
+    priority,
+    date,
+    dateLabel: date ? formatQuickCaptureDateLabel(date) : undefined,
+    time,
+    calendarKind,
+    taskProjectId: project?.id,
+    taskProjectName: project ? `${project.name}${taskDay ? ` · D${taskDay}` : ""}` : undefined,
+    taskDay,
+    folderId: folder?.id,
+    folderName: folder?.name,
+    tags,
+    confidence: getQuickCaptureConfidence(raw, suggestedIntent, overrideIntent, dateMatch?.date, timeMatch?.time),
+    actionLabel: getQuickCaptureActionLabel(intent),
+    summary: getQuickCaptureSummary(intent, { project, taskDay, folder, date, time, calendarKind }),
+    warnings,
+  };
+}
+
+function inferQuickCaptureIntent(raw: string, date?: string, time?: string): QuickCaptureIntent {
+  const value = raw.toLowerCase().trim();
+  if (!value) return "note";
+  if (/^(goal|objective)\b/.test(value) || /\bby\s+[a-z]{3,9}\s+\d{1,2}\b/.test(value) || /^save\s+.+\bby\b/.test(value)) return "goal";
+  if (/^(kanban|card|board)\b/.test(value)) return "kanban";
+  if (/^(task|todo|to-do)\b/.test(value) || /\bd\s*\d{1,3}\b/.test(value)) return "task";
+  if (/\b(meeting|appointment|doctor|dentist|interview|call|deadline|event|calendar|hr)\b/.test(value)) return "calendar";
+  if (/^study\b/.test(value) && (date || time)) return "calendar";
+  if (/^(note|study|read|reading|write)\b/.test(value)) return "note";
+  if (date && time) return "calendar";
+  return "note";
+}
+
+function parseQuickCapturePriority(raw: string): Priority {
+  const value = raw.toLowerCase();
+  if (/\bziftinity\b|\bhighest\b|\bcritical\b|\bmust\b/.test(value)) return "ziftinity";
+  if (/\bhigh\b|\burgent\b/.test(value)) return "high";
+  if (/\bmedium\b|\bmed\b/.test(value)) return "medium";
+  if (/\blow\b|\blater\b/.test(value)) return "low";
+  return "medium";
+}
+
+function parseQuickCaptureDate(raw: string, now: Date) {
+  const value = raw.toLowerCase();
+  const iso = value.match(/\b(20\d{2}-\d{1,2}-\d{1,2})\b/);
+  if (iso) {
+    const date = parseDateInput(iso[1]);
+    if (date) return { date: toDateInputValue(date), raw: iso[0] };
+  }
+  if (/\btoday\b/.test(value)) return { date: toDateInputValue(now), raw: "today" };
+  if (/\btomorrow\b/.test(value)) return { date: toDateInputValue(addDays(now, 1)), raw: "tomorrow" };
+
+  const monthNames = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+  const monthDay = value.match(new RegExp(`\\b(${monthNames})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?\\b`));
+  if (monthDay) {
+    const date = buildQuickCaptureMonthDate(monthDay[1], Number(monthDay[2]), monthDay[3] ? Number(monthDay[3]) : now.getFullYear(), now, Boolean(monthDay[3]));
+    if (date) return { date: toDateInputValue(date), raw: monthDay[0] };
+  }
+  const dayMonth = value.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(${monthNames})(?:,?\\s*(20\\d{2}))?\\b`));
+  if (dayMonth) {
+    const date = buildQuickCaptureMonthDate(dayMonth[2], Number(dayMonth[1]), dayMonth[3] ? Number(dayMonth[3]) : now.getFullYear(), now, Boolean(dayMonth[3]));
+    if (date) return { date: toDateInputValue(date), raw: dayMonth[0] };
+  }
+
+  const weekday = value.match(/\b(next\s+)?(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/);
+  if (weekday) {
+    return { date: toDateInputValue(getUpcomingWeekday(now, weekday[2], Boolean(weekday[1]))), raw: weekday[0] };
+  }
+
+  return null;
+}
+
+function buildQuickCaptureMonthDate(monthText: string, day: number, year: number, now: Date, explicitYear: boolean) {
+  const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].findIndex((item) =>
+    monthText.toLowerCase().startsWith(item),
+  );
+  if (month < 0 || day < 1 || day > 31) return null;
+  const candidate = new Date(year, month, day);
+  if (candidate.getMonth() !== month || candidate.getDate() !== day) return null;
+  if (candidate < new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !explicitYear) {
+    return new Date(year + 1, month, day);
+  }
+  return candidate;
+}
+
+function getUpcomingWeekday(now: Date, weekdayText: string, forceNext: boolean) {
+  const target = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].findIndex((item) => weekdayText.startsWith(item));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let delta = target - today.getDay();
+  if (delta <= 0 || forceNext) delta += 7;
+  return addDays(today, delta);
+}
+
+function parseQuickCaptureTime(raw: string) {
+  const value = raw.toLowerCase();
+  const meridian = value.match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/);
+  if (meridian) {
+    let hour = Number(meridian[1]);
+    const minute = meridian[2] ?? "00";
+    if (meridian[3] === "pm" && hour < 12) hour += 12;
+    if (meridian[3] === "am" && hour === 12) hour = 0;
+    return { time: `${String(hour).padStart(2, "0")}:${minute}`, raw: meridian[0] };
+  }
+  const clock = value.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if (clock) return { time: `${String(Number(clock[1])).padStart(2, "0")}:${clock[2]}`, raw: clock[0] };
+  return null;
+}
+
+function parseQuickCaptureTaskDay(raw: string) {
+  const match = raw.match(/\bd\s*(\d{1,3})\b/i) ?? raw.match(/\bday\s+(\d{1,3})\b/i);
+  return match ? Number(match[1]) : null;
+}
+
+function parseQuickCaptureCalendarKind(raw: string, intent: QuickCaptureIntent): CalendarEvent["kind"] {
+  const value = raw.toLowerCase();
+  if (/\bdeadline\b|\bdue\b/.test(value)) return "deadline";
+  if (/\bdoctor|dentist|appointment\b/.test(value)) return "appointment";
+  if (/\bproject|sprint|launch\b/.test(value)) return "project";
+  if (/\bpersonal|family|friend\b/.test(value)) return "personal";
+  return intent === "calendar" ? "meeting" : "project";
+}
+
+function parseQuickCaptureTags(raw: string, intent: QuickCaptureIntent) {
+  const hashTags = Array.from(raw.matchAll(/#([a-z0-9-]+)/gi)).map((match) => match[1].toLowerCase());
+  const derived =
+    intent === "note"
+      ? ["capture", "study"]
+      : intent === "task"
+        ? ["capture", "task"]
+        : intent === "calendar"
+          ? ["capture", "calendar"]
+          : intent === "goal"
+            ? ["capture", "goal"]
+            : ["capture", "quick"];
+  return Array.from(new Set([...hashTags, ...derived])).slice(0, 5);
+}
+
+function pickQuickCaptureProject(raw: string, projects: TaskProject[], activeProjectId: string) {
+  if (projects.length === 0) return null;
+  const scored = projects
+    .map((project) => ({ project, score: scoreQuickCaptureTextMatch(raw, `${project.name} ${project.outcome ?? ""}`) }))
+    .sort((a, b) => b.score - a.score);
+  if (scored[0]?.score > 0) return scored[0].project;
+  return projects.find((project) => project.id === activeProjectId) ?? projects[0];
+}
+
+function pickQuickCaptureFolder(raw: string, folders: StudyFolder[]) {
+  if (folders.length === 0) return null;
+  const scored = folders
+    .map((folder) => ({ folder, score: scoreQuickCaptureTextMatch(raw, folder.name) }))
+    .sort((a, b) => b.score - a.score);
+  if (scored[0]?.score > 0) return scored[0].folder;
+  return folders.find((folder) => folder.name.toLowerCase().includes("inbox")) ?? folders[0];
+}
+
+function scoreQuickCaptureTextMatch(raw: string, candidate: string) {
+  const words = new Set(raw.toLowerCase().split(/[^a-z0-9+]+/).filter((word) => word.length > 2));
+  return candidate
+    .toLowerCase()
+    .split(/[^a-z0-9+]+/)
+    .filter((word) => words.has(word)).length;
+}
+
+function cleanQuickCaptureTitle(
+  raw: string,
+  options: { intent: QuickCaptureIntent; dateRaw?: string; timeRaw?: string; priority: Priority },
+) {
+  let value = raw.trim();
+  if (options.intent !== "calendar") {
+    value = value.replace(/^(note|study|read|reading|write|task|todo|to-do|goal|objective|kanban|card|board|calendar|event)\s*:?\s*/i, "");
+  } else {
+    value = value.replace(/^(calendar|event)\s*:?\s*/i, "");
+  }
+  if (options.dateRaw) value = value.replace(new RegExp(escapeRegExp(options.dateRaw), "i"), " ");
+  if (options.timeRaw) value = value.replace(new RegExp(escapeRegExp(options.timeRaw), "i"), " ");
+  value = value
+    .replace(/\bd\s*\d{1,3}\b/gi, " ")
+    .replace(/\b(ziftinity|highest|critical|must|high|urgent|medium|med|low|later)\b/gi, " ")
+    .replace(/#[a-z0-9-]+/gi, " ")
+    .replace(/\b(by|on|at)\s*$/i, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (value) return value.charAt(0).toUpperCase() + value.slice(1);
+  return raw.trim() ? "Captured signal" : "";
+}
+
+function getQuickCaptureConfidence(raw: string, suggestedIntent: QuickCaptureIntent, overrideIntent: QuickCaptureIntent | null, date?: string, time?: string) {
+  if (!raw.trim()) return 0;
+  if (overrideIntent) return 100;
+  let score = 62;
+  if (/^(note|study|task|todo|meeting|appointment|deadline|goal|kanban|card|calendar|event)\b/i.test(raw)) score += 18;
+  if (date) score += 8;
+  if (time) score += 6;
+  if (suggestedIntent === "task" && /\bd\s*\d{1,3}\b/i.test(raw)) score += 8;
+  return Math.min(score, 98);
+}
+
+function getQuickCaptureActionLabel(intent: QuickCaptureIntent) {
+  if (intent === "note") return "Study note";
+  if (intent === "task") return "Daily task";
+  if (intent === "calendar") return "Calendar event";
+  if (intent === "goal") return "Goal";
+  return "Kanban card";
+}
+
+function getQuickCaptureSummary(
+  intent: QuickCaptureIntent,
+  context: {
+    project: TaskProject | null;
+    taskDay?: number;
+    folder: StudyFolder | null;
+    date?: string;
+    time?: string;
+    calendarKind: CalendarEvent["kind"];
+  },
+) {
+  if (intent === "task") return context.project ? `Adds a task to ${context.project.name} on D${context.taskDay}.` : "Needs a task project before it can be saved.";
+  if (intent === "calendar") return `Creates a ${context.calendarKind} event for ${context.date ? formatQuickCaptureDateLabel(context.date) : "today"} at ${context.time ?? "09:00"}.`;
+  if (intent === "goal") return context.date ? `Creates a new goal due ${formatQuickCaptureDateLabel(context.date)}.` : "Creates a new ongoing goal.";
+  if (intent === "kanban") return context.date ? `Creates a backlog card due ${formatQuickCaptureDateLabel(context.date)}.` : "Creates a backlog card for later triage.";
+  return `Creates a study note${context.folder ? ` in ${context.folder.name}` : ""}.`;
+}
+
+function getQuickCapturePriorityColor(priority: Priority): KanbanLabelColor {
+  if (priority === "ziftinity") return "violet";
+  if (priority === "high") return "red";
+  if (priority === "low") return "lime";
+  return "amber";
+}
+
+function formatQuickCaptureDateLabel(dateInput: string) {
+  const date = parseDateInput(dateInput);
+  if (!date) return dateInput;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function formatQuickCaptureGoalDate(dateInput: string) {
+  return formatQuickCaptureDateLabel(dateInput);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 type TodayFocusItem = {

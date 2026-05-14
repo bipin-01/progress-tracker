@@ -473,6 +473,12 @@ button {
   box-shadow: inset 0 0 16px rgba(53, 215, 255, 0.07);
 }
 
+.topbar-meta .capture-trigger {
+  color: var(--violet);
+  border-color: rgba(170, 114, 255, 0.4);
+  box-shadow: inset 0 0 16px rgba(170, 114, 255, 0.08);
+}
+
 .command-palette-backdrop {
   position: fixed;
   inset: 0;
@@ -575,6 +581,202 @@ button {
   color: var(--muted);
   font-style: normal;
   line-height: 1.5;
+}
+
+.quick-capture-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 24px 24px;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(170, 114, 255, 0.14), transparent 34%),
+    rgba(2, 7, 16, 0.68);
+  backdrop-filter: blur(12px);
+}
+
+.quick-capture {
+  width: min(860px, 100%);
+  border: 1px solid rgba(170, 114, 255, 0.45);
+  background:
+    linear-gradient(180deg, rgba(18, 29, 54, 0.98), rgba(7, 16, 30, 0.98)),
+    var(--panel);
+  box-shadow: 0 0 54px rgba(170, 114, 255, 0.18), 0 22px 76px rgba(0, 0, 0, 0.55);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+
+.quick-capture-head,
+.quick-capture-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.quick-capture-head {
+  border-bottom: 1px solid rgba(170, 114, 255, 0.22);
+}
+
+.quick-capture-head span,
+.quick-capture-preview span,
+.quick-capture-actions span,
+.quick-capture-warnings span,
+.quick-capture-status {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.quick-capture-head strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--cyan);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.quick-capture-head button,
+.quick-capture-actions button,
+.quick-capture-destinations button {
+  border: 1px solid var(--hair);
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 8px 10px;
+  text-transform: uppercase;
+}
+
+.quick-capture-input {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 16px;
+}
+
+.quick-capture-input svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 8px;
+  color: var(--violet);
+}
+
+.quick-capture-input textarea {
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background: rgba(5, 9, 18, 0.62);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.6;
+  outline: none;
+  padding: 12px;
+}
+
+.quick-capture-input textarea:focus {
+  border-color: var(--cyan-dim);
+  box-shadow: inset 0 0 22px rgba(53, 215, 255, 0.08);
+}
+
+.quick-capture-destinations {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+
+.quick-capture-destinations button {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+}
+
+.quick-capture-destinations button.active,
+.quick-capture-destinations button:hover,
+.quick-capture-actions button:last-child {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+  color: var(--cyan);
+}
+
+.quick-capture-destinations em {
+  color: var(--muted);
+  font-family: "Share Tech Mono", monospace;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+
+.quick-capture-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+
+.quick-capture-preview div {
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 10px;
+}
+
+.quick-capture-preview strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-capture-summary {
+  margin: 0 16px 14px;
+  border-left: 2px solid var(--violet);
+  color: var(--ink-2);
+  line-height: 1.6;
+  padding-left: 10px;
+}
+
+.quick-capture-warnings {
+  display: grid;
+  gap: 6px;
+  margin: 0 16px 14px;
+}
+
+.quick-capture-warnings span {
+  border-left: 2px solid var(--amber);
+  background: rgba(255, 183, 77, 0.08);
+  color: var(--amber);
+  padding: 7px 9px;
+}
+
+.quick-capture-status {
+  margin: 0 16px 14px;
+  border-left: 2px solid var(--lime);
+  color: var(--lime);
+  padding: 6px 9px;
+}
+
+.quick-capture-actions {
+  border-top: 1px solid rgba(53, 215, 255, 0.14);
+}
+
+.quick-capture-actions button:disabled {
+  border-color: var(--hair);
+  color: var(--muted);
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .auth-shell {
@@ -6731,13 +6933,26 @@ button {
     padding: 16px 12px;
   }
 
+  .quick-capture-backdrop {
+    padding: 14px 12px;
+  }
+
   .command-search-row input {
     font-size: 14px;
   }
 
   .command-results button,
-  .command-empty {
+  .command-empty,
+  .quick-capture-input,
+  .quick-capture-preview,
+  .quick-capture-destinations {
     grid-template-columns: 1fr;
+  }
+
+  .quick-capture-head,
+  .quick-capture-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .command-results span {
