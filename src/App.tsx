@@ -519,12 +519,19 @@ type ChineseVoiceHanziHotspot = {
   risk: number;
 };
 
+type ChineseAdaptiveRepairDrill = {
+  id: string;
+  label: string;
+  feedback: string;
+};
+
 type ChineseAdaptiveRepairMission = {
+  key: string;
   hasSignal: boolean;
   targetDay: number;
   tone: ChineseVoiceToneWeakness;
   symbols: ChineseVoiceHanziHotspot[];
-  drills: string[];
+  drills: ChineseAdaptiveRepairDrill[];
   command: string;
   summary: string;
 };
@@ -537,6 +544,7 @@ type ChineseMemorySnapshot = {
   reviewCombo: number;
   reviewRatings: Record<string, ChineseReviewState>;
   completedDrills: string[];
+  completedRepairDrills: string[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -586,6 +594,7 @@ const CHINESE_KNOWN_CHARACTER_BASE = 1247;
 const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
 const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
 const CHINESE_SPEECH_HISTORY_LIMIT = 80;
+const CHINESE_REPAIR_DRILL_XP = 4;
 
 const chineseLessons: ChineseLesson[] = [
   {
@@ -1513,6 +1522,7 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
       reviewCombo: getChineseNumber(parsed.reviewCombo, 0),
       reviewRatings,
       completedDrills: getChineseStoredStringArray(parsed.completedDrills),
+      completedRepairDrills: getChineseStoredStringArray(parsed.completedRepairDrills),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
         .map(getChineseStoredSpeechAttempt)
@@ -1790,15 +1800,36 @@ function getChineseAdaptiveRepairMission(
     .slice(0, 4);
   const hasSignal = heatmap.attemptsAnalyzed > 0 && (tone.misses > 0 || symbols.length > 0);
   const symbolText = symbols.length ? symbols.map((symbol) => symbol.hanzi).join(" ") : "active phrase";
+  const key = [
+    targetDay,
+    `tone-${tone.tone}`,
+    symbols.map((symbol) => symbol.hanzi).join("-") || "pending",
+  ].join(":");
+  const drillLabels = hasSignal
+    ? [`T${tone.tone} shadow x8`, `${symbolText} recall x5`, "speak full sentence twice"]
+    : ["capture speech", "score recall", "generate repair"];
 
   return {
+    key,
     hasSignal,
     targetDay,
     tone,
     symbols,
-    drills: hasSignal
-      ? [`T${tone.tone} shadow x8`, `${symbolText} recall x5`, "speak full sentence twice"]
-      : ["capture speech", "score recall", "generate repair"],
+    drills: drillLabels.map((label, index) => ({
+      id: `${key}:drill-${index + 1}`,
+      label,
+      feedback: hasSignal
+        ? index === 0
+          ? "tone contour locked"
+          : index === 1
+            ? "symbol recall locked"
+            : "spoken repair locked"
+        : index === 0
+          ? "voice capture needed"
+          : index === 1
+            ? "score needed"
+            : "repair pending",
+    })),
     command: hasSignal ? `load D${String(targetDay).padStart(3, "0")}` : "open focus tunnel",
     summary: hasSignal
       ? `${tone.name} tone · ${tone.risk}% risk · ${symbols.length || tone.misses} repair targets`
@@ -12597,6 +12628,7 @@ function ChineseView() {
   const [reviewRatings, setReviewRatings] = useState<Record<string, ChineseReviewState>>({});
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
+  const [completedRepairDrills, setCompletedRepairDrills] = useState<Set<string>>(() => new Set());
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -12627,6 +12659,7 @@ function ChineseView() {
   const missionRailWords = selectedPracticeRecord.words.slice(0, Math.min(12, selectedPracticeRecord.words.length));
   const memoryCardCount = Object.keys(reviewRatings).length;
   const memoryVoiceCount = speechAttempts.length;
+  const memoryRepairCount = completedRepairDrills.size;
   const memoryCoreLabel =
     memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
@@ -12823,6 +12856,9 @@ function ChineseView() {
   const voiceHeatmap = useMemo(() => getChineseVoiceHeatmap(speechAttempts), [speechAttempts]);
   const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
   const activeVoiceToneWeakness = adaptiveRepairMission.tone;
+  const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
+  const repairMissionScore = Math.round((repairDrillDoneCount / Math.max(adaptiveRepairMission.drills.length, 1)) * 100);
+  const repairMissionLocked = adaptiveRepairMission.hasSignal && repairMissionScore === 100;
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12850,6 +12886,7 @@ function ChineseView() {
       setReviewCombo(snapshot.reviewCombo);
       setReviewRatings(snapshot.reviewRatings);
       setCompletedDrills(new Set(["listen", ...snapshot.completedDrills]));
+      setCompletedRepairDrills(new Set(snapshot.completedRepairDrills));
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -12867,11 +12904,12 @@ function ChineseView() {
       reviewCombo,
       reviewRatings,
       completedDrills: Array.from(completedDrills).sort(),
+      completedRepairDrills: Array.from(completedRepairDrills).sort(),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
     setMemoryStatus(saved ? "synced" : "offline");
-  }, [completedDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, speechAttempts, strokeMatrixDone]);
+  }, [completedDrills, completedRepairDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, speechAttempts, strokeMatrixDone]);
 
   useEffect(() => {
     if (!lessonFocusActive) return;
@@ -12992,6 +13030,31 @@ function ChineseView() {
     setRewardMessage(
       `D${String(adaptiveRepairMission.targetDay).padStart(3, "0")} repair queued · T${adaptiveRepairMission.tone.tone}`,
     );
+  }
+
+  function toggleRepairDrill(drill: ChineseAdaptiveRepairDrill) {
+    const wasDone = completedRepairDrills.has(drill.id);
+    setCompletedRepairDrills((current) => {
+      const next = new Set(current);
+      if (next.has(drill.id)) {
+        next.delete(drill.id);
+      } else {
+        next.add(drill.id);
+      }
+      return next;
+    });
+    if (wasDone) {
+      setRewardMessage(`${drill.label} reopened`);
+    } else {
+      setSessionXp((xp) => xp + CHINESE_REPAIR_DRILL_XP);
+      const nextDoneCount = repairDrillDoneCount + 1;
+      if (adaptiveRepairMission.hasSignal && nextDoneCount === adaptiveRepairMission.drills.length) {
+        setReviewCombo((combo) => combo + 1);
+        setRewardMessage(`repair mission locked · ${adaptiveRepairMission.summary}`);
+      } else {
+        setRewardMessage(`${CHINESE_REPAIR_DRILL_XP} XP · ${drill.feedback}`);
+      }
+    }
   }
 
   function rateReview(rating: ChineseReviewRating, cardId = activeReviewCard.id) {
@@ -13301,8 +13364,9 @@ function ChineseView() {
                   {adaptiveRepairMission.hasSignal ? `T${adaptiveRepairMission.tone.tone} ${adaptiveRepairMission.tone.name}` : "calibrating"}
                 </strong>
                 <em>
-                  D{String(adaptiveRepairMission.targetDay).padStart(3, "0")} injection · {adaptiveRepairMission.summary}
+                  D{String(adaptiveRepairMission.targetDay).padStart(3, "0")} injection · {repairMissionScore}% locked
                 </em>
+                <i>{adaptiveRepairMission.summary}</i>
               </div>
               <div className="zh-repair-symbols" aria-label="Adaptive repair hanzi targets">
                 {adaptiveRepairMission.symbols.length ? (
@@ -13317,15 +13381,25 @@ function ChineseView() {
                   <p>voice data will populate repair targets</p>
                 )}
               </div>
-              <div className="zh-repair-drills">
-                {adaptiveRepairMission.drills.map((drill, index) => (
-                  <span key={drill}>
-                    {String(index + 1).padStart(2, "0")} · {drill}
-                  </span>
-                ))}
+              <div className="zh-repair-drills" style={{ "--repair-progress": `${repairMissionScore}%` } as CSSProperties}>
+                <i aria-hidden="true" />
+                {adaptiveRepairMission.drills.map((drill, index) => {
+                  const done = completedRepairDrills.has(drill.id);
+                  return (
+                    <button
+                      key={drill.id}
+                      type="button"
+                      className={done ? "done" : ""}
+                      onClick={() => toggleRepairDrill(drill)}
+                    >
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                      <strong>{drill.label}</strong>
+                    </button>
+                  );
+                })}
               </div>
-              <button type="button" className="zh-repair-command" onClick={loadAdaptiveRepairMission}>
-                {adaptiveRepairMission.command}
+              <button type="button" className={`zh-repair-command ${repairMissionLocked ? "locked" : ""}`} onClick={loadAdaptiveRepairMission}>
+                {repairMissionLocked ? "repair locked" : adaptiveRepairMission.command}
               </button>
             </div>
 
@@ -13345,7 +13419,7 @@ function ChineseView() {
               <div className={`zh-memory-core ${memoryStatus === "offline" ? "offline" : ""}`}>
                 <span>memory core</span>
                 <strong>{memoryCoreLabel}</strong>
-                <em>{memoryCardCount} cards · {memoryVoiceCount} voice</em>
+                <em>{memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair</em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
                 <span>phase signal</span>

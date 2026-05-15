@@ -34,13 +34,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added voice weakness analytics: saved speech attempts now group low-score misses by hanzi and sentence pattern, rank weak spots, and generate compact repair drills inside Focus Tunnel.
 - 2026-05-15 - Added voice weakness heatmap: Focus Tunnel now scans the last 30 spoken attempts, converts missed hanzi into tone-risk bars, surfaces hanzi hotspots, and lets each tone replay its reference sound.
 - 2026-05-15 - Added adaptive repair missions: Daily Mission Uplink now converts the weakest spoken tone and missed hanzi into a next-day repair injection with compact drills and one-command loading.
+- 2026-05-15 - Added repair mission completion tracking: adaptive drills can now be checked off, scored as a repair lock percentage, persisted into Memory Core, and rewarded with XP/combo feedback.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add repair mission completion tracking so injected tone/hanzi drills can be checked off, scored, and fed back into Memory Core.
+- Add a compact repair history strip so the learner can see which tone/hanzi weaknesses were repaired across the last 7 sessions.
 
 ## Design Rules For Future Passes
 
