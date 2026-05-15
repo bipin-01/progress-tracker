@@ -490,6 +490,27 @@ type ChineseMemorySnapshot = {
 
 type ChineseMemoryStatus = "standby" | "restored" | "synced" | "offline";
 
+type ChineseSpeechStatus = "idle" | "listening" | "scored" | "unsupported" | "error";
+
+type ChineseSpeechRecognitionResult = {
+  transcript?: string;
+  confidence?: number;
+};
+
+type ChineseSpeechRecognitionEvent = {
+  results: ArrayLike<ArrayLike<ChineseSpeechRecognitionResult>>;
+};
+
+type ChineseSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: ChineseSpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+};
+
 type ChineseDictionaryEntry = {
   hanzi: string;
   traditional?: string;
@@ -1485,6 +1506,43 @@ function getChineseStrokePlan(entry: ChineseDictionaryEntry) {
 
 function getChineseCardCharacters(card: { hanzi: string }) {
   return Array.from(new Set(getChinesePhraseUnits(card.hanzi)));
+}
+
+function getChineseSpeechUnits(value: string) {
+  return Array.from(value).filter((unit) => /[\u3400-\u9fff]/.test(unit));
+}
+
+function getChineseLcsCount(source: string[], target: string[]) {
+  const rows = source.length + 1;
+  const cols = target.length + 1;
+  const matrix = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let col = 1; col < cols; col += 1) {
+      matrix[row][col] =
+        source[row - 1] === target[col - 1]
+          ? matrix[row - 1][col - 1] + 1
+          : Math.max(matrix[row - 1][col], matrix[row][col - 1]);
+    }
+  }
+
+  return matrix[source.length][target.length];
+}
+
+function scoreChineseSpeech(expected: string, transcript: string) {
+  const expectedUnits = getChineseSpeechUnits(expected);
+  const transcriptUnits = getChineseSpeechUnits(transcript);
+  const total = Math.max(expectedUnits.length, 1);
+  const positionMatches = expectedUnits.reduce((count, unit, index) => count + (transcriptUnits[index] === unit ? 1 : 0), 0);
+  const lcsMatches = getChineseLcsCount(expectedUnits, transcriptUnits);
+  const coverage = Math.min(transcriptUnits.length / total, 1);
+  const score = Math.round(((positionMatches / total) * 0.55 + (lcsMatches / total) * 0.35 + coverage * 0.1) * 100);
+
+  return {
+    score: Math.min(100, score),
+    matched: lcsMatches,
+    total,
+  };
 }
 
 function getChineseHskProgress(level: (typeof chineseHskLevels)[number], masteredCharacters: number) {
@@ -12282,6 +12340,10 @@ function ChineseView() {
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
   const [lessonFocusActive, setLessonFocusActive] = useState(false);
+  const [speechStatus, setSpeechStatus] = useState<ChineseSpeechStatus>("idle");
+  const [speechTranscript, setSpeechTranscript] = useState("");
+  const [speechScore, setSpeechScore] = useState(0);
+  const [speechConfidence, setSpeechConfidence] = useState(0);
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -12477,6 +12539,19 @@ function ChineseView() {
   const circuitProgress = Math.round((lessonStepStatus.filter((step) => step.done).length / lessonStepStatus.length) * 100);
   const circuitCursor = Math.max(1, lessonStepStatus.findIndex((step) => step.id === nextCircuitStep.id) + 1);
   const focusCircuitCursor = Math.max(1, lessonStepStatus.findIndex((step) => step.id === focusCircuitStep.id) + 1);
+  const speechMatchedUnits = scoreChineseSpeech(activePhrase.hanzi, speechTranscript);
+  const speechSignalLabel =
+    speechStatus === "listening"
+      ? "listening"
+      : speechStatus === "unsupported"
+        ? "unsupported"
+        : speechStatus === "error"
+          ? "signal lost"
+          : speechScore >= 85
+            ? "clear output"
+            : speechScore >= 55
+              ? "partial lock"
+              : "standby";
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12488,6 +12563,13 @@ function ChineseView() {
   useEffect(() => {
     setActiveReviewId(activePhraseReviewId);
   }, [activePhraseReviewId]);
+
+  useEffect(() => {
+    setSpeechStatus("idle");
+    setSpeechTranscript("");
+    setSpeechScore(0);
+    setSpeechConfidence(0);
+  }, [activePhrase.hanzi]);
 
   useEffect(() => {
     const snapshot = loadChineseMemorySnapshot();
@@ -12542,6 +12624,12 @@ function ChineseView() {
         return;
       }
 
+      if (event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        startSpeechGate();
+        return;
+      }
+
       const stepIndex = Number(event.key) - 1;
       if (stepIndex >= 0 && stepIndex < chineseLessonSteps.length) {
         event.preventDefault();
@@ -12560,6 +12648,7 @@ function ChineseView() {
     assemblyTileIds,
     lessonFocusActive,
     nextCircuitStep.id,
+    speechStatus,
     strokeMatrixDone,
   ]);
 
@@ -12687,6 +12776,67 @@ function ChineseView() {
     }
 
     gradeActivePhrase("ok");
+  }
+
+  function startSpeechGate() {
+    if (speechStatus === "listening") return;
+
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: new () => ChineseSpeechRecognition;
+      webkitSpeechRecognition?: new () => ChineseSpeechRecognition;
+    };
+    const SpeechRecognitionConstructor = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognitionConstructor) {
+      setSpeechStatus("unsupported");
+      setSpeechTranscript("Speech recognition is not available in this browser.");
+      setSpeechScore(0);
+      setSpeechConfidence(0);
+      setRewardMessage("voice gate offline · browser unsupported");
+      return;
+    }
+
+    const recognition = new SpeechRecognitionConstructor();
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setSpeechStatus("listening");
+    setSpeechTranscript("");
+    setSpeechScore(0);
+    setSpeechConfidence(0);
+    setRewardMessage("voice gate listening · speak the active sentence");
+
+    recognition.onresult = (event) => {
+      const result = event.results[0]?.[0];
+      const transcript = result?.transcript?.trim() ?? "";
+      const confidence = Math.round((result?.confidence ?? 0) * 100);
+      const scored = scoreChineseSpeech(activePhrase.hanzi, transcript);
+      const rating: ChineseReviewRating | null = scored.score >= 88 ? "easy" : scored.score >= 70 ? "ok" : scored.score >= 45 ? "hard" : null;
+
+      setSpeechTranscript(transcript || "No Mandarin phrase captured.");
+      setSpeechScore(scored.score);
+      setSpeechConfidence(confidence);
+      setSpeechStatus("scored");
+
+      if (rating) {
+        rateReview(rating, activePhraseReviewId);
+        setRewardMessage(`voice ${scored.score}% · ${rating} recall scheduled`);
+      } else {
+        setRewardMessage(`voice ${scored.score}% · repeat the phrase`);
+      }
+    };
+
+    recognition.onerror = () => {
+      setSpeechStatus("error");
+      setSpeechTranscript("Voice capture failed. Try again.");
+      setRewardMessage("voice gate interrupted");
+    };
+
+    recognition.onend = () => {
+      setSpeechStatus((current) => (current === "listening" ? "idle" : current));
+    };
+
+    recognition.start();
   }
 
   function speakMandarin(text: string) {
@@ -13518,13 +13668,13 @@ function ChineseView() {
           role="dialog"
           aria-modal="true"
           aria-label="Chinese guided focus mode"
-          aria-keyshortcuts="Escape Enter Space 1 2 3 4 5"
+          aria-keyshortcuts="Escape Enter Space V 1 2 3 4 5"
         >
           <div className="zh-focus-shell">
             <span className="zh-brackets" aria-hidden="true" />
             <div className="zh-focus-topline">
               <span>
-                lesson focus · D{String(selectedPracticeRecord.day).padStart(3, "0")} · {activeCircuitCopy.signal}
+                lesson focus · D{String(selectedPracticeRecord.day).padStart(3, "0")} · {focusCircuitCopy.signal}
               </span>
               <button type="button" onClick={() => setLessonFocusActive(false)}>
                 exit
@@ -13566,6 +13716,24 @@ function ChineseView() {
                 </button>
                 <i />
               </div>
+            </div>
+
+            <div className={`zh-focus-speech status-${speechStatus}`}>
+              <div>
+                <span>voice gate</span>
+                <strong>{speechSignalLabel}</strong>
+                <em>
+                  {speechMatchedUnits.matched}/{speechMatchedUnits.total} hanzi · {speechConfidence}% mic confidence
+                </em>
+              </div>
+              <p>{speechTranscript || "Speak the active sentence to score pronunciation recall."}</p>
+              <div className="zh-speech-score" style={{ "--speech-score": `${speechScore}%` } as CSSProperties}>
+                <i />
+                <strong>{speechScore}%</strong>
+              </div>
+              <button type="button" onClick={startSpeechGate}>
+                {speechStatus === "listening" ? "listening" : "capture speech"}
+              </button>
             </div>
 
             <div className="zh-focus-stepbar" aria-label="Focus mode lesson steps">

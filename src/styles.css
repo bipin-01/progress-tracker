@@ -11915,6 +11915,9 @@ button.load-forecast-day:hover {
 .zh-focus-phrase em,
 .zh-focus-directive span,
 .zh-focus-directive p,
+.zh-focus-speech span,
+.zh-focus-speech em,
+.zh-focus-speech p,
 .zh-focus-metrics span {
   overflow: hidden;
   color: var(--muted);
@@ -12040,6 +12043,80 @@ button.load-forecast-day:hover {
   width: var(--circuit-progress);
   background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
   box-shadow: 0 0 10px rgba(53, 215, 255, 0.35);
+}
+
+.zh-focus-speech {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.34fr) minmax(0, 1fr) minmax(150px, 0.26fr) minmax(140px, 0.22fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.055), transparent 48%),
+    rgba(2, 7, 15, 0.36);
+  padding: 12px;
+}
+
+.zh-focus-speech > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zh-focus-speech strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-focus-speech.status-scored strong {
+  color: var(--lime);
+}
+
+.zh-focus-speech.status-error strong,
+.zh-focus-speech.status-unsupported strong {
+  color: var(--red);
+}
+
+.zh-focus-speech p {
+  margin: 0;
+  color: var(--ink-2);
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.zh-speech-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.zh-speech-score i {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-speech-score i::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--speech-score);
+  background: linear-gradient(90deg, var(--cyan), var(--lime));
+  box-shadow: 0 0 10px rgba(53, 215, 255, 0.35);
+}
+
+.zh-speech-score strong {
+  color: var(--ink);
+  font-size: 11px;
 }
 
 .zh-focus-stepbar {
@@ -13436,6 +13513,7 @@ button.load-forecast-day:hover {
   .zh-circuit-rail,
   .zh-circuit-actions,
   .zh-focus-grid,
+  .zh-focus-speech,
   .zh-focus-stepbar,
   .zh-lesson-strip,
   .zh-writing-grid,
