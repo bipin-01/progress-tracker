@@ -1269,6 +1269,7 @@ function App() {
               kanbanCards={kanbanCards}
               activityEvents={activityEvents}
               recommendations={agentRecommendations}
+              onNavigate={navigateTo}
             />
           )}
         </main>
@@ -9273,6 +9274,10 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
     .filter((impact) => impact.resolved)
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, 5);
+  const followUpDebt = outcomeImpacts
+    .filter((impact) => impact.stale)
+    .sort((a, b) => b.ageDays - a.ageDays || a.title.localeCompare(b.title))
+    .slice(0, 6);
 
   return {
     rows,
@@ -9290,6 +9295,7 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
     weakest,
     recentActions,
     recentOutcomes,
+    followUpDebt,
     headline:
       recommendations.length === 0
         ? "Agent learning memory is waiting for the first run."
@@ -9374,6 +9380,17 @@ function isAgentOutcomeEvent(event: ActivityEvent) {
   return false;
 }
 
+function getAgentOutcomeView(domain: ActivityEventDomain): View {
+  if (domain === "task") return "tasks";
+  if (domain === "kanban") return "kanban";
+  if (domain === "calendar") return "calendar";
+  if (domain === "notes") return "notes";
+  if (domain === "goal") return "goals";
+  if (domain === "habit") return "habits";
+  if (domain === "agent") return "agents";
+  return "progress";
+}
+
 function getTrustedCoachReport(recommendations: AgentRecommendation[], memory: ReturnType<typeof getAgentLearningMemory>) {
   const trustByAgent = new Map(memory.rows.map((row) => [row.id, row]));
   return recommendations
@@ -9430,6 +9447,7 @@ function AgentsView({
   kanbanCards,
   activityEvents,
   recommendations,
+  onNavigate,
 }: {
   goals: Goal[];
   habits: Habit[];
@@ -9439,6 +9457,7 @@ function AgentsView({
   kanbanCards: KanbanCard[];
   activityEvents: ActivityEvent[];
   recommendations: AgentRecommendation[];
+  onNavigate: (view: View) => void;
 }) {
   const sortedRecommendations = [...recommendations].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const pendingRecommendations = sortedRecommendations.filter((recommendation) => recommendation.status === "pending");
@@ -9604,6 +9623,29 @@ function AgentsView({
             ))}
           </div>
         )}
+      </HudCard>
+
+      <HudCard className="agent-followup-card" active={learningMemory.followUpDebt.length > 0}>
+        <CardHeader title="Follow-Up Debt" meta={`${learningMemory.followUpDebt.length} stale`} />
+        <div className="agent-followup-list">
+          {learningMemory.followUpDebt.length === 0 ? (
+            <div className="kanban-empty">// no stale accepted agent-created work</div>
+          ) : (
+            learningMemory.followUpDebt.map((item) => (
+              <button type="button" onClick={() => onNavigate(getAgentOutcomeView(item.domain))} key={item.id}>
+                <div>
+                  <span>{item.agentName}</span>
+                  <strong>{item.title}</strong>
+                  <em>{item.meta}</em>
+                </div>
+                <div>
+                  <strong>{item.ageDays}d</strong>
+                  <span>{item.outcomeLabel}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
       </HudCard>
 
       <HudCard className="agent-recommendations-card">

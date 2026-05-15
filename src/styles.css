@@ -7928,6 +7928,7 @@ button.load-forecast-day:hover {
 
 .agent-command-card,
 .agent-roster-card,
+.agent-followup-card,
 .agent-recommendations-card {
   padding: 18px 20px;
 }
@@ -8208,6 +8209,68 @@ button.load-forecast-day:hover {
   font-style: normal;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+.agent-followup-card {
+  margin-top: 16px;
+}
+
+.agent-followup-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.agent-followup-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--hair-soft);
+  border-left: 2px solid var(--amber);
+  background: rgba(6, 14, 28, 0.52);
+  color: var(--ink-2);
+  padding: 12px;
+  text-align: left;
+}
+
+.agent-followup-list button:hover {
+  border-color: rgba(255, 184, 76, 0.62);
+  background: rgba(255, 184, 76, 0.08);
+}
+
+.agent-followup-list button > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.agent-followup-list span,
+.agent-followup-list em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.agent-followup-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-followup-list button > div:last-child {
+  justify-items: end;
+}
+
+.agent-followup-list button > div:last-child strong {
+  color: var(--amber);
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
 }
 
 .agent-roster {
@@ -8523,6 +8586,7 @@ button.load-forecast-day:hover {
   .agent-learning-hero,
   .agent-learning-metrics,
   .agent-learning-list,
+  .agent-followup-list button,
   .metric-grid,
   .today-command-grid,
   .today-command-center-grid,
