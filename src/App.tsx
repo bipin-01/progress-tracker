@@ -7552,6 +7552,8 @@ function getWeakStudyNotes(notes: StudyNote[]) {
 function PdfDocumentViewer({ title, dataUrl }: { title: string; dataUrl: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState("rendering pdf...");
+  const [pageCount, setPageCount] = useState(0);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -7559,6 +7561,7 @@ function PdfDocumentViewer({ title, dataUrl }: { title: string; dataUrl: string 
     if (!container) return;
     const renderTarget = container;
     renderTarget.innerHTML = "";
+    setPageCount(0);
     setStatus("rendering pdf...");
 
     async function renderPdf() {
@@ -7568,7 +7571,9 @@ function PdfDocumentViewer({ title, dataUrl }: { title: string; dataUrl: string 
         const bytes = await dataUrlToUint8Array(dataUrl);
         const pdfDocument = await pdfjsLib.getDocument({ data: bytes }).promise;
         if (cancelled) return;
-        const targetWidth = Math.min(renderTarget.clientWidth - 32, 980);
+        setPageCount(pdfDocument.numPages);
+        const fitWidth = Math.max(520, Math.min(renderTarget.clientWidth - 40, 980));
+        const targetWidth = fitWidth * zoom;
 
         for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
           const page = await pdfDocument.getPage(pageNumber);
@@ -7600,11 +7605,31 @@ function PdfDocumentViewer({ title, dataUrl }: { title: string; dataUrl: string 
       cancelled = true;
       renderTarget.innerHTML = "";
     };
-  }, [dataUrl]);
+  }, [dataUrl, zoom]);
+
+  function adjustZoom(delta: number) {
+    setZoom((value) => Math.round(clamp(value + delta, 0.7, 1.6) * 10) / 10);
+  }
 
   return (
     <div className="pdf-document-viewer" aria-label={title}>
-      <div className="pdf-render-status">{status}</div>
+      <div className="pdf-viewer-toolbar">
+        <div>
+          <span>Document Render</span>
+          <strong>{title}</strong>
+          <em>{status}</em>
+        </div>
+        <div className="pdf-viewer-controls">
+          <button type="button" onClick={() => adjustZoom(-0.1)} aria-label="Zoom out">-</button>
+          <strong>{Math.round(zoom * 100)}%</strong>
+          <button type="button" onClick={() => adjustZoom(0.1)} aria-label="Zoom in">+</button>
+          <button type="button" onClick={() => setZoom(1)}>fit</button>
+        </div>
+        <div className="pdf-viewer-stats">
+          <span>{pageCount || "--"} pages</span>
+          <span>{Math.round(zoom * 100)} scale</span>
+        </div>
+      </div>
       <div className="pdf-pages" ref={containerRef} />
     </div>
   );

@@ -7335,6 +7335,7 @@ button.load-forecast-day:hover {
   min-height: clamp(620px, calc(100vh - 310px), 900px);
   border: 1px solid var(--hair-soft);
   background:
+    radial-gradient(circle at 50% 0%, rgba(53, 215, 255, 0.1), transparent 32%),
     linear-gradient(180deg, rgba(245, 245, 247, 0.98), rgba(229, 231, 235, 0.98));
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.55),
@@ -7342,14 +7343,79 @@ button.load-forecast-day:hover {
   padding: 16px;
 }
 
-.pdf-render-status {
-  color: #64748b;
+.pdf-viewer-toolbar {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin: -4px -4px 16px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.94), rgba(14, 26, 43, 0.9)),
+    rgba(15, 23, 42, 0.92);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  padding: 10px 12px;
+}
+
+.pdf-viewer-toolbar > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pdf-viewer-toolbar span,
+.pdf-viewer-toolbar em,
+.pdf-viewer-controls strong {
+  color: rgba(203, 213, 225, 0.78);
   font-family: "Orbitron", sans-serif;
   font-size: 9px;
+  font-style: normal;
   letter-spacing: 0.14em;
-  margin-bottom: 12px;
-  text-align: center;
   text-transform: uppercase;
+}
+
+.pdf-viewer-toolbar strong {
+  overflow: hidden;
+  color: #e0f7ff;
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pdf-viewer-controls,
+.pdf-viewer-stats {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pdf-viewer-controls button {
+  min-width: 34px;
+  min-height: 30px;
+  border: 1px solid rgba(53, 215, 255, 0.42);
+  background: rgba(53, 215, 255, 0.08);
+  color: #67e8f9;
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 0 9px;
+  text-transform: uppercase;
+}
+
+.pdf-viewer-controls button:hover {
+  border-color: #67e8f9;
+  background: rgba(53, 215, 255, 0.16);
+}
+
+.pdf-viewer-stats {
+  border-left: 1px solid rgba(203, 213, 225, 0.16);
+  padding-left: 12px;
 }
 
 .pdf-pages {
@@ -7368,8 +7434,8 @@ button.load-forecast-day:hover {
 
 .pdf-page-shell canvas {
   display: block;
-  max-width: 100%;
   height: auto;
+  max-width: none;
 }
 
 .document-page {
@@ -8954,6 +9020,7 @@ button.load-forecast-day:hover {
   .notes-ribbon-metrics,
   .notes-nexus-body,
   .notes-nexus-tags,
+  .pdf-viewer-toolbar,
   .notes-home-hero,
   .notes-home-grid,
   .notes-health-grid,
