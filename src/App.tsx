@@ -1845,6 +1845,7 @@ type TodayQueueItem = {
   card?: KanbanCard;
   flashcard?: SavedFlashcardSignal;
   recommendation?: AgentRecommendation;
+  followUp?: AgentOutcomeImpact;
 };
 
 type ForecastBalanceSnapshot = {
@@ -1904,8 +1905,8 @@ function TodayView({
     day: "numeric",
   }).format(now);
   const context = useMemo(
-    () => buildAgentContext({ goals, habits, projects, dashboardTasks, calendarEvents, kanbanCards, now }),
-    [calendarEvents, dashboardTasks, goals, habits, kanbanCards, projects, todayKey],
+    () => buildAgentContext({ goals, habits, projects, dashboardTasks, calendarEvents, kanbanCards, activityEvents, now }),
+    [activityEvents, calendarEvents, dashboardTasks, goals, habits, kanbanCards, projects, todayKey],
   );
   const todayEvents = useMemo(
     () =>
@@ -1943,6 +1944,7 @@ function TodayView({
     () => getTrustedCoachReport(recommendations, agentLearningMemory),
     [agentLearningMemory, recommendations],
   );
+  const topFollowUpDebt = agentLearningMemory.followUpDebt[0];
   const queueItems = useMemo(
     () =>
       getTodayQueueItems({
@@ -1952,9 +1954,10 @@ function TodayView({
         todayEvents,
         notes,
         recommendations,
+        followUpDebt: agentLearningMemory.followUpDebt,
         now,
       }),
-    [context, goals, habits, notes, recommendations, todayEvents, todayKey],
+    [agentLearningMemory.followUpDebt, context, goals, habits, notes, recommendations, todayEvents, todayKey],
   );
   const laneMap = useMemo(() => groupTodayQueue(queueItems), [queueItems]);
   const readiness = getTodayReadiness(context);
@@ -2202,6 +2205,11 @@ function TodayView({
     setCoachStatus(`Generated ${generated.length} coach report${generated.length === 1 ? "" : "s"} with memory weighting.`);
   }
 
+  async function scheduleOutcomeRescue(item: AgentOutcomeImpact, source = "Today coach autopilot") {
+    const result = await scheduleAgentOutcomeRescue(item, calendarEvents, source);
+    setCoachStatus(result.message);
+  }
+
   async function stabilizeForecastLoad(forecast: ReturnType<typeof getLoadForecast>) {
     const { mitigation } = forecast;
     if (!mitigation.hasAction) {
@@ -2426,6 +2434,9 @@ function TodayView({
           </div>
           <div className="today-coach-actions">
             <button type="button" onClick={() => void refreshCoachBrief()}>Refresh Coach Brief</button>
+            {topFollowUpDebt && (
+              <button type="button" onClick={() => void scheduleOutcomeRescue(topFollowUpDebt)}>Schedule Rescue</button>
+            )}
             {trustedCoachReport?.action && (
               <button type="button" onClick={() => void acceptRecommendation(trustedCoachReport)}>Accept Trusted Report</button>
             )}
@@ -2512,6 +2523,7 @@ function TodayView({
                   }}
                   onDeferCard={deferCard}
                   onAcceptRecommendation={(recommendation) => void acceptRecommendation(recommendation)}
+                  onScheduleFollowUp={(item) => void scheduleOutcomeRescue(item, "Today queue")}
                 />
               ))
             )}
@@ -2633,6 +2645,7 @@ function TodayQueueRow({
   onToggleHabit,
   onDeferCard,
   onAcceptRecommendation,
+  onScheduleFollowUp,
 }: {
   item: TodayQueueItem;
   rank: number;
@@ -2642,11 +2655,16 @@ function TodayQueueRow({
   onToggleHabit: (habit: Habit) => void;
   onDeferCard: (card: KanbanCard) => void;
   onAcceptRecommendation: (recommendation: AgentRecommendation) => void;
+  onScheduleFollowUp: (item: AgentOutcomeImpact) => void;
 }) {
   const task = item.task;
   const card = item.card;
 
   function runPrimary() {
+    if (item.followUp) {
+      onScheduleFollowUp(item.followUp);
+      return;
+    }
     if (task) {
       onCompleteTask(task);
       return;
@@ -3004,6 +3022,7 @@ function getTodayQueueItems({
   todayEvents,
   notes,
   recommendations,
+  followUpDebt,
   now,
 }: {
   context: AgentContext;
@@ -3012,6 +3031,7 @@ function getTodayQueueItems({
   todayEvents: Array<{ event: CalendarEvent; date: Date }>;
   notes: StudyNote[];
   recommendations: AgentRecommendation[];
+  followUpDebt: AgentOutcomeImpact[];
   now: Date;
 }): TodayQueueItem[] {
   const taskItems: TodayQueueItem[] = context.incompleteTasks.map((task, index) => {
@@ -3131,6 +3151,22 @@ function getTodayQueueItems({
       };
     });
 
+  const followUpItems: TodayQueueItem[] = followUpDebt.slice(0, 4).map((item, index) => {
+    const priority: Priority = item.ageDays >= 14 ? "ziftinity" : "high";
+    return {
+      id: `queue-followup-${item.id}`,
+      kind: "agent",
+      title: `Rescue: ${item.title}`,
+      source: `${item.agentName} follow-up`,
+      meta: `${item.ageDays}d stale - ${item.meta}`,
+      score: clamp(94 + Math.min(item.ageDays, 10) - index * 3, 72, 99),
+      priority,
+      lane: "morning",
+      view: getAgentOutcomeView(item.domain),
+      followUp: item,
+    };
+  });
+
   const goalItems: TodayQueueItem[] = sortGoals(goals)
     .filter((goal) => goal.progress < 100)
     .slice(0, 3)
@@ -3147,7 +3183,7 @@ function getTodayQueueItems({
       progress: goal.progress,
     }));
 
-  return [...taskItems, ...habitItems, ...eventItems, ...cardItems, ...studyItems, ...agentItems, ...goalItems]
+  return [...followUpItems, ...taskItems, ...habitItems, ...eventItems, ...cardItems, ...studyItems, ...agentItems, ...goalItems]
     .sort((a, b) => b.score - a.score || priorityRank[a.priority] - priorityRank[b.priority] || a.title.localeCompare(b.title))
     .slice(0, 28);
 }
@@ -3219,6 +3255,7 @@ function getTodayKindLabel(kind: TodayQueueKind) {
 }
 
 function getTodayPrimaryActionLabel(item: TodayQueueItem) {
+  if (item.followUp) return "rescue";
   if (item.kind === "task") return "complete";
   if (item.kind === "habit") return "done";
   if (item.kind === "study") return "review";
@@ -9393,6 +9430,87 @@ function getAgentOutcomeView(domain: ActivityEventDomain): View {
   return "progress";
 }
 
+function getAgentOutcomeRescueSlot(now = new Date()) {
+  const sameDaySlot = new Date(now);
+  sameDaySlot.setHours(16, 30, 0, 0);
+  if (sameDaySlot.getTime() > now.getTime()) return sameDaySlot;
+  const nextDaySlot = addDays(startOfDay(now), 1);
+  nextDaySlot.setHours(9, 30, 0, 0);
+  return nextDaySlot;
+}
+
+function getAgentOutcomeRescueTitle(item: AgentOutcomeImpact) {
+  return `Outcome rescue: ${item.title}`;
+}
+
+async function scheduleAgentOutcomeRescue(
+  item: AgentOutcomeImpact,
+  calendarEvents: CalendarEvent[],
+  source: string,
+) {
+  const slot = getAgentOutcomeRescueSlot();
+  const date = toDateInputValue(slot);
+  const title = getAgentOutcomeRescueTitle(item);
+  const alreadyScheduled = calendarEvents.find((event) => event.date === date && event.title === title);
+  if (alreadyScheduled) {
+    return {
+      event: alreadyScheduled,
+      created: false,
+      message: `${item.title} already has a rescue checkpoint at ${alreadyScheduled.time}.`,
+    };
+  }
+
+  const event: CalendarEvent = {
+    id: `${Date.now()}-outcome-rescue-${slugify(item.title)}`,
+    date,
+    day: slot.getDate(),
+    title,
+    kind: "project",
+    time: toTimeInputValue(slot),
+  };
+  await calendarCrud.add(event);
+  logAgentOutcomeRescue(item, event, source);
+  return {
+    event,
+    created: true,
+    message: `Scheduled rescue checkpoint for ${item.title} on ${formatShortDate(event.date)} at ${event.time}.`,
+  };
+}
+
+function logAgentOutcomeRescue(item: AgentOutcomeImpact, event: CalendarEvent, source: string) {
+  logActivityEvent({
+    domain: "calendar",
+    action: "created",
+    entityId: event.id,
+    entityTitle: event.title,
+    source,
+    metadata: {
+      agentId: item.agentId,
+      agent: item.agentName,
+      sourceDomain: item.domain,
+      sourceEntityId: item.entityId,
+      sourceEntityTitle: item.title,
+      ageDays: item.ageDays,
+    },
+  });
+}
+
+function logAgentOutcomeReviewed(item: AgentOutcomeImpact, source: string) {
+  logActivityEvent({
+    domain: item.domain,
+    action: "reviewed",
+    entityId: item.entityId,
+    entityTitle: item.title,
+    source,
+    metadata: {
+      agentId: item.agentId,
+      agent: item.agentName,
+      ageDays: item.ageDays,
+      outcomeLabel: item.outcomeLabel,
+    },
+  });
+}
+
 function getTrustedCoachReport(recommendations: AgentRecommendation[], memory: ReturnType<typeof getAgentLearningMemory>) {
   const trustByAgent = new Map(memory.rows.map((row) => [row.id, row]));
   return recommendations
@@ -9423,7 +9541,7 @@ function getTodayCoachHeadline(memory: ReturnType<typeof getAgentLearningMemory>
 
 function getTodayCoachDirective(memory: ReturnType<typeof getAgentLearningMemory>, report?: AgentRecommendation) {
   if (memory.staleOutcomeCount > 0) {
-    return `${memory.staleOutcomeCount} accepted agent-created item${memory.staleOutcomeCount === 1 ? "" : "s"} have not produced visible follow-through yet. Refresh the coach brief to generate a rescue checkpoint.`;
+    return `${memory.staleOutcomeCount} accepted agent-created item${memory.staleOutcomeCount === 1 ? "" : "s"} have not produced visible follow-through yet. Schedule a rescue checkpoint or clear the matching queue item before generating more advice.`;
   }
   if (report) {
     return `${report.agentName} has a pending recommendation strong enough to surface inside Today. Accept it if the next step still fits the day, or open Agents for deeper review.`;
@@ -9496,56 +9614,12 @@ function AgentsView({
   }
 
   async function scheduleOutcomeRescue(item: AgentOutcomeImpact) {
-    const now = new Date();
-    const date = toDateInputValue(now);
-    const title = `Outcome rescue: ${item.title}`;
-    const alreadyScheduled = calendarEvents.some((event) => event.date === date && event.title === title);
-    if (alreadyScheduled) {
-      setFollowUpStatus(`${item.title} already has a rescue checkpoint today.`);
-      return;
-    }
-
-    const event: CalendarEvent = {
-      id: `${Date.now()}-outcome-rescue-${slugify(item.title)}`,
-      date,
-      day: now.getDate(),
-      title,
-      kind: "project",
-      time: "16:30",
-    };
-    await calendarCrud.add(event);
-    logActivityEvent({
-      domain: "calendar",
-      action: "created",
-      entityId: event.id,
-      entityTitle: event.title,
-      source: "Agent follow-up debt",
-      metadata: {
-        agentId: item.agentId,
-        agent: item.agentName,
-        sourceDomain: item.domain,
-        sourceEntityId: item.entityId,
-        sourceEntityTitle: item.title,
-        ageDays: item.ageDays,
-      },
-    });
-    setFollowUpStatus(`Scheduled rescue checkpoint for ${item.title}.`);
+    const result = await scheduleAgentOutcomeRescue(item, calendarEvents, "Agent follow-up debt");
+    setFollowUpStatus(result.message);
   }
 
   function markOutcomeReviewed(item: AgentOutcomeImpact) {
-    logActivityEvent({
-      domain: item.domain,
-      action: "reviewed",
-      entityId: item.entityId,
-      entityTitle: item.title,
-      source: "Agent follow-up debt",
-      metadata: {
-        agentId: item.agentId,
-        agent: item.agentName,
-        ageDays: item.ageDays,
-        outcomeLabel: item.outcomeLabel,
-      },
-    });
+    logAgentOutcomeReviewed(item, "Agent follow-up debt");
     setFollowUpStatus(`${item.title} marked reviewed in the activity ledger.`);
   }
 
@@ -11805,6 +11879,10 @@ function toDateInputValue(date: Date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+function toTimeInputValue(date: Date) {
+  return [String(date.getHours()).padStart(2, "0"), String(date.getMinutes()).padStart(2, "0")].join(":");
 }
 
 function parseDateInput(value?: string) {
