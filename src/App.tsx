@@ -9319,6 +9319,7 @@ function getAgentLearningMemory(recommendations: AgentRecommendation[], activity
 
 type AgentOutcomeImpact = {
   id: string;
+  entityId: string;
   agentId: AgentId;
   agentName: string;
   title: string;
@@ -9358,6 +9359,7 @@ function getAgentOutcomeImpacts(events: ActivityEvent[], now: Date): AgentOutcom
 
       return {
         id: event.id,
+        entityId: event.entityId,
         agentId: profile.id,
         agentName: profile.name,
         title: event.entityTitle,
@@ -9463,6 +9465,7 @@ function AgentsView({
   const pendingRecommendations = sortedRecommendations.filter((recommendation) => recommendation.status === "pending");
   const acceptedCount = recommendations.filter((recommendation) => recommendation.status === "accepted").length;
   const dismissedCount = recommendations.filter((recommendation) => recommendation.status === "dismissed").length;
+  const [followUpStatus, setFollowUpStatus] = useState("");
   const learningMemory = useMemo(
     () => getAgentLearningMemory(recommendations, activityEvents),
     [activityEvents, recommendations],
@@ -9490,6 +9493,60 @@ function AgentsView({
         metadata: { count: generated.length },
       });
     }
+  }
+
+  async function scheduleOutcomeRescue(item: AgentOutcomeImpact) {
+    const now = new Date();
+    const date = toDateInputValue(now);
+    const title = `Outcome rescue: ${item.title}`;
+    const alreadyScheduled = calendarEvents.some((event) => event.date === date && event.title === title);
+    if (alreadyScheduled) {
+      setFollowUpStatus(`${item.title} already has a rescue checkpoint today.`);
+      return;
+    }
+
+    const event: CalendarEvent = {
+      id: `${Date.now()}-outcome-rescue-${slugify(item.title)}`,
+      date,
+      day: now.getDate(),
+      title,
+      kind: "project",
+      time: "16:30",
+    };
+    await calendarCrud.add(event);
+    logActivityEvent({
+      domain: "calendar",
+      action: "created",
+      entityId: event.id,
+      entityTitle: event.title,
+      source: "Agent follow-up debt",
+      metadata: {
+        agentId: item.agentId,
+        agent: item.agentName,
+        sourceDomain: item.domain,
+        sourceEntityId: item.entityId,
+        sourceEntityTitle: item.title,
+        ageDays: item.ageDays,
+      },
+    });
+    setFollowUpStatus(`Scheduled rescue checkpoint for ${item.title}.`);
+  }
+
+  function markOutcomeReviewed(item: AgentOutcomeImpact) {
+    logActivityEvent({
+      domain: item.domain,
+      action: "reviewed",
+      entityId: item.entityId,
+      entityTitle: item.title,
+      source: "Agent follow-up debt",
+      metadata: {
+        agentId: item.agentId,
+        agent: item.agentName,
+        ageDays: item.ageDays,
+        outcomeLabel: item.outcomeLabel,
+      },
+    });
+    setFollowUpStatus(`${item.title} marked reviewed in the activity ledger.`);
   }
 
   async function acceptRecommendation(recommendation: AgentRecommendation) {
@@ -9632,20 +9689,26 @@ function AgentsView({
             <div className="kanban-empty">// no stale accepted agent-created work</div>
           ) : (
             learningMemory.followUpDebt.map((item) => (
-              <button type="button" onClick={() => onNavigate(getAgentOutcomeView(item.domain))} key={item.id}>
+              <article className="agent-followup-item" key={item.id}>
                 <div>
                   <span>{item.agentName}</span>
                   <strong>{item.title}</strong>
                   <em>{item.meta}</em>
                 </div>
-                <div>
+                <div className="agent-followup-age">
                   <strong>{item.ageDays}d</strong>
                   <span>{item.outcomeLabel}</span>
                 </div>
-              </button>
+                <div className="agent-followup-actions">
+                  <button type="button" onClick={() => onNavigate(getAgentOutcomeView(item.domain))}>Open</button>
+                  <button type="button" onClick={() => void scheduleOutcomeRescue(item)}>Schedule Rescue</button>
+                  <button type="button" onClick={() => markOutcomeReviewed(item)}>Mark Reviewed</button>
+                </div>
+              </article>
             ))
           )}
         </div>
+        {followUpStatus && <div className="agent-followup-status">{followUpStatus}</div>}
       </HudCard>
 
       <HudCard className="agent-recommendations-card">

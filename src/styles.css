@@ -8221,9 +8221,9 @@ button.load-forecast-day:hover {
   margin-top: 14px;
 }
 
-.agent-followup-list button {
+.agent-followup-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 80px;
+  grid-template-columns: minmax(0, 1fr) 80px minmax(230px, 0.46fr);
   gap: 14px;
   align-items: center;
   border: 1px solid var(--hair-soft);
@@ -8234,12 +8234,12 @@ button.load-forecast-day:hover {
   text-align: left;
 }
 
-.agent-followup-list button:hover {
+.agent-followup-item:hover {
   border-color: rgba(255, 184, 76, 0.62);
   background: rgba(255, 184, 76, 0.08);
 }
 
-.agent-followup-list button > div {
+.agent-followup-item > div {
   display: grid;
   gap: 5px;
   min-width: 0;
@@ -8263,14 +8263,49 @@ button.load-forecast-day:hover {
   white-space: nowrap;
 }
 
-.agent-followup-list button > div:last-child {
+.agent-followup-age {
   justify-items: end;
 }
 
-.agent-followup-list button > div:last-child strong {
+.agent-followup-age strong {
   color: var(--amber);
   font-family: "Orbitron", sans-serif;
   font-size: 18px;
+}
+
+.agent-followup-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.agent-followup-actions button {
+  min-height: 30px;
+  border: 1px solid var(--hair);
+  background: rgba(23, 183, 255, 0.05);
+  color: var(--cyan);
+  cursor: pointer;
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 6px 7px;
+  text-transform: uppercase;
+}
+
+.agent-followup-actions button:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 16px rgba(46, 213, 255, 0.16);
+}
+
+.agent-followup-status {
+  margin-top: 12px;
+  border-left: 2px solid var(--lime);
+  background: rgba(145, 255, 92, 0.06);
+  color: var(--lime);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 9px 11px;
+  text-transform: uppercase;
 }
 
 .agent-roster {
@@ -8586,7 +8621,7 @@ button.load-forecast-day:hover {
   .agent-learning-hero,
   .agent-learning-metrics,
   .agent-learning-list,
-  .agent-followup-list button,
+  .agent-followup-item,
   .metric-grid,
   .today-command-grid,
   .today-command-center-grid,
