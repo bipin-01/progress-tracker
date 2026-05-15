@@ -5302,18 +5302,6 @@ function NotesView({
   const primaryReaderNode = readerImmersionNodes.find((node) => node.progress < 80) ?? readerImmersionNodes[0];
   const reviewForge = activeDraftSignal ? getReviewForgeStats(reviewCards, savedFlashcards, activeDraftSignal) : null;
   const aiTutorMatrix = activeNote && activeDraftSignal ? getAiTutorMatrix(activeNote, activeDraftSignal, aiResult, askHistory, savedFlashcards) : null;
-  const activeNoteBreadcrumbs = useMemo(
-    () =>
-      activeNoteFolder
-        ? [
-            ...activeNoteFolder.ancestorIds
-              .map((folderId) => folderIndex.itemById.get(folderId))
-              .filter((folder): folder is StudyFolderTreeItem => Boolean(folder)),
-            activeNoteFolder,
-          ]
-        : [],
-    [activeNoteFolder, folderIndex],
-  );
   const filteredNotes = sortedNotes.filter((note) => {
     const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
     const matchesFolder =
@@ -6354,20 +6342,6 @@ function NotesView({
                       editorRef.current?.focus();
                     }
                   }} />
-
-                  <div className="note-breadcrumbs" aria-label="Note directory path">
-                    <button type="button" onClick={() => setActiveFolderId("all")}>Library</button>
-                    {activeNoteBreadcrumbs.length === 0 ? (
-                      <button type="button" onClick={() => setActiveFolderId(STUDY_FOLDER_UNCATEGORIZED_ID)}>Uncategorized</button>
-                    ) : (
-                      activeNoteBreadcrumbs.map((folder) => (
-                        <button type="button" onClick={() => {
-                          setActiveFolderId(folder.id);
-                          expandFolderPath(folder.id);
-                        }} key={folder.id}>{folder.name}</button>
-                      ))
-                    )}
-                  </div>
 
                   <div className="note-directory-row">
                     <span>Directory</span>

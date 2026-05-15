@@ -5685,35 +5685,6 @@ button.load-forecast-day:hover {
   padding: 8px 10px;
 }
 
-.note-breadcrumbs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  margin: -2px 0 12px;
-}
-
-.note-breadcrumbs button {
-  border: 1px solid var(--hair-soft);
-  color: var(--muted);
-  font-family: "Orbitron", sans-serif;
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  padding: 5px 7px;
-  text-transform: uppercase;
-}
-
-.note-breadcrumbs button:not(:last-child)::after {
-  content: "/";
-  color: var(--cyan);
-  padding-left: 8px;
-}
-
-.note-breadcrumbs button:hover {
-  border-color: var(--cyan-dim);
-  color: var(--cyan);
-}
-
 .note-directory-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
