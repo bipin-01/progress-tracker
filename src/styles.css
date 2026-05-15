@@ -5825,129 +5825,6 @@ button.load-forecast-day:hover {
   padding: 0;
 }
 
-.notes-session-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1fr) minmax(220px, 0.38fr);
-  gap: 12px;
-  align-items: center;
-  margin: 0 0 14px;
-  border: 1px solid rgba(53, 215, 255, 0.2);
-  background:
-    radial-gradient(circle at 8% 12%, rgba(53, 215, 255, 0.12), transparent 34%),
-    linear-gradient(90deg, rgba(53, 215, 255, 0.055), rgba(159, 107, 255, 0.04) 52%, transparent),
-    rgba(5, 9, 18, 0.42);
-  padding: 12px;
-}
-
-.notes-session-strip.active {
-  border-color: rgba(159, 107, 255, 0.34);
-}
-
-.notes-session-strip.complete {
-  border-color: rgba(146, 255, 87, 0.38);
-  background:
-    radial-gradient(circle at 8% 12%, rgba(146, 255, 87, 0.13), transparent 34%),
-    linear-gradient(90deg, rgba(53, 215, 255, 0.055), rgba(146, 255, 87, 0.055) 58%, transparent),
-    rgba(5, 9, 18, 0.42);
-}
-
-.notes-session-copy {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.notes-session-copy span,
-.notes-session-pulse span,
-.notes-session-rail button {
-  color: var(--muted);
-  font-family: "Orbitron", sans-serif;
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.notes-session-copy strong {
-  color: var(--cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(15px, 1.6vw, 22px);
-  letter-spacing: 0.1em;
-  text-shadow: 0 0 14px rgba(53, 215, 255, 0.3);
-  text-transform: uppercase;
-}
-
-.notes-session-strip.complete .notes-session-copy strong {
-  color: var(--lime);
-}
-
-.notes-session-copy p {
-  margin: 0;
-  color: var(--ink-2);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.notes-session-rail {
-  display: grid;
-  gap: 9px;
-}
-
-.notes-session-rail i {
-  display: block;
-  overflow: hidden;
-  height: 8px;
-  border: 1px solid var(--hair-soft);
-  background: rgba(53, 215, 255, 0.08);
-}
-
-.notes-session-rail b {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--violet), var(--lime));
-  box-shadow: 0 0 18px rgba(53, 215, 255, 0.38);
-}
-
-.notes-session-rail div {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.notes-session-rail button {
-  border: 1px solid var(--hair-soft);
-  background: rgba(2, 7, 15, 0.35);
-  color: var(--muted);
-  min-height: 28px;
-}
-
-.notes-session-rail button:hover,
-.notes-session-rail button.active {
-  border-color: var(--cyan-dim);
-  background: rgba(53, 215, 255, 0.09);
-  color: var(--cyan);
-}
-
-.notes-session-pulse {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.notes-session-pulse span {
-  display: grid;
-  gap: 5px;
-  border: 1px solid var(--hair-soft);
-  background: rgba(2, 7, 15, 0.32);
-  padding: 9px;
-}
-
-.notes-session-pulse strong {
-  color: var(--ink);
-  font-family: "Orbitron", sans-serif;
-  font-size: 17px;
-  line-height: 1;
-}
-
 .markdown-toolbar {
   border-top: 1px dashed var(--hair-soft);
   border-bottom: 1px dashed var(--hair-soft);
@@ -10118,8 +9995,6 @@ button.load-forecast-day:hover {
   .notes-workspace,
   .notes-library-telemetry,
   .notes-command-ribbon,
-  .notes-session-strip,
-  .notes-session-pulse,
   .pdf-viewer-toolbar,
   .notes-home-grid,
   .notes-health-grid,
