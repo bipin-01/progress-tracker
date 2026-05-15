@@ -5291,12 +5291,15 @@ function NotesView({
   );
   const activeNoteFolder = activeNote?.folderId ? folderIndex.itemById.get(activeNote.folderId) ?? null : null;
   const activeNoteSignal = activeNote ? getNoteStudySignal(activeNote, activeNoteFolder) : null;
+  const activeDraftSignal = activeNote ? getNoteStudySignal({ ...activeNote, title: draftTitle, body: draftBody }, activeNoteFolder) : null;
   const activeReadingProgress = Math.round(clamp(activeNote?.readingProgress ?? 0, 0, 100));
   const activeNoteOutline = useMemo(() => getStudyOutline(draftBody), [draftBody]);
   const activeNoteCockpit = activeNote && activeNoteSignal ? getNoteCockpitMetrics(activeNote, activeNoteSignal) : [];
   const activeNoteRadar = activeNoteCockpit.length ? getNoteCockpitRadar(activeNoteCockpit) : null;
   const activeNoteProtocols = activeNoteSignal ? getNoteProtocolStack(activeNoteSignal) : [];
   const activeNotePhases = activeNoteSignal ? getNotePhaseRail(activeNoteSignal) : [];
+  const writingCommandDeck = activeDraftSignal ? getWritingCommandDeck(draftBody, activeDraftSignal) : [];
+  const primaryWritingCommand = writingCommandDeck.find((command) => command.progress < 82) ?? writingCommandDeck[0];
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -5769,6 +5772,13 @@ function NotesView({
     const heading = title.trim() || "New Study Section";
     const prefix = draftBody.trim() ? "\n\n" : "";
     updateDraftBody(`${draftBody}${prefix}## ${heading}\n\n- `);
+    setMode("writing");
+    requestAnimationFrame(() => editorRef.current?.focus());
+  }
+
+  function appendWritingCommand(command: WritingCommandCard) {
+    const spacer = draftBody.trim() ? (draftBody.endsWith("\n") ? "\n" : "\n\n") : "";
+    updateDraftBody(`${draftBody}${spacer}${command.insert}`);
     setMode("writing");
     requestAnimationFrame(() => editorRef.current?.focus());
   }
@@ -6789,6 +6799,25 @@ function NotesView({
                 </div>
               ) : mode === "writing" ? (
                 <div className="writing-studio">
+                  {activeDraftSignal && primaryWritingCommand && (
+                    <section className={`writing-command-deck ${activeDraftSignal.tier}`}>
+                      <div className="writing-command-core">
+                        <span>Draft Command Deck</span>
+                        <strong>{primaryWritingCommand.command}</strong>
+                        <p>{getWritingCommandDirective(activeDraftSignal, primaryWritingCommand)}</p>
+                      </div>
+                      <div className="writing-command-grid">
+                        {writingCommandDeck.map((command) => (
+                          <button className={command.tone} type="button" onClick={() => appendWritingCommand(command)} key={command.id}>
+                            <span>{command.title}</span>
+                            <strong>{command.command}</strong>
+                            <em>{command.detail}</em>
+                            <i aria-label={`${command.title} readiness ${command.progress}%`}><b style={{ width: `${command.progress}%` }} /></i>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <div className="markdown-toolbar">
                     <button type="button" onClick={() => applyMarkdown("**", "**")}>B</button>
                     <button type="button" onClick={() => applyMarkdown("*", "*")}>I</button>
@@ -7313,6 +7342,16 @@ type NotePhaseStep = {
   status: "complete" | "active" | "locked";
   tone: "cyan" | "violet" | "lime" | "amber";
   mode: NotesMode;
+};
+
+type WritingCommandCard = {
+  id: "summary" | "concept-map" | "question-bank" | "recall-seed";
+  title: string;
+  command: string;
+  detail: string;
+  progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  insert: string;
 };
 
 function StudyOutlinePanel({
@@ -8247,6 +8286,65 @@ function getNotePhaseRail(signal: ReturnType<typeof getNoteStudySignal>): NotePh
   const firstActive = stages.findIndex((stage) => stage.status === "active");
   if (firstActive === -1) return stages;
   return stages.map((stage, index) => (index > firstActive && stage.status !== "complete" ? { ...stage, status: "locked" } : stage));
+}
+
+function getWritingCommandDeck(body: string, signal: ReturnType<typeof getNoteStudySignal>): WritingCommandCard[] {
+  const hasSummary = /^#{1,3}\s+summary\b/im.test(body);
+  const hasQuestionSection = /^#{1,3}\s+(questions|practice questions|question bank)\b/im.test(body);
+  const hasRecallSection = /^#{1,3}\s+(recall|active recall|recall cards|flashcards)\b/im.test(body);
+  const questionCount = (body.match(/\?/g) ?? []).length + signal.askCount;
+  const definitionSignals = (body.match(/\b(definition|means|refers to|example|because|therefore)\b/gi) ?? []).length;
+  const summaryProgress = Math.round(hasSummary ? 100 : clamp(signal.wordCount / 2.2 + signal.progress * 0.18, 8, 86));
+  const conceptProgress = Math.round(clamp(signal.headings * 22 + signal.bullets * 5 + definitionSignals * 7, 0, 100));
+  const questionProgress = Math.round(clamp(questionCount * 18 + (hasQuestionSection ? 28 : 0), 0, 100));
+  const recallProgress = Math.round(clamp(signal.cards * 20 + questionCount * 5 + (hasRecallSection ? 34 : 0), 0, 100));
+
+  return [
+    {
+      id: "summary",
+      title: "Summary Core",
+      command: hasSummary ? "summary online" : "write signal core",
+      detail: hasSummary ? "opening synthesis is mapped" : "pin the note into a compact memory hook",
+      progress: summaryProgress,
+      tone: summaryProgress >= 82 ? "lime" : "cyan",
+      insert: "## Summary\n\n- Main signal:\n- Why it matters:\n- Memory hook:",
+    },
+    {
+      id: "concept-map",
+      title: "Concept Map",
+      command: conceptProgress >= 72 ? "map reinforced" : "build concept grid",
+      detail: conceptProgress >= 72 ? "structure is ready for review" : "add terms, examples, and relations",
+      progress: conceptProgress,
+      tone: conceptProgress >= 72 ? "lime" : "amber",
+      insert: "## Concept Map\n\n- Term:\n  - Meaning:\n  - Example:\n  - Connected idea:",
+    },
+    {
+      id: "question-bank",
+      title: "Question Bank",
+      command: questionProgress >= 70 ? "questions armed" : "generate prompts",
+      detail: questionProgress >= 70 ? "self-test surface is active" : "turn weak concepts into testable questions",
+      progress: questionProgress,
+      tone: questionProgress >= 70 ? "lime" : "violet",
+      insert: "## Questions\n\n- What is the core idea?\n- Why does it matter?\n- How would I recognize it in a real scenario?\n- What could confuse me later?",
+    },
+    {
+      id: "recall-seed",
+      title: "Recall Seed",
+      command: recallProgress >= 68 ? "recall loop ready" : "seed active recall",
+      detail: recallProgress >= 68 ? "material can enter review mode" : "shape Q/A atoms before saving cards",
+      progress: recallProgress,
+      tone: recallProgress >= 68 ? "lime" : "cyan",
+      insert: "## Recall Seeds\n\nQ: \nA: \nSource: \n\nQ: \nA: \nSource:",
+    },
+  ];
+}
+
+function getWritingCommandDirective(signal: ReturnType<typeof getNoteStudySignal>, command: WritingCommandCard) {
+  if (signal.wordCount < 70) return "Capture enough raw material first, then use the command deck to turn it into review-ready structure.";
+  if (command.id === "summary") return "Compress this note into a high-signal opening block before expanding deeper sections.";
+  if (command.id === "concept-map") return "The next upgrade is structure: make each idea scannable, connected, and easy to revisit.";
+  if (command.id === "question-bank") return "Convert uncertainty into questions so the note starts training recall instead of only storing text.";
+  return "Recall seeds are the bridge into review mode. Add Q/A atoms here, then generate or save cards.";
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {

@@ -6447,6 +6447,158 @@ button.load-forecast-day:hover {
   gap: 12px;
 }
 
+.writing-command-deck {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.22);
+  background:
+    radial-gradient(circle at 8% 18%, rgba(53, 215, 255, 0.14), transparent 36%),
+    linear-gradient(115deg, rgba(53, 215, 255, 0.075), rgba(159, 107, 255, 0.05) 48%, transparent),
+    rgba(4, 9, 19, 0.48);
+  box-shadow:
+    inset 0 0 30px rgba(53, 215, 255, 0.05),
+    0 18px 34px rgba(0, 0, 0, 0.16);
+  padding: 12px;
+}
+
+.writing-command-deck.prime {
+  border-color: rgba(146, 255, 87, 0.34);
+}
+
+.writing-command-deck.thin {
+  border-color: rgba(255, 184, 76, 0.34);
+}
+
+.writing-command-core {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.08), transparent 58%),
+    rgba(2, 7, 15, 0.42);
+  padding: 14px 14px 14px 18px;
+}
+
+.writing-command-core::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cyan), var(--violet), var(--lime));
+  box-shadow: 0 0 18px rgba(53, 215, 255, 0.45);
+}
+
+.writing-command-core span,
+.writing-command-grid button span,
+.writing-command-grid button em {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.writing-command-core strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(15px, 1.45vw, 22px);
+  letter-spacing: 0.1em;
+  line-height: 1.16;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.32);
+  text-transform: uppercase;
+}
+
+.writing-command-core p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.writing-command-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(145px, 1fr));
+  gap: 8px;
+}
+
+.writing-command-grid button {
+  --write-command-color: var(--cyan);
+  display: grid;
+  align-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  min-height: 128px;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  border-bottom: 2px solid var(--write-command-color);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--write-command-color) 9%, transparent), transparent 64%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent),
+    rgba(2, 7, 15, 0.44);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  padding: 11px;
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.writing-command-grid button.violet {
+  --write-command-color: var(--violet);
+}
+
+.writing-command-grid button.lime {
+  --write-command-color: var(--lime);
+}
+
+.writing-command-grid button.amber {
+  --write-command-color: var(--amber);
+}
+
+.writing-command-grid button:hover {
+  border-color: color-mix(in srgb, var(--write-command-color) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--write-command-color) 14%, transparent), transparent 64%),
+    rgba(53, 215, 255, 0.055);
+  transform: translateY(-2px);
+}
+
+.writing-command-grid button strong {
+  overflow: hidden;
+  color: var(--write-command-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.11em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--write-command-color) 34%, transparent);
+  text-transform: uppercase;
+}
+
+.writing-command-grid button em {
+  line-height: 1.4;
+  text-transform: none;
+}
+
+.writing-command-grid button i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.writing-command-grid button i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--write-command-color), var(--cyan));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--write-command-color) 38%, transparent);
+}
+
 .writing-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.52fr);
@@ -10228,6 +10380,8 @@ button.load-forecast-day:hover {
   .certification-detail-grid,
   .cert-score-grid,
   .cert-note-list button,
+  .writing-command-deck,
+  .writing-command-grid,
   .writing-layout,
   .reading-layout,
   .review-card-grid,
