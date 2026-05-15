@@ -5388,6 +5388,55 @@ button.load-forecast-day:hover {
   padding: 4px 0 4px 8px;
 }
 
+.notes-library-telemetry {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0 0 12px;
+}
+
+.notes-library-telemetry div {
+  overflow: hidden;
+  border: 1px solid var(--hair-soft);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(53, 215, 255, 0.13), transparent 58%),
+    rgba(2, 7, 15, 0.38);
+  padding: 9px 7px;
+}
+
+.notes-library-telemetry div.urgent {
+  border-color: rgba(255, 184, 76, 0.55);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 184, 76, 0.16), transparent 58%),
+    rgba(2, 7, 15, 0.4);
+}
+
+.notes-library-telemetry strong {
+  display: block;
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 12px rgba(53, 215, 255, 0.32);
+  white-space: nowrap;
+}
+
+.notes-library-telemetry .urgent strong {
+  color: var(--amber);
+}
+
+.notes-library-telemetry span {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .folder-manager-panel,
 .trash-panel {
   display: grid;
@@ -5539,14 +5588,22 @@ button.load-forecast-day:hover {
   display: grid;
   gap: 6px;
   border: 1px solid var(--hair-soft);
-  background: rgba(5, 9, 18, 0.34);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.035), transparent 62%),
+    rgba(5, 9, 18, 0.34);
   padding: 10px;
   text-align: left;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .note-list-item.active {
   border-color: var(--cyan);
-  box-shadow: inset 0 0 18px rgba(53, 215, 255, 0.1);
+  box-shadow: inset 0 0 18px rgba(53, 215, 255, 0.1), 0 0 22px rgba(53, 215, 255, 0.08);
+}
+
+.note-list-item:hover {
+  border-color: var(--cyan-dim);
+  transform: translateX(2px);
 }
 
 .note-list-item.dragging {
@@ -5572,6 +5629,27 @@ button.load-forecast-day:hover {
   line-height: 1.35;
 }
 
+.note-signal-bar {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.note-signal-bar b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--violet), var(--lime));
+  box-shadow: 0 0 12px rgba(53, 215, 255, 0.45);
+}
+
+.note-list-tags {
+  overflow: hidden;
+  color: var(--cyan) !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .notes-editor-head {
   justify-content: space-between;
   gap: 14px;
@@ -5582,6 +5660,120 @@ button.load-forecast-day:hover {
 .reading-meta svg {
   width: 13px;
   height: 13px;
+}
+
+.notes-command-ribbon {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.18fr) minmax(360px, 0.5fr);
+  gap: 12px;
+  align-items: stretch;
+  margin: 0 0 14px;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(53, 215, 255, 0.16), transparent 34%),
+    linear-gradient(100deg, rgba(53, 215, 255, 0.07), rgba(159, 107, 255, 0.06) 52%, transparent),
+    rgba(2, 7, 15, 0.42);
+  box-shadow: inset 0 0 26px rgba(53, 215, 255, 0.045);
+  padding: 13px;
+}
+
+.notes-command-ribbon.prime {
+  border-color: rgba(146, 255, 87, 0.34);
+}
+
+.notes-command-ribbon.thin {
+  border-color: rgba(255, 184, 76, 0.34);
+}
+
+.notes-ribbon-main {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.notes-ribbon-main span,
+.notes-ribbon-metrics span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.notes-ribbon-main strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(16px, 1.7vw, 24px);
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 16px rgba(53, 215, 255, 0.32);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.notes-command-ribbon.prime .notes-ribbon-main strong {
+  color: var(--lime);
+  text-shadow: 0 0 14px rgba(146, 255, 87, 0.28);
+}
+
+.notes-command-ribbon.thin .notes-ribbon-main strong {
+  color: var(--amber);
+  text-shadow: 0 0 14px rgba(255, 184, 76, 0.25);
+}
+
+.notes-ribbon-main p {
+  max-width: 860px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.notes-ribbon-meter {
+  display: grid;
+  overflow: hidden;
+  min-height: 100%;
+  align-items: end;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.06), transparent),
+    rgba(5, 9, 18, 0.44);
+}
+
+.notes-ribbon-meter span {
+  display: block;
+  height: 100%;
+  min-height: 8px;
+  align-self: end;
+  background: linear-gradient(180deg, var(--lime), var(--cyan), var(--violet));
+  box-shadow: 0 0 20px rgba(53, 215, 255, 0.35);
+}
+
+.notes-ribbon-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notes-ribbon-metrics div {
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(5, 9, 18, 0.44);
+  padding: 10px;
+}
+
+.notes-ribbon-metrics strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 17px;
+  line-height: 1.1;
+  margin-bottom: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-title-input {
@@ -8584,6 +8776,9 @@ button.load-forecast-day:hover {
   .habit-form,
   .habit-layout,
   .notes-workspace,
+  .notes-library-telemetry,
+  .notes-command-ribbon,
+  .notes-ribbon-metrics,
   .notes-home-hero,
   .notes-home-grid,
   .notes-health-grid,

@@ -5287,6 +5287,7 @@ function NotesView({
     [activeFolderId, folderIndex],
   );
   const activeNoteFolder = activeNote?.folderId ? folderIndex.itemById.get(activeNote.folderId) ?? null : null;
+  const activeNoteSignal = activeNote ? getNoteStudySignal(activeNote, activeNoteFolder) : null;
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -5299,6 +5300,24 @@ function NotesView({
         : [],
     [activeNoteFolder, folderIndex],
   );
+  const libraryTelemetry = useMemo(() => {
+    const documentCount = liveNotes.filter((note) => note.kind === "document").length;
+    const averageSignal = liveNotes.length
+      ? Math.round(
+          liveNotes.reduce((total, note) => {
+            const folder = note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null;
+            return total + getNoteStudySignal(note, folder).score;
+          }, 0) / liveNotes.length,
+        )
+      : 0;
+    return {
+      documentCount,
+      cardCount: allSavedFlashcards.length,
+      dueCount: dueFlashcards.length,
+      weakCount: weakNotes.length,
+      averageSignal,
+    };
+  }, [allSavedFlashcards.length, dueFlashcards.length, folderIndex, liveNotes, weakNotes.length]);
   const filteredNotes = sortedNotes.filter((note) => {
     const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
     const matchesFolder =
@@ -6177,6 +6196,24 @@ function NotesView({
                 </div>
                 {folderCreateStatus && <div className="folder-create-status">{folderCreateStatus}</div>}
               </div>
+              <div className="notes-library-telemetry" aria-label="Study library telemetry">
+                <div>
+                  <strong>{libraryTelemetry.averageSignal}%</strong>
+                  <span>signal</span>
+                </div>
+                <div>
+                  <strong>{libraryTelemetry.documentCount}</strong>
+                  <span>docs</span>
+                </div>
+                <div>
+                  <strong>{libraryTelemetry.cardCount}</strong>
+                  <span>cards</span>
+                </div>
+                <div className={libraryTelemetry.dueCount > 0 ? "urgent" : ""}>
+                  <strong>{libraryTelemetry.dueCount}</strong>
+                  <span>due</span>
+                </div>
+              </div>
               <div className="notes-search">
                 <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
               </div>
@@ -6195,31 +6232,36 @@ function NotesView({
                 {filteredNotes.length === 0 ? (
                   <div className="kanban-empty">// no notes match current filter</div>
                 ) : (
-                  filteredNotes.map((note) => (
-                    <button
-                      className={`note-list-item ${activeNote?.id === note.id ? "active" : ""} ${draggingNoteId === note.id ? "dragging" : ""}`}
-                      type="button"
-                      draggable
-                      onDragStart={(event) => startNoteDrag(event, note.id)}
-                      onDragEnd={() => setDraggingNoteId("")}
-                      onClick={() => {
-                        setActiveNoteId(note.id);
-                        logActivityEvent({
-                          domain: "notes",
-                          action: "opened",
-                          entityId: note.id,
-                          entityTitle: note.title || "Untitled note",
-                          source: "Study library",
-                          metadata: { kind: note.kind, folderId: note.folderId },
-                        });
-                      }}
-                      key={note.id}
-                    >
-                      <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
-                      <strong>{note.title || "Untitled"}</strong>
-                      <em>{getWordCount(note.body)} words · {formatActivityTime(note.updatedAt)}</em>
-                    </button>
-                  ))
+                  filteredNotes.map((note) => {
+                    const noteSignal = getNoteStudySignal(note, note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null);
+                    return (
+                      <button
+                        className={`note-list-item ${activeNote?.id === note.id ? "active" : ""} ${draggingNoteId === note.id ? "dragging" : ""}`}
+                        type="button"
+                        draggable
+                        onDragStart={(event) => startNoteDrag(event, note.id)}
+                        onDragEnd={() => setDraggingNoteId("")}
+                        onClick={() => {
+                          setActiveNoteId(note.id);
+                          logActivityEvent({
+                            domain: "notes",
+                            action: "opened",
+                            entityId: note.id,
+                            entityTitle: note.title || "Untitled note",
+                            source: "Study library",
+                            metadata: { kind: note.kind, folderId: note.folderId },
+                          });
+                        }}
+                        key={note.id}
+                      >
+                        <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
+                        <strong>{note.title || "Untitled"}</strong>
+                        <em>{noteSignal.wordCount} words · {formatActivityTime(note.updatedAt)}</em>
+                        <i className="note-signal-bar" aria-hidden="true"><b style={{ width: `${noteSignal.score}%` }} /></i>
+                        <span className="note-list-tags">{note.tags.slice(0, 3).join(" / ") || noteSignal.folderPath}</span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
               <div className="notes-create-row">
@@ -6267,6 +6309,25 @@ function NotesView({
                   <button type="button" onClick={() => void deleteActive()}>trash</button>
                 </div>
               </div>
+
+              {mode !== "certifications" && activeNoteSignal && (
+                <section className={`notes-command-ribbon ${activeNoteSignal.tier}`}>
+                  <div className="notes-ribbon-main">
+                    <span>Active Study Signal</span>
+                    <strong>{activeNoteSignal.headline}</strong>
+                    <p>{activeNoteSignal.directive}</p>
+                  </div>
+                  <div className="notes-ribbon-meter" aria-label={`Study signal ${activeNoteSignal.score}%`}>
+                    <span style={{ width: `${activeNoteSignal.score}%` }} />
+                  </div>
+                  <div className="notes-ribbon-metrics">
+                    <div><strong>{activeNoteSignal.score}%</strong><span>signal</span></div>
+                    <div><strong>{activeNoteSignal.readingMins}</strong><span>min read</span></div>
+                    <div><strong>{activeNoteSignal.cards}</strong><span>cards</span></div>
+                    <div><strong>{activeNoteSignal.folderPath}</strong><span>directory</span></div>
+                  </div>
+                </section>
+              )}
 
               {mode !== "certifications" && (
                 <>
@@ -7491,6 +7552,53 @@ function PdfDocumentViewer({ title, dataUrl }: { title: string; dataUrl: string 
       <div className="pdf-pages" ref={containerRef} />
     </div>
   );
+}
+
+function getNoteStudySignal(note: StudyNote, folder?: Pick<StudyFolderTreeItem, "path"> | null) {
+  const corpus = `${note.body}\n\n${note.extractedText ?? ""}`;
+  const wordCount = getWordCount(corpus);
+  const headingCount = getHeadingCount(note.body);
+  const bulletCount = getChecklistCount(note.body);
+  const cards = note.flashcards?.length ?? 0;
+  const askCount = note.askHistory?.length ?? 0;
+  const readingMins = getReadingMinutes(corpus);
+  const structureScore = Math.min(24, headingCount * 7 + bulletCount * 1.35);
+  const recallScore = Math.min(30, cards * 5 + askCount * 3);
+  const depthScore = Math.min(24, wordCount / 55);
+  const documentScore = note.kind === "document" ? 10 : 5;
+  const freshnessScore = isRecentNote(note) ? 12 : 4;
+  const score = Math.round(clamp(structureScore + recallScore + depthScore + documentScore + freshnessScore, 6, 100));
+  const tier = score >= 78 ? "prime" : score >= 52 ? "building" : "thin";
+  const headline =
+    tier === "prime"
+      ? "Exam-ready study packet"
+      : tier === "building"
+        ? "Knowledge node is forming"
+        : note.kind === "document"
+          ? "Document needs capture work"
+          : "Thin note needs structure";
+  const directive =
+    tier === "prime"
+      ? "This note has enough structure and recall material to support review sessions."
+      : cards === 0
+        ? "Add flashcards from Review or AI mode so this material can enter the spaced recall queue."
+        : headingCount === 0
+          ? "Add headings to turn the raw note into a scannable study map."
+          : "Add a summary, definitions, or questions to strengthen the next review cycle.";
+
+  return {
+    score,
+    tier,
+    headline,
+    directive,
+    folderPath: folder?.path ?? "Uncategorized",
+    wordCount,
+    readingMins,
+    headings: headingCount,
+    bullets: bulletCount,
+    cards,
+    askCount,
+  };
 }
 
 function isRecentNote(note: StudyNote) {
