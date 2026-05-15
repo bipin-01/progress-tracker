@@ -5388,55 +5388,6 @@ button.load-forecast-day:hover {
   padding: 4px 0 4px 8px;
 }
 
-.notes-library-telemetry {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
-  margin: 0 0 12px;
-}
-
-.notes-library-telemetry div {
-  overflow: hidden;
-  border: 1px solid var(--hair-soft);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(53, 215, 255, 0.13), transparent 58%),
-    rgba(2, 7, 15, 0.38);
-  padding: 9px 7px;
-}
-
-.notes-library-telemetry div.urgent {
-  border-color: rgba(255, 184, 76, 0.55);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 184, 76, 0.16), transparent 58%),
-    rgba(2, 7, 15, 0.4);
-}
-
-.notes-library-telemetry strong {
-  display: block;
-  overflow: hidden;
-  color: var(--cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: 16px;
-  line-height: 1;
-  text-overflow: ellipsis;
-  text-shadow: 0 0 12px rgba(53, 215, 255, 0.32);
-  white-space: nowrap;
-}
-
-.notes-library-telemetry .urgent strong {
-  color: var(--amber);
-}
-
-.notes-library-telemetry span {
-  display: block;
-  margin-top: 6px;
-  color: var(--muted);
-  font-family: "Orbitron", sans-serif;
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .folder-manager-panel,
 .trash-panel {
   display: grid;
@@ -9993,7 +9944,6 @@ button.load-forecast-day:hover {
   .habit-form,
   .habit-layout,
   .notes-workspace,
-  .notes-library-telemetry,
   .notes-command-ribbon,
   .pdf-viewer-toolbar,
   .notes-home-grid,

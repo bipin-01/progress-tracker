@@ -5314,24 +5314,6 @@ function NotesView({
         : [],
     [activeNoteFolder, folderIndex],
   );
-  const libraryTelemetry = useMemo(() => {
-    const documentCount = liveNotes.filter((note) => note.kind === "document").length;
-    const averageSignal = liveNotes.length
-      ? Math.round(
-          liveNotes.reduce((total, note) => {
-            const folder = note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null;
-            return total + getNoteStudySignal(note, folder).score;
-          }, 0) / liveNotes.length,
-        )
-      : 0;
-    return {
-      documentCount,
-      cardCount: allSavedFlashcards.length,
-      dueCount: dueFlashcards.length,
-      weakCount: weakNotes.length,
-      averageSignal,
-    };
-  }, [allSavedFlashcards.length, dueFlashcards.length, folderIndex, liveNotes, weakNotes.length]);
   const filteredNotes = sortedNotes.filter((note) => {
     const matchesFilter = filter === "all" || (filter === "pinned" ? note.pinned : isRecentNote(note));
     const matchesFolder =
@@ -6256,24 +6238,6 @@ function NotesView({
                   </button>
                 </div>
                 {folderCreateStatus && <div className="folder-create-status">{folderCreateStatus}</div>}
-              </div>
-              <div className="notes-library-telemetry" aria-label="Study library telemetry">
-                <div>
-                  <strong>{libraryTelemetry.averageSignal}%</strong>
-                  <span>signal</span>
-                </div>
-                <div>
-                  <strong>{libraryTelemetry.documentCount}</strong>
-                  <span>docs</span>
-                </div>
-                <div>
-                  <strong>{libraryTelemetry.cardCount}</strong>
-                  <span>cards</span>
-                </div>
-                <div className={libraryTelemetry.dueCount > 0 ? "urgent" : ""}>
-                  <strong>{libraryTelemetry.dueCount}</strong>
-                  <span>due</span>
-                </div>
               </div>
               <div className="notes-search">
                 <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="// search notes, docs, tags" />
