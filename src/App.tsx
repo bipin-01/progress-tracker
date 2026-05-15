@@ -536,6 +536,18 @@ type ChineseAdaptiveRepairMission = {
   summary: string;
 };
 
+type ChineseRepairHistoryEntry = {
+  id: string;
+  missionKey: string;
+  completedAt: string;
+  day: number;
+  tone: number;
+  toneName: string;
+  symbols: string[];
+  score: number;
+  summary: string;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -545,6 +557,7 @@ type ChineseMemorySnapshot = {
   reviewRatings: Record<string, ChineseReviewState>;
   completedDrills: string[];
   completedRepairDrills: string[];
+  repairHistory: ChineseRepairHistoryEntry[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -1500,6 +1513,24 @@ function getChineseStoredSpeechAttempt(value: unknown): ChineseSpeechAttempt | n
   };
 }
 
+function getChineseStoredRepairHistoryEntry(value: unknown): ChineseRepairHistoryEntry | null {
+  if (!isChineseRecord(value)) return null;
+  const missionKey = typeof value.missionKey === "string" ? value.missionKey : "";
+  if (!missionKey) return null;
+  const symbols = getChineseStoredStringArray(value.symbols).slice(0, 4);
+  return {
+    id: typeof value.id === "string" ? value.id : `${missionKey}-history`,
+    missionKey,
+    completedAt: typeof value.completedAt === "string" ? value.completedAt : new Date().toISOString(),
+    day: getChineseStoredDay(value.day),
+    tone: Math.trunc(getChineseClampedNumber(value.tone, 0, 0, 4)),
+    toneName: typeof value.toneName === "string" ? value.toneName : "tone",
+    symbols,
+    score: getChineseClampedNumber(value.score, 100, 0, 100),
+    summary: typeof value.summary === "string" ? value.summary : "repair locked",
+  };
+}
+
 function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(CHINESE_MEMORY_STORAGE_KEY);
@@ -1523,6 +1554,10 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
       reviewRatings,
       completedDrills: getChineseStoredStringArray(parsed.completedDrills),
       completedRepairDrills: getChineseStoredStringArray(parsed.completedRepairDrills),
+      repairHistory: (Array.isArray(parsed.repairHistory) ? parsed.repairHistory : [])
+        .map(getChineseStoredRepairHistoryEntry)
+        .filter((entry): entry is ChineseRepairHistoryEntry => Boolean(entry))
+        .slice(0, 21),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
         .map(getChineseStoredSpeechAttempt)
@@ -12629,6 +12664,7 @@ function ChineseView() {
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const [completedRepairDrills, setCompletedRepairDrills] = useState<Set<string>>(() => new Set());
+  const [repairHistory, setRepairHistory] = useState<ChineseRepairHistoryEntry[]>([]);
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -12660,6 +12696,7 @@ function ChineseView() {
   const memoryCardCount = Object.keys(reviewRatings).length;
   const memoryVoiceCount = speechAttempts.length;
   const memoryRepairCount = completedRepairDrills.size;
+  const repairHistoryStrip = repairHistory.slice(0, 7);
   const memoryCoreLabel =
     memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
@@ -12859,6 +12896,7 @@ function ChineseView() {
   const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
   const repairMissionScore = Math.round((repairDrillDoneCount / Math.max(adaptiveRepairMission.drills.length, 1)) * 100);
   const repairMissionLocked = adaptiveRepairMission.hasSignal && repairMissionScore === 100;
+  const currentRepairHistoryEntry = repairHistory.find((entry) => entry.missionKey === adaptiveRepairMission.key);
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12887,6 +12925,7 @@ function ChineseView() {
       setReviewRatings(snapshot.reviewRatings);
       setCompletedDrills(new Set(["listen", ...snapshot.completedDrills]));
       setCompletedRepairDrills(new Set(snapshot.completedRepairDrills));
+      setRepairHistory(snapshot.repairHistory);
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -12905,11 +12944,23 @@ function ChineseView() {
       reviewRatings,
       completedDrills: Array.from(completedDrills).sort(),
       completedRepairDrills: Array.from(completedRepairDrills).sort(),
+      repairHistory: repairHistory.slice(0, 21),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
     setMemoryStatus(saved ? "synced" : "offline");
-  }, [completedDrills, completedRepairDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, speechAttempts, strokeMatrixDone]);
+  }, [
+    completedDrills,
+    completedRepairDrills,
+    memoryHydrated,
+    repairHistory,
+    reviewCombo,
+    reviewRatings,
+    selectedPracticeDay,
+    sessionXp,
+    speechAttempts,
+    strokeMatrixDone,
+  ]);
 
   useEffect(() => {
     if (!lessonFocusActive) return;
@@ -13032,6 +13083,13 @@ function ChineseView() {
     );
   }
 
+  function openRepairHistoryEntry(entry: ChineseRepairHistoryEntry) {
+    selectPracticeDay(entry.day);
+    const primarySymbol = entry.symbols[0];
+    if (primarySymbol) openDictionary(primarySymbol);
+    setRewardMessage(`repair history loaded · T${entry.tone} ${entry.toneName}`);
+  }
+
   function toggleRepairDrill(drill: ChineseAdaptiveRepairDrill) {
     const wasDone = completedRepairDrills.has(drill.id);
     setCompletedRepairDrills((current) => {
@@ -13044,11 +13102,29 @@ function ChineseView() {
       return next;
     });
     if (wasDone) {
+      if (repairMissionLocked) {
+        setRepairHistory((current) => current.filter((entry) => entry.missionKey !== adaptiveRepairMission.key));
+      }
       setRewardMessage(`${drill.label} reopened`);
     } else {
       setSessionXp((xp) => xp + CHINESE_REPAIR_DRILL_XP);
       const nextDoneCount = repairDrillDoneCount + 1;
       if (adaptiveRepairMission.hasSignal && nextDoneCount === adaptiveRepairMission.drills.length) {
+        const nextHistoryEntry: ChineseRepairHistoryEntry = {
+          id: `${adaptiveRepairMission.key}:${Date.now()}`,
+          missionKey: adaptiveRepairMission.key,
+          completedAt: new Date().toISOString(),
+          day: adaptiveRepairMission.targetDay,
+          tone: adaptiveRepairMission.tone.tone,
+          toneName: adaptiveRepairMission.tone.name,
+          symbols: adaptiveRepairMission.symbols.map((symbol) => symbol.hanzi),
+          score: 100,
+          summary: adaptiveRepairMission.summary,
+        };
+        setRepairHistory((current) => [
+          nextHistoryEntry,
+          ...current.filter((entry) => entry.missionKey !== adaptiveRepairMission.key),
+        ].slice(0, 21));
         setReviewCombo((combo) => combo + 1);
         setRewardMessage(`repair mission locked · ${adaptiveRepairMission.summary}`);
       } else {
@@ -13390,7 +13466,7 @@ function ChineseView() {
                       key={drill.id}
                       type="button"
                       className={done ? "done" : ""}
-                      onClick={() => toggleRepairDrill(drill)}
+                      onClick={() => (adaptiveRepairMission.hasSignal ? toggleRepairDrill(drill) : loadAdaptiveRepairMission())}
                     >
                       <span>{String(index + 1).padStart(2, "0")}</span>
                       <strong>{drill.label}</strong>
@@ -13399,8 +13475,28 @@ function ChineseView() {
                 })}
               </div>
               <button type="button" className={`zh-repair-command ${repairMissionLocked ? "locked" : ""}`} onClick={loadAdaptiveRepairMission}>
-                {repairMissionLocked ? "repair locked" : adaptiveRepairMission.command}
+                {repairMissionLocked ? (currentRepairHistoryEntry ? "history logged" : "repair locked") : adaptiveRepairMission.command}
               </button>
+            </div>
+
+            <div className="zh-repair-history" aria-label="Recent Chinese repair history">
+              <div>
+                <span>repair history</span>
+                <strong>{repairHistoryStrip.length}/7</strong>
+              </div>
+              <div>
+                {repairHistoryStrip.length ? (
+                  repairHistoryStrip.map((entry) => (
+                    <button key={entry.id} type="button" onClick={() => openRepairHistoryEntry(entry)}>
+                      <span>D{String(entry.day).padStart(3, "0")}</span>
+                      <strong>T{entry.tone}</strong>
+                      <em>{entry.symbols.length ? entry.symbols.join(" ") : entry.toneName}</em>
+                    </button>
+                  ))
+                ) : (
+                  <p>complete a repair mission to log the weakness that was fixed</p>
+                )}
+              </div>
             </div>
 
             <div className="zh-mission-footer">

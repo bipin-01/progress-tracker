@@ -11415,6 +11415,9 @@ button.load-forecast-day:hover {
 .zh-repair-symbols p,
 .zh-repair-drills span,
 .zh-repair-drills strong,
+.zh-repair-history span,
+.zh-repair-history em,
+.zh-repair-history p,
 .zh-mission-phase-signal span,
 .zh-mission-phase-signal strong {
   color: var(--muted);
@@ -11724,6 +11727,78 @@ button.load-forecast-day:hover {
 .zh-repair-command.locked {
   border-color: rgba(158, 255, 102, 0.42);
   color: var(--lime);
+}
+
+.zh-repair-history {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.22fr) minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.zh-repair-history > div {
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.3);
+}
+
+.zh-repair-history > div:first-child {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 10px;
+}
+
+.zh-repair-history > div:first-child strong {
+  color: var(--lime);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.zh-repair-history > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  padding: 6px;
+}
+
+.zh-repair-history button {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: rgba(158, 255, 102, 0.035);
+  padding: 6px;
+  text-align: left;
+}
+
+.zh-repair-history button:hover {
+  border-color: rgba(158, 255, 102, 0.42);
+  background: rgba(158, 255, 102, 0.07);
+}
+
+.zh-repair-history button strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.zh-repair-history em {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zh-repair-history p {
+  grid-column: 1 / -1;
+  margin: 0;
+  align-self: center;
+  color: var(--ink-2);
+  text-transform: none;
 }
 
 .zh-mission-footer {
@@ -13930,6 +14005,7 @@ button.load-forecast-day:hover {
 
   .zh-mission-primary,
   .zh-repair-uplink,
+  .zh-repair-history,
   .zh-mission-footer {
     grid-template-columns: 1fr;
   }
@@ -13970,6 +14046,7 @@ button.load-forecast-day:hover {
   .zh-mission-word-rail,
   .zh-repair-symbols,
   .zh-repair-drills,
+  .zh-repair-history > div:last-child,
   .zh-practice-overview,
   .zh-practice-day-head,
   .zh-practice-controls {
