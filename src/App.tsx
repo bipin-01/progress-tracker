@@ -6314,7 +6314,7 @@ function NotesView({
                   </button>
                 </div>
                 <div className="notes-actions">
-                  <button type="button" onClick={() => setNotesFullscreen((value) => !value)}>{notesFullscreen ? "exit full" : "full screen"}</button>
+                  <button type="button" onClick={() => setNotesFullscreen((value) => !value)}>{notesFullscreen ? "exit" : "full"}</button>
                   <button type="button" onClick={() => updateActive({ pinned: !activeNote.pinned })}>{activeNote.pinned ? "unpin" : "pin"}</button>
                   <button type="button" onClick={() => void deleteActive()}>trash</button>
                 </div>

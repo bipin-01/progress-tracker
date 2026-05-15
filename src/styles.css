@@ -5489,7 +5489,6 @@ button.load-forecast-day:hover {
 .notes-create-row button,
 .notes-create-row label,
 .notes-mode-toggle button,
-.notes-actions button,
 .markdown-toolbar button,
 .note-tag-editor button {
   border: 1px solid var(--hair);
@@ -5506,7 +5505,6 @@ button.load-forecast-day:hover {
 .notes-mode-toggle button.active,
 .notes-create-row button:hover,
 .notes-create-row label:hover,
-.notes-actions button:hover,
 .markdown-toolbar button:hover,
 .note-tag-editor button {
   border-color: var(--cyan-dim);
@@ -5516,6 +5514,24 @@ button.load-forecast-day:hover {
 
 .notes-create-row input {
   display: none;
+}
+
+.notes-actions {
+  gap: 6px;
+}
+
+.notes-actions button {
+  border: 0;
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 3px 0;
+  text-transform: uppercase;
+}
+
+.notes-actions button:hover {
+  color: var(--cyan);
 }
 
 .notes-upload-status {
