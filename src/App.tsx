@@ -519,6 +519,16 @@ type ChineseVoiceHanziHotspot = {
   risk: number;
 };
 
+type ChineseAdaptiveRepairMission = {
+  hasSignal: boolean;
+  targetDay: number;
+  tone: ChineseVoiceToneWeakness;
+  symbols: ChineseVoiceHanziHotspot[];
+  drills: string[];
+  command: string;
+  summary: string;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -1751,6 +1761,48 @@ function getChineseVoiceHeatmap(attempts: ChineseSpeechAttempt[]) {
     attemptsAnalyzed: recentAttempts.length,
     toneWeaknesses,
     hanziHotspots,
+  };
+}
+
+function getChineseAdaptiveRepairMission(
+  heatmap: ReturnType<typeof getChineseVoiceHeatmap>,
+  weaknesses: ChineseVoiceWeakness[],
+  selectedDay: number,
+): ChineseAdaptiveRepairMission {
+  const targetDay = Math.min(selectedDay + 1, CHINESE_PRACTICE_TOTAL_DAYS);
+  const fallbackTone = heatmap.toneWeaknesses[0];
+  const tone = heatmap.toneWeaknesses.reduce(
+    (winner, item) => (item.risk > winner.risk || (item.risk === winner.risk && item.misses > winner.misses) ? item : winner),
+    fallbackTone,
+  );
+  const weaknessSymbols = weaknesses.map((weakness) => ({
+    hanzi: weakness.hanzi,
+    pinyin: weakness.pinyin,
+    exposure: weakness.attempts,
+    misses: weakness.attempts,
+    risk: Math.max(0, 100 - weakness.averageScore),
+  }));
+  const symbols = [...heatmap.hanziHotspots, ...weaknessSymbols]
+    .reduce<ChineseVoiceHanziHotspot[]>((unique, item) => {
+      if (!unique.some((symbol) => symbol.hanzi === item.hanzi)) unique.push(item);
+      return unique;
+    }, [])
+    .slice(0, 4);
+  const hasSignal = heatmap.attemptsAnalyzed > 0 && (tone.misses > 0 || symbols.length > 0);
+  const symbolText = symbols.length ? symbols.map((symbol) => symbol.hanzi).join(" ") : "active phrase";
+
+  return {
+    hasSignal,
+    targetDay,
+    tone,
+    symbols,
+    drills: hasSignal
+      ? [`T${tone.tone} shadow x8`, `${symbolText} recall x5`, "speak full sentence twice"]
+      : ["capture speech", "score recall", "generate repair"],
+    command: hasSignal ? `load D${String(targetDay).padStart(3, "0")}` : "open focus tunnel",
+    summary: hasSignal
+      ? `${tone.name} tone · ${tone.risk}% risk · ${symbols.length || tone.misses} repair targets`
+      : "voice attempts below 82% will generate tomorrow's repair injection",
   };
 }
 
@@ -12769,10 +12821,8 @@ function ChineseView() {
   const voiceWeaknesses = getChineseVoiceWeaknesses(speechAttempts);
   const activeVoiceWeakness = voiceWeaknesses[0];
   const voiceHeatmap = useMemo(() => getChineseVoiceHeatmap(speechAttempts), [speechAttempts]);
-  const activeVoiceToneWeakness = voiceHeatmap.toneWeaknesses.reduce(
-    (winner, tone) => (tone.risk > winner.risk || (tone.risk === winner.risk && tone.misses > winner.misses) ? tone : winner),
-    voiceHeatmap.toneWeaknesses[0],
-  );
+  const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
+  const activeVoiceToneWeakness = adaptiveRepairMission.tone;
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12925,6 +12975,23 @@ function ChineseView() {
     setCardRevealed(true);
     setActiveLessonStep("meaning");
     setRewardMessage(`${word.practiceId} loaded · ${word.pinyin}`);
+  }
+
+  function loadAdaptiveRepairMission() {
+    if (!adaptiveRepairMission.hasSignal) {
+      setLessonFocusActive(true);
+      setRewardMessage("repair uplink waiting · capture voice first");
+      return;
+    }
+
+    selectPracticeDay(adaptiveRepairMission.targetDay);
+    const primarySymbol = adaptiveRepairMission.symbols[0];
+    if (primarySymbol) openDictionary(primarySymbol.hanzi);
+    setActiveLessonStep("listen");
+    setCardRevealed(Boolean(primarySymbol));
+    setRewardMessage(
+      `D${String(adaptiveRepairMission.targetDay).padStart(3, "0")} repair queued · T${adaptiveRepairMission.tone.tone}`,
+    );
   }
 
   function rateReview(rating: ChineseReviewRating, cardId = activeReviewCard.id) {
@@ -13225,6 +13292,41 @@ function ChineseView() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className={`zh-repair-uplink ${adaptiveRepairMission.hasSignal ? "active" : "standby"}`}>
+              <div className="zh-repair-core">
+                <span>adaptive repair uplink</span>
+                <strong>
+                  {adaptiveRepairMission.hasSignal ? `T${adaptiveRepairMission.tone.tone} ${adaptiveRepairMission.tone.name}` : "calibrating"}
+                </strong>
+                <em>
+                  D{String(adaptiveRepairMission.targetDay).padStart(3, "0")} injection · {adaptiveRepairMission.summary}
+                </em>
+              </div>
+              <div className="zh-repair-symbols" aria-label="Adaptive repair hanzi targets">
+                {adaptiveRepairMission.symbols.length ? (
+                  adaptiveRepairMission.symbols.map((symbol) => (
+                    <button key={symbol.hanzi} type="button" onClick={() => openDictionary(symbol.hanzi)}>
+                      <strong className="zh-cn">{symbol.hanzi}</strong>
+                      <span className={getChineseToneClass(symbol.pinyin)}>{symbol.pinyin}</span>
+                      <em>{symbol.risk}% risk</em>
+                    </button>
+                  ))
+                ) : (
+                  <p>voice data will populate repair targets</p>
+                )}
+              </div>
+              <div className="zh-repair-drills">
+                {adaptiveRepairMission.drills.map((drill, index) => (
+                  <span key={drill}>
+                    {String(index + 1).padStart(2, "0")} · {drill}
+                  </span>
+                ))}
+              </div>
+              <button type="button" className="zh-repair-command" onClick={loadAdaptiveRepairMission}>
+                {adaptiveRepairMission.command}
+              </button>
             </div>
 
             <div className="zh-mission-footer">
