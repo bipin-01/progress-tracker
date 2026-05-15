@@ -9781,6 +9781,8 @@ button.load-forecast-day:hover {
 .chinese-roadmap em,
 .chinese-lesson-brief > span,
 .chinese-sound-strip em,
+.chinese-scope-head span,
+.chinese-scope-node em,
 .chinese-example-grid span,
 .chinese-example-grid em,
 .chinese-tone-stack em,
@@ -9841,6 +9843,7 @@ button.load-forecast-day:hover {
 .chinese-sound-strip button:hover,
 .chinese-glyph-meta button:hover,
 .chinese-example-grid button:hover,
+.chinese-scope-node:hover,
 .chinese-tone-stack button:hover,
 .chinese-roadmap button:hover,
 .chinese-roadmap button.active,
@@ -9915,6 +9918,12 @@ button.load-forecast-day:hover {
   border-color: var(--cyan-dim);
 }
 
+.chinese-drill-list button > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .chinese-drill-list strong,
 .chinese-roadmap strong,
 .chinese-tone-stack strong,
@@ -9922,6 +9931,17 @@ button.load-forecast-day:hover {
   color: var(--ink);
   font-size: 12px;
   letter-spacing: 0.03em;
+}
+
+.chinese-drill-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chinese-drill-list em {
+  display: block;
+  line-height: 1.35;
 }
 
 .chinese-roadmap button {
@@ -9974,6 +9994,91 @@ button.load-forecast-day:hover {
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chinese-tone-scope {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.05), rgba(170, 114, 255, 0.04)),
+    rgba(2, 7, 15, 0.44);
+  padding: 12px;
+}
+
+.chinese-scope-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-scope-head strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chinese-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chinese-scope-node {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.04), transparent),
+    rgba(6, 15, 28, 0.62);
+  padding: 9px;
+  text-align: left;
+}
+
+.chinese-scope-node span {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chinese-scope-node svg {
+  width: 100%;
+  height: 42px;
+  border-bottom: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(rgba(53, 215, 255, 0.07) 1px, transparent 1px) 0 0 / 100% 25%,
+    linear-gradient(90deg, rgba(53, 215, 255, 0.06) 1px, transparent 1px) 0 0 / 25% 100%;
+}
+
+.chinese-scope-node polyline {
+  fill: none;
+  stroke: var(--cyan);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+  filter: drop-shadow(0 0 5px rgba(53, 215, 255, 0.6));
+}
+
+.chinese-scope-node.tone-2 polyline,
+.chinese-scope-node.tone-3 polyline {
+  stroke: var(--violet);
+}
+
+.chinese-scope-node.tone-4 polyline {
+  stroke: var(--amber);
+}
+
+.chinese-scope-node.tone-0 polyline {
+  stroke: var(--muted);
+  filter: none;
 }
 
 .chinese-example-grid {
@@ -10559,6 +10664,7 @@ button.load-forecast-day:hover {
   }
 
   .chinese-sound-strip,
+  .chinese-scope-grid,
   .chinese-example-grid,
   .chinese-quiz-options,
   .chinese-character-lab,

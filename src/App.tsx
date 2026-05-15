@@ -604,6 +604,49 @@ const chineseDailyDrills = [
   { id: "speak", title: "Sentence output", detail: "Say one useful sentence from memory." },
 ];
 
+const chineseToneProfiles = {
+  0: { name: "light", contour: "neutral", pitch: [46, 46, 44, 44] },
+  1: { name: "flat", contour: "55", pitch: [82, 82, 82, 82] },
+  2: { name: "rising", contour: "35", pitch: [34, 48, 65, 82] },
+  3: { name: "dipping", contour: "214", pitch: [70, 34, 40, 64] },
+  4: { name: "falling", contour: "51", pitch: [86, 64, 38, 18] },
+} as const;
+
+const chineseToneMarkGroups = [
+  { tone: 1, marks: "āēīōūǖĀĒĪŌŪǕ" },
+  { tone: 2, marks: "áéíóúǘÁÉÍÓÚǗ" },
+  { tone: 3, marks: "ǎěǐǒǔǚǍĚǏǑǓǙ" },
+  { tone: 4, marks: "àèìòùǜÀÈÌÒÙǛ" },
+];
+
+function getChineseToneNumber(token: string) {
+  for (const group of chineseToneMarkGroups) {
+    if ([...token].some((mark) => group.marks.includes(mark))) return group.tone;
+  }
+  return 0;
+}
+
+function getChineseToneSignal(lesson: ChineseLesson) {
+  return lesson.examples
+    .flatMap((example) => example.pinyin.replace(/[.,?。？]/g, " ").split(/\s+/))
+    .filter(Boolean)
+    .slice(0, 9)
+    .map((token, index) => {
+      const tone = getChineseToneNumber(token) as keyof typeof chineseToneProfiles;
+      const profile = chineseToneProfiles[tone];
+      const points = profile.pitch
+        .map((pitch, pointIndex) => `${(pointIndex / Math.max(profile.pitch.length - 1, 1)) * 100},${100 - pitch}`)
+        .join(" ");
+      return {
+        id: `${token}-${index}`,
+        token,
+        tone,
+        points,
+        ...profile,
+      };
+    });
+}
+
 const navItems = [
   { id: "dashboard", label: "Dashboard", Icon: Home },
   { id: "today", label: "Today", Icon: Sparkles },
@@ -11355,6 +11398,7 @@ function ChineseView() {
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
+  const activeToneSignal = useMemo(() => getChineseToneSignal(activeLesson), [activeLesson]);
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const completedCount = completedDrills.size;
   const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
@@ -11475,6 +11519,29 @@ function ChineseView() {
               </button>
               <strong>{activeLesson.sound}</strong>
               <em>{activeLesson.pattern}</em>
+            </div>
+            <div className="chinese-tone-scope">
+              <div className="chinese-scope-head">
+                <span>tone scope</span>
+                <strong>{activeToneSignal.length} syllables mapped</strong>
+              </div>
+              <div className="chinese-scope-grid">
+                {activeToneSignal.map((signal) => (
+                  <button
+                    className={`chinese-scope-node tone-${signal.tone}`}
+                    type="button"
+                    onClick={() => speakMandarin(activeLesson.sound)}
+                    aria-label={`Play ${activeLesson.title} tone pattern from ${signal.token}`}
+                    key={signal.id}
+                  >
+                    <span>{signal.token}</span>
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                      <polyline points={signal.points} />
+                    </svg>
+                    <em>{signal.name} · {signal.contour}</em>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="chinese-example-grid">
