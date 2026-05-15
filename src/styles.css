@@ -5676,13 +5676,13 @@ button.load-forecast-day:hover {
 }
 
 .note-title-input {
-  min-height: 48px;
-  color: var(--cyan);
+  min-height: 36px;
+  color: var(--ink);
   font-family: "Orbitron", sans-serif;
-  font-size: 22px;
-  letter-spacing: 0.08em;
-  margin-bottom: 12px;
-  padding: 8px 10px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  padding: 5px 8px;
 }
 
 .note-directory-row {
