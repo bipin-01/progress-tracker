@@ -11219,6 +11219,8 @@ button.load-forecast-day:hover {
 .zh-lesson-strip button,
 .zh-guided-circuit,
 .zh-guided-circuit button,
+.zh-focus-overlay,
+.zh-focus-overlay button,
 .zh-mission-panel button,
 .zh-practice-phase-btn,
 .zh-practice-day-jump button,
@@ -11841,7 +11843,14 @@ button.load-forecast-day:hover {
   justify-items: stretch;
 }
 
-.zh-circuit-command button {
+.zh-circuit-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 0.42fr);
+  gap: 7px;
+}
+
+.zh-circuit-command button,
+.zh-focus-overlay button {
   min-height: 34px;
   border: 1px solid var(--hair);
   background: rgba(53, 215, 255, 0.04);
@@ -11851,9 +11860,240 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
-.zh-circuit-command button:hover {
+.zh-circuit-command button:hover,
+.zh-focus-overlay button:hover {
   border-color: var(--cyan);
   background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-focus-launch {
+  color: var(--zh-magenta) !important;
+}
+
+.zh-focus-overlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(90deg, rgba(2, 7, 15, 0.98), rgba(2, 7, 15, 0.9)),
+    radial-gradient(circle at 50% 35%, rgba(53, 215, 255, 0.16), transparent 44%),
+    radial-gradient(circle at 78% 72%, rgba(170, 114, 255, 0.12), transparent 40%);
+  padding: 28px;
+}
+
+.zh-focus-shell {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  width: min(1160px, 100%);
+  max-height: min(760px, calc(100vh - 56px));
+  overflow: auto;
+  border: 1px solid var(--hair);
+  background:
+    linear-gradient(180deg, rgba(12, 22, 45, 0.94), rgba(5, 11, 24, 0.96)),
+    linear-gradient(90deg, rgba(53, 215, 255, 0.04) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(rgba(53, 215, 255, 0.035) 1px, transparent 1px) 0 0 / 56px 56px;
+  box-shadow: 0 0 42px rgba(53, 215, 255, 0.16);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  padding: 22px;
+}
+
+.zh-focus-topline,
+.zh-focus-metrics {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.zh-focus-topline span,
+.zh-focus-glyph span,
+.zh-focus-glyph p,
+.zh-focus-phrase span,
+.zh-focus-phrase em,
+.zh-focus-directive span,
+.zh-focus-directive p,
+.zh-focus-metrics span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.12em;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.zh-focus-topline button {
+  width: 88px;
+}
+
+.zh-focus-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.42fr) minmax(0, 1fr) minmax(250px, 0.44fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.zh-focus-glyph,
+.zh-focus-phrase,
+.zh-focus-directive {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.42);
+  padding: 18px;
+}
+
+.zh-focus-glyph {
+  justify-items: center;
+  text-align: center;
+}
+
+.zh-focus-glyph strong {
+  color: var(--ink);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: clamp(92px, 12vw, 168px);
+  line-height: 0.92;
+  text-shadow:
+    0 0 26px rgba(53, 215, 255, 0.46),
+    0 0 58px rgba(170, 114, 255, 0.2);
+}
+
+.zh-focus-glyph em {
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+}
+
+.zh-focus-glyph p {
+  max-width: 280px;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  text-transform: none;
+}
+
+.zh-focus-phrase {
+  gap: 12px;
+}
+
+.zh-focus-phrase p {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(34px, 5vw, 70px);
+  line-height: 1.08;
+  text-shadow: 0 0 20px rgba(53, 215, 255, 0.26);
+}
+
+.zh-focus-phrase div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.zh-focus-phrase i {
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+}
+
+.zh-focus-phrase button {
+  width: 150px;
+}
+
+.zh-focus-directive {
+  position: relative;
+  gap: 9px;
+}
+
+.zh-focus-directive strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.zh-focus-directive p {
+  margin: 0 0 4px;
+  color: var(--ink-2);
+  text-transform: none;
+}
+
+.zh-focus-directive i {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-focus-directive i::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--circuit-progress);
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 10px rgba(53, 215, 255, 0.35);
+}
+
+.zh-focus-stepbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.zh-focus-stepbar button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+
+.zh-focus-stepbar span {
+  color: var(--cyan);
+  font-size: 10px;
+}
+
+.zh-focus-stepbar strong {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-focus-stepbar button.active {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-focus-stepbar button.done {
+  border-color: rgba(158, 255, 102, 0.44);
+}
+
+.zh-focus-stepbar button.done span {
+  color: var(--lime);
+}
+
+.zh-focus-metrics {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--hair-soft);
+  padding-top: 12px;
+}
+
+.zh-focus-metrics span {
+  color: var(--ink-2);
 }
 
 .zh-card-stage {
@@ -13194,6 +13434,9 @@ button.load-forecast-day:hover {
   .zh-lesson-steps,
   .zh-guided-circuit,
   .zh-circuit-rail,
+  .zh-circuit-actions,
+  .zh-focus-grid,
+  .zh-focus-stepbar,
   .zh-lesson-strip,
   .zh-writing-grid,
   .zh-dictionary-entry,

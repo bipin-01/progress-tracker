@@ -12281,6 +12281,7 @@ function ChineseView() {
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
+  const [lessonFocusActive, setLessonFocusActive] = useState(false);
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -12514,6 +12515,15 @@ function ChineseView() {
     setMemoryStatus(saved ? "synced" : "offline");
   }, [completedDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, strokeMatrixDone]);
 
+  useEffect(() => {
+    if (!lessonFocusActive) return;
+    function closeFocusOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setLessonFocusActive(false);
+    }
+    window.addEventListener("keydown", closeFocusOnEscape);
+    return () => window.removeEventListener("keydown", closeFocusOnEscape);
+  }, [lessonFocusActive]);
+
   function selectLesson(id: string) {
     setActiveLessonId(id);
     setSelectedCharacterIndex(0);
@@ -12636,7 +12646,7 @@ function ChineseView() {
       return;
     }
 
-    rateReview("ok", activePhraseReviewId);
+    gradeActivePhrase("ok");
   }
 
   function speakMandarin(text: string) {
@@ -12657,7 +12667,7 @@ function ChineseView() {
   }));
 
   return (
-    <main className="chinese-protocol-page" aria-label="Chinese protocol learning cockpit">
+    <main className={`chinese-protocol-page ${lessonFocusActive ? "zh-lesson-focus-live" : ""}`} aria-label="Chinese protocol learning cockpit">
       <div className="zh-data-noise zh-data-noise-left" aria-hidden="true">
         4F7A 6E49 5B66 4E60 58F0 97F3 8BED 6C49 5B57
       </div>
@@ -12868,9 +12878,14 @@ function ChineseView() {
                 <span>
                   {circuitCursor}/{lessonStepStatus.length} · {activeCircuitCopy.telemetry}
                 </span>
-                <button type="button" onClick={runGuidedCircuitStep}>
-                  {activeCircuitCopy.command}
-                </button>
+                <div className="zh-circuit-actions">
+                  <button type="button" onClick={runGuidedCircuitStep}>
+                    {activeCircuitCopy.command}
+                  </button>
+                  <button type="button" className="zh-focus-launch" onClick={() => setLessonFocusActive(true)}>
+                    focus tunnel
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -13456,6 +13471,80 @@ function ChineseView() {
         <strong>▸ srs engine nominal</strong>
         <span>session 00:{String(reviewedToday).padStart(2, "0")}:47</span>
       </div>
+
+      {lessonFocusActive ? (
+        <section className="zh-focus-overlay" role="dialog" aria-modal="true" aria-label="Chinese guided focus mode">
+          <div className="zh-focus-shell">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-focus-topline">
+              <span>
+                lesson focus · D{String(selectedPracticeRecord.day).padStart(3, "0")} · {activeCircuitCopy.signal}
+              </span>
+              <button type="button" onClick={() => setLessonFocusActive(false)}>
+                exit
+              </button>
+            </div>
+
+            <div className="zh-focus-grid">
+              <div className="zh-focus-glyph">
+                <span>{activeCircuitCopy.signal} gate</span>
+                <strong className="zh-cn">{activeDictionaryEntry.hanzi}</strong>
+                <em className={getChineseToneClass(activeDictionaryEntry.pinyin)}>{activeDictionaryEntry.pinyin}</em>
+                <p>{cardRevealed ? activeDictionaryEntry.meaning : activeCircuitCopy.objective}</p>
+              </div>
+
+              <div className="zh-focus-phrase">
+                <span>active sentence</span>
+                <p className="zh-cn">{activePhrase.hanzi}</p>
+                <div>
+                  {activePinyinUnits.map((unit, index) => (
+                    <i key={`${unit}-${index}`} className={getChineseToneClass(unit)}>
+                      {unit}
+                    </i>
+                  ))}
+                </div>
+                <em>{activePhrase.meaning}</em>
+                <button type="button" onClick={() => speakMandarin(activePhrase.hanzi)}>
+                  play audio
+                </button>
+              </div>
+
+              <div className="zh-focus-directive" style={{ "--circuit-progress": `${circuitProgress}%` } as CSSProperties}>
+                <span>
+                  {circuitCursor}/{lessonStepStatus.length} next command
+                </span>
+                <strong>{activeCircuitCopy.title}</strong>
+                <p>{activeCircuitCopy.objective}</p>
+                <button type="button" onClick={runGuidedCircuitStep}>
+                  {activeCircuitCopy.command}
+                </button>
+                <i />
+              </div>
+            </div>
+
+            <div className="zh-focus-stepbar" aria-label="Focus mode lesson steps">
+              {lessonStepStatus.map((step, index) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={`${step.id === nextCircuitStep.id ? "active" : ""} ${step.done ? "done" : ""}`}
+                  onClick={() => setActiveLessonStep(step.id)}
+                >
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{step.title}</strong>
+                </button>
+              ))}
+            </div>
+
+            <div className="zh-focus-metrics">
+              <span>{activeReviewRetention}% retention</span>
+              <span>{assemblyProgress}% sentence lock</span>
+              <span>{strokeProgress}% stroke matrix</span>
+              <span>{sessionXp} XP</span>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 

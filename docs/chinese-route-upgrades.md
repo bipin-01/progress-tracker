@@ -27,6 +27,7 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added Daily Mission Uplink above the main lesson surface: the selected 500-day plan now exposes an active word, quick word rail, review-anchor jumps, phase signal, and new/review/total workload so the database behaves like a Duolingo-style daily loop instead of a buried reference table.
 - 2026-05-15 - Added local Memory Core persistence for `/chinese`: review ratings, SRS intervals, XP, combo, selected practice day, completed drills, and stroke progress now survive refresh, with a compact synced/restored/offline signal inside the mission footer.
 - 2026-05-15 - Added Guided Circuit orchestration inside the flashcard panel: the route now detects the next unfinished listen, meaning, build, write, or recall gate and exposes one compact command that plays audio, reveals meaning, places the next sentence tile, advances stroke practice, or grades the phrase.
+- 2026-05-15 - Added Focus Tunnel lesson mode: the Guided Circuit can now open an immersive overlay that strips away telemetry, centers the active hanzi and sentence, preserves the one-command lesson flow, shows progress gates, and exits with Escape or the exit control.
 
 ## Next Upgrade Candidates
 
@@ -34,7 +35,7 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - Add speech scoring: compare browser speech recognition output against active phrase and mark tone/pinyin confidence.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add lesson-mode focus: a full-screen guided path that temporarily hides telemetry and runs listen, choose, speak, write, and review checkpoints one card at a time.
+- Add Focus Tunnel keyboard shortcuts: Enter to run the active command, Space to play audio, and number keys to jump gates.
 
 ## Design Rules For Future Passes
 
