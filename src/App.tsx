@@ -2435,7 +2435,7 @@ function TodayView({
           <span><strong>{agentLearningMemory.strongest.name}</strong> strongest</span>
           <span><strong>{agentLearningMemory.impactRate}%</strong> outcome impact</span>
           <span><strong>{agentLearningMemory.pendingCount}</strong> pending</span>
-          <span><strong>{agentLearningMemory.actionRate}%</strong> actioned</span>
+          <span><strong>{agentLearningMemory.staleOutcomeCount}</strong> follow-up debt</span>
         </div>
         {coachStatus && <div className="today-coach-status">{coachStatus}</div>}
       </HudCard>
@@ -9318,6 +9318,7 @@ type AgentOutcomeImpact = {
   title: string;
   domain: ActivityEventDomain;
   timestamp: string;
+  ageDays: number;
   resolved: boolean;
   stale: boolean;
   outcomeLabel: string;
@@ -9333,6 +9334,7 @@ function getAgentOutcomeImpacts(events: ActivityEvent[], now: Date): AgentOutcom
       const profile = agentProfiles.find((agent) => agent.id === agentId);
       if (!profile) return undefined;
       const createdAt = new Date(event.timestamp);
+      const ageDays = Math.max(0, daysBetween(createdAt, now));
       const outcome = sorted.find((candidate) => {
         if (candidate.id === event.id || candidate.entityId !== event.entityId || candidate.domain !== event.domain) return false;
         if (new Date(candidate.timestamp) <= createdAt) return false;
@@ -9355,6 +9357,7 @@ function getAgentOutcomeImpacts(events: ActivityEvent[], now: Date): AgentOutcom
         title: event.entityTitle,
         domain: event.domain,
         timestamp: outcome?.timestamp ?? event.timestamp,
+        ageDays,
         resolved,
         stale,
         outcomeLabel,
@@ -9380,9 +9383,10 @@ function getTrustedCoachReport(recommendations: AgentRecommendation[], memory: R
       const confidence = recommendation.confidence ?? 50;
       const score = recommendation.score ?? 50;
       const urgency = priorityToScore(agentSeverityToPriority(recommendation.severity));
+      const rescueBoost = recommendation.source === "agent-outcome model" ? 18 : 0;
       return {
         recommendation,
-        rank: trust * 0.38 + confidence * 0.24 + score * 0.24 + urgency * 0.14,
+        rank: trust * 0.38 + confidence * 0.24 + score * 0.24 + urgency * 0.14 + rescueBoost,
       };
     })
     .filter(({ rank }) => rank >= 58)
@@ -9390,6 +9394,7 @@ function getTrustedCoachReport(recommendations: AgentRecommendation[], memory: R
 }
 
 function getTodayCoachHeadline(memory: ReturnType<typeof getAgentLearningMemory>, report?: AgentRecommendation) {
+  if (memory.staleOutcomeCount > 0) return "Accepted agent work needs rescue.";
   if (report) return `Trusted report ready: ${report.agentName}`;
   if (memory.pendingCount >= 4) return "Agent queue needs a decision pass.";
   if (memory.totalTrust >= 72) return "Coach memory is healthy and ready to guide Today.";
@@ -9398,6 +9403,9 @@ function getTodayCoachHeadline(memory: ReturnType<typeof getAgentLearningMemory>
 }
 
 function getTodayCoachDirective(memory: ReturnType<typeof getAgentLearningMemory>, report?: AgentRecommendation) {
+  if (memory.staleOutcomeCount > 0) {
+    return `${memory.staleOutcomeCount} accepted agent-created item${memory.staleOutcomeCount === 1 ? "" : "s"} have not produced visible follow-through yet. Refresh the coach brief to generate a rescue checkpoint.`;
+  }
   if (report) {
     return `${report.agentName} has a pending recommendation strong enough to surface inside Today. Accept it if the next step still fits the day, or open Agents for deeper review.`;
   }
@@ -9547,7 +9555,7 @@ function AgentsView({
           <section>
             <span>Outcome Impact</span>
             <strong>{learningMemory.impactRate}%</strong>
-            <p>{learningMemory.outcomeCount}/{learningMemory.deployedCount} deployed action{learningMemory.deployedCount === 1 ? "" : "s"} show follow-through.</p>
+            <p>{learningMemory.outcomeCount}/{learningMemory.deployedCount} deployed action{learningMemory.deployedCount === 1 ? "" : "s"} show follow-through; {learningMemory.staleOutcomeCount} need rescue.</p>
           </section>
           <section>
             <span>Runs</span>
@@ -10771,6 +10779,8 @@ type AgentContext = {
   behaviorInsights: ReturnType<typeof getBehaviorInsights>;
   protocolMemory: ReturnType<typeof getProtocolMemory>;
   forecastMemory: ReturnType<typeof getForecastBalanceMemory>;
+  agentOutcomeImpacts: AgentOutcomeImpact[];
+  staleAgentOutcomes: AgentOutcomeImpact[];
   loadForecast: ReturnType<typeof getLoadForecast>;
   topGoal?: Goal;
   activeProject?: TaskProject;
@@ -10835,6 +10845,8 @@ function buildAgentContext({
   const behaviorInsights = getBehaviorInsights(activityEvents);
   const protocolMemory = getProtocolMemory(activityEvents, now);
   const forecastMemory = getForecastBalanceMemory(activityEvents, now);
+  const agentOutcomeImpacts = getAgentOutcomeImpacts(activityEvents, now);
+  const staleAgentOutcomes = agentOutcomeImpacts.filter((impact) => impact.stale);
   const loadForecast = getLoadForecast({ projects, calendarEvents, kanbanCards, now });
 
   return {
@@ -10849,6 +10861,8 @@ function buildAgentContext({
     behaviorInsights,
     protocolMemory,
     forecastMemory,
+    agentOutcomeImpacts,
+    staleAgentOutcomes,
     loadForecast,
     topGoal: sortGoals(goals)[0],
     activeProject: projects.map((project) => ({ project, pressure: getProjectPressure(project, now) })).sort((a, b) => b.pressure - a.pressure)[0]?.project,
@@ -11217,6 +11231,7 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
     (a, b) => getCardRiskScore(b, context.now) - getCardRiskScore(a, context.now),
   )[0];
   const recentDeferrals = context.activityEvents.filter((event) => event.action === "deferred" && daysBetween(new Date(event.timestamp), context.now) <= 7);
+  const staleAgentOutcome = [...context.staleAgentOutcomes].sort((a, b) => b.ageDays - a.ageDays || a.title.localeCompare(b.title))[0];
 
   if (riskyCard) {
     const risk = getCardRiskScore(riskyCard, context.now);
@@ -11241,6 +11256,33 @@ function runDisciplineAgent(context: AgentContext): AgentDraft[] {
         title: `Intervention: ${riskyCard.title}`,
         date: toDateInputValue(context.now),
         time: "18:00",
+        kind: "project",
+      },
+    });
+  }
+
+  if (staleAgentOutcome) {
+    const score = clamp(56 + staleAgentOutcome.ageDays * 4 + context.staleAgentOutcomes.length * 8 + context.driftScore * 0.14, 58, 96);
+    drafts.push({
+      agentId: "discipline",
+      agentName: "Discipline Agent",
+      title: `Rescue stale agent outcome: ${staleAgentOutcome.title}`,
+      body: "An accepted agent recommendation created work, but the activity ledger has not seen follow-through. Schedule a short rescue checkpoint: finish it, shrink it, or explicitly retire it so agent trust reflects reality.",
+      severity: severityFromScore(score),
+      score,
+      confidence: confidenceFromSignals([staleAgentOutcome.ageDays * 12, context.staleAgentOutcomes.length * 18, context.driftScore]),
+      source: "agent-outcome model",
+      evidence: [
+        `${staleAgentOutcome.agentName} created ${staleAgentOutcome.title}`,
+        `${staleAgentOutcome.ageDays} day${staleAgentOutcome.ageDays === 1 ? "" : "s"} without visible follow-through`,
+        `${context.staleAgentOutcomes.length} stale agent outcome${context.staleAgentOutcomes.length === 1 ? "" : "s"}`,
+      ],
+      action: {
+        type: "create_calendar",
+        label: "Schedule outcome rescue",
+        title: `Outcome rescue: ${staleAgentOutcome.title}`,
+        date: toDateInputValue(context.now),
+        time: "16:30",
         kind: "project",
       },
     });
