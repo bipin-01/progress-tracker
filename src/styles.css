@@ -11401,6 +11401,8 @@ button.load-forecast-day:hover {
 .zh-mission-active-word p,
 .zh-mission-load i,
 .zh-mission-anchor-strip,
+.zh-memory-core span,
+.zh-memory-core em,
 .zh-mission-phase-signal span,
 .zh-mission-phase-signal strong {
   color: var(--muted);
@@ -11533,7 +11535,7 @@ button.load-forecast-day:hover {
 
 .zh-mission-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.32fr);
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.24fr) minmax(220px, 0.32fr);
   align-items: center;
   gap: 10px;
 }
@@ -11562,6 +11564,39 @@ button.load-forecast-day:hover {
 .zh-mission-anchor-strip button:hover {
   border-color: var(--cyan-dim);
   color: var(--cyan);
+}
+
+.zh-memory-core {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 8px 10px;
+}
+
+.zh-memory-core strong {
+  color: var(--lime);
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.zh-memory-core.offline {
+  border-color: rgba(255, 76, 106, 0.45);
+}
+
+.zh-memory-core.offline strong {
+  color: var(--red);
+}
+
+.zh-memory-core em {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .zh-mission-phase-signal {

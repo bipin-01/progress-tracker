@@ -477,6 +477,19 @@ type ChineseReviewState = {
   rating?: ChineseReviewRating;
 };
 
+type ChineseMemorySnapshot = {
+  version: 1;
+  savedAt: string;
+  selectedPracticeDay: number;
+  sessionXp: number;
+  reviewCombo: number;
+  reviewRatings: Record<string, ChineseReviewState>;
+  completedDrills: string[];
+  strokeMatrixDone: string[];
+};
+
+type ChineseMemoryStatus = "standby" | "restored" | "synced" | "offline";
+
 type ChineseDictionaryEntry = {
   hanzi: string;
   traditional?: string;
@@ -497,6 +510,7 @@ const CHINESE_TODAY_INDEX = 41;
 const CHINESE_DAILY_REVIEW_TARGET = 50;
 const CHINESE_KNOWN_CHARACTER_BASE = 1247;
 const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
+const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
 
 const chineseLessons: ChineseLesson[] = [
   {
@@ -1295,6 +1309,84 @@ function getChineseDueLabel(state: ChineseReviewState, today = CHINESE_TODAY_IND
   if (delta < 0) return `${Math.abs(delta)}d late`;
   if (delta === 0) return "due now";
   return `D+${delta}`;
+}
+
+function isChineseRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getChineseNumber(value: unknown, fallback: number) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function getChineseStoredDay(value: unknown) {
+  return Math.min(Math.max(Math.trunc(getChineseNumber(value, CHINESE_TODAY_INDEX)), 1), CHINESE_PRACTICE_TOTAL_DAYS);
+}
+
+function isChineseReviewRating(value: unknown): value is ChineseReviewRating {
+  return value === "again" || value === "hard" || value === "ok" || value === "easy";
+}
+
+function getChineseStoredReviewState(value: unknown): ChineseReviewState | null {
+  if (!isChineseRecord(value)) return null;
+  const fallback = getDefaultChineseReviewState();
+  const rating = isChineseReviewRating(value.rating) ? value.rating : undefined;
+  return {
+    ease: getChineseNumber(value.ease, fallback.ease),
+    interval: getChineseNumber(value.interval, fallback.interval),
+    repetitions: getChineseNumber(value.repetitions, fallback.repetitions),
+    dueDay: getChineseNumber(value.dueDay, fallback.dueDay),
+    lastReviewedDay: value.lastReviewedDay === undefined ? undefined : getChineseNumber(value.lastReviewedDay, CHINESE_TODAY_INDEX),
+    totalReviews: getChineseNumber(value.totalReviews, fallback.totalReviews),
+    successfulReviews: getChineseNumber(value.successfulReviews, fallback.successfulReviews),
+    lapses: getChineseNumber(value.lapses, fallback.lapses),
+    stability: getChineseNumber(value.stability, fallback.stability),
+    difficulty: getChineseNumber(value.difficulty, fallback.difficulty),
+    rating,
+  };
+}
+
+function getChineseStoredStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(CHINESE_MEMORY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isChineseRecord(parsed)) return null;
+    const reviewRatings = Object.entries(isChineseRecord(parsed.reviewRatings) ? parsed.reviewRatings : {}).reduce<Record<string, ChineseReviewState>>(
+      (ratings, [cardId, value]) => {
+        const state = getChineseStoredReviewState(value);
+        if (state) ratings[cardId] = state;
+        return ratings;
+      },
+      {},
+    );
+    return {
+      version: 1,
+      savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : "",
+      selectedPracticeDay: getChineseStoredDay(parsed.selectedPracticeDay),
+      sessionXp: getChineseNumber(parsed.sessionXp, 0),
+      reviewCombo: getChineseNumber(parsed.reviewCombo, 0),
+      reviewRatings,
+      completedDrills: getChineseStoredStringArray(parsed.completedDrills),
+      strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveChineseMemorySnapshot(snapshot: ChineseMemorySnapshot) {
+  try {
+    window.localStorage.setItem(CHINESE_MEMORY_STORAGE_KEY, JSON.stringify(snapshot));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getChineseDictionaryEntry(token: string, fallback?: { pinyin?: string; meaning?: string; note?: string }): ChineseDictionaryEntry {
@@ -12146,6 +12238,8 @@ function ChineseView() {
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
+  const [memoryHydrated, setMemoryHydrated] = useState(false);
+  const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -12165,6 +12259,10 @@ function ChineseView() {
   );
   const practiceMissionLoad = selectedPracticeRecord.wordsPerDay + practiceAnchorLoad;
   const missionRailWords = selectedPracticeRecord.words.slice(0, Math.min(12, selectedPracticeRecord.words.length));
+  const memoryCardCount = Object.keys(reviewRatings).length;
+  const memoryStrokeCount = strokeMatrixDone.size;
+  const memoryCoreLabel =
+    memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
   const activePhraseReviewId = `${activeLesson.id}-${selectedPhraseIndex}-${activePhrase.hanzi}`;
   const activeStrokePrefix = `${activeLesson.id}-${activeDictionaryEntry.hanzi}`;
@@ -12345,6 +12443,35 @@ function ChineseView() {
   useEffect(() => {
     setActiveReviewId(activePhraseReviewId);
   }, [activePhraseReviewId]);
+
+  useEffect(() => {
+    const snapshot = loadChineseMemorySnapshot();
+    if (snapshot) {
+      setSelectedPracticeDay(snapshot.selectedPracticeDay);
+      setSessionXp(snapshot.sessionXp);
+      setReviewCombo(snapshot.reviewCombo);
+      setReviewRatings(snapshot.reviewRatings);
+      setCompletedDrills(new Set(["listen", ...snapshot.completedDrills]));
+      setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
+      setMemoryStatus("restored");
+    }
+    setMemoryHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!memoryHydrated) return;
+    const saved = saveChineseMemorySnapshot({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      selectedPracticeDay,
+      sessionXp,
+      reviewCombo,
+      reviewRatings,
+      completedDrills: Array.from(completedDrills).sort(),
+      strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
+    });
+    setMemoryStatus(saved ? "synced" : "offline");
+  }, [completedDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, strokeMatrixDone]);
 
   function selectLesson(id: string) {
     setActiveLessonId(id);
@@ -12593,6 +12720,11 @@ function ChineseView() {
                 ) : (
                   <em>first intake day</em>
                 )}
+              </div>
+              <div className={`zh-memory-core ${memoryStatus === "offline" ? "offline" : ""}`}>
+                <span>memory core</span>
+                <strong>{memoryCoreLabel}</strong>
+                <em>{memoryCardCount} cards · {memoryStrokeCount} strokes</em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
                 <span>phase signal</span>
