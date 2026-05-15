@@ -11351,8 +11351,10 @@ function ReflectionCard({ reflection }: { reflection: ReturnType<typeof getDashb
 function ChineseView() {
   const [activeLessonId, setActiveLessonId] = useState(chineseLessons[0].id);
   const [selectedOption, setSelectedOption] = useState("");
+  const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
+  const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const completedCount = completedDrills.size;
   const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
@@ -11361,6 +11363,7 @@ function ChineseView() {
 
   function selectLesson(id: string) {
     setActiveLessonId(id);
+    setSelectedCharacterIndex(0);
     setSelectedOption("");
   }
 
@@ -11504,20 +11507,39 @@ function ChineseView() {
 
       <section className="chinese-practice-grid" aria-label="Chinese practice panels">
         <HudCard className="chinese-character-card">
-          <CardHeader title="Character Logic" meta="radical map" />
-          <div className="chinese-character-list">
-            {activeLesson.characters.map((character) => (
-              <article key={`${activeLesson.id}-${character.hanzi}`}>
-                <button type="button" onClick={() => speakMandarin(character.hanzi)}>
+          <CardHeader title="Glyph Forge" meta="shape memory" />
+          <div className="chinese-character-lab">
+            <div className="chinese-glyph-forge">
+              <div className="chinese-glyph-grid" aria-label={`${activeCharacter.hanzi} practice grid`}>
+                <span>{activeCharacter.hanzi}</span>
+              </div>
+              <div className="chinese-glyph-meta">
+                <span>active glyph</span>
+                <strong>{activeCharacter.pinyin} · {activeCharacter.meaning}</strong>
+                <p>{activeCharacter.note}</p>
+                <button type="button" onClick={() => speakMandarin(activeCharacter.hanzi)}>
                   <Volume2 />
+                  play glyph
                 </button>
-                <strong>{character.hanzi}</strong>
-                <div>
-                  <span>{character.pinyin} · {character.meaning}</span>
-                  <em>{character.note}</em>
-                </div>
-              </article>
-            ))}
+              </div>
+            </div>
+
+            <div className="chinese-character-list">
+              {activeLesson.characters.map((character, index) => (
+                <button
+                  className={index === selectedCharacterIndex ? "active" : ""}
+                  type="button"
+                  onClick={() => setSelectedCharacterIndex(index)}
+                  key={`${activeLesson.id}-${character.hanzi}`}
+                >
+                  <strong>{character.hanzi}</strong>
+                  <div>
+                    <span>{character.pinyin} · {character.meaning}</span>
+                    <em>{character.note}</em>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </HudCard>
 

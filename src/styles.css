@@ -9819,7 +9819,7 @@ button.load-forecast-day:hover {
 
 .chinese-hero-actions button,
 .chinese-sound-strip button,
-.chinese-character-list button {
+.chinese-glyph-meta button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -9839,11 +9839,13 @@ button.load-forecast-day:hover {
 
 .chinese-hero-actions button:hover,
 .chinese-sound-strip button:hover,
-.chinese-character-list button:hover,
+.chinese-glyph-meta button:hover,
 .chinese-example-grid button:hover,
 .chinese-tone-stack button:hover,
 .chinese-roadmap button:hover,
 .chinese-roadmap button.active,
+.chinese-character-list button:hover,
+.chinese-character-list button.active,
 .chinese-quiz-options button:hover {
   border-color: var(--cyan-dim);
   background: rgba(53, 215, 255, 0.08);
@@ -9851,7 +9853,7 @@ button.load-forecast-day:hover {
 
 .chinese-hero-actions svg,
 .chinese-sound-strip svg,
-.chinese-character-list svg {
+.chinese-glyph-meta svg {
   width: 14px;
   height: 14px;
 }
@@ -9894,6 +9896,7 @@ button.load-forecast-day:hover {
 .chinese-roadmap button,
 .chinese-tone-stack button,
 .chinese-example-grid button,
+.chinese-character-list button,
 .chinese-quiz-options button {
   border: 1px solid var(--hair-soft);
   background: rgba(6, 15, 28, 0.52);
@@ -9958,7 +9961,7 @@ button.load-forecast-day:hover {
 }
 
 .chinese-sound-strip button,
-.chinese-character-list button {
+.chinese-glyph-meta button {
   width: 34px;
   height: 34px;
 }
@@ -10025,32 +10028,133 @@ button.load-forecast-day:hover {
   gap: 5px;
 }
 
-.chinese-character-list article {
+.chinese-character-lab {
   display: grid;
-  grid-template-columns: 36px 64px minmax(0, 1fr);
-  align-items: center;
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.chinese-glyph-forge {
+  display: grid;
   gap: 12px;
   border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.06), transparent 44%),
+    rgba(5, 9, 18, 0.42);
+  padding: 14px;
+}
+
+.chinese-glyph-grid {
+  position: relative;
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--cyan-dim);
+  background:
+    linear-gradient(rgba(53, 215, 255, 0.08) 1px, transparent 1px) 0 0 / 25% 25%,
+    linear-gradient(90deg, rgba(53, 215, 255, 0.08) 1px, transparent 1px) 0 0 / 25% 25%,
+    radial-gradient(circle, rgba(170, 114, 255, 0.1), transparent 66%),
+    rgba(2, 7, 15, 0.72);
+}
+
+.chinese-glyph-grid::before,
+.chinese-glyph-grid::after {
+  content: "";
+  position: absolute;
+  background: rgba(53, 215, 255, 0.22);
+}
+
+.chinese-glyph-grid::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.chinese-glyph-grid::after {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.chinese-glyph-grid span {
+  position: relative;
+  z-index: 1;
+  color: var(--ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: clamp(76px, 9vw, 132px);
+  line-height: 1;
+  text-shadow: 0 0 24px rgba(53, 215, 255, 0.22);
+}
+
+.chinese-glyph-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.chinese-glyph-meta span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.chinese-glyph-meta strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chinese-glyph-meta p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.chinese-glyph-meta button {
+  width: max-content;
+  min-height: 32px;
+  gap: 8px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.chinese-character-list button {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
   border-left: 2px solid var(--cyan);
-  background: rgba(6, 15, 28, 0.52);
   padding: 12px;
 }
 
-.chinese-character-list article:nth-child(2n) {
+.chinese-character-list button:nth-child(2n) {
   border-left-color: var(--violet);
 }
 
-.chinese-character-list article > strong {
+.chinese-character-list button > strong {
   color: var(--ink);
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 38px;
   line-height: 1;
 }
 
-.chinese-character-list article > div {
+.chinese-character-list button > div {
   display: grid;
   gap: 6px;
   min-width: 0;
+  text-align: left;
 }
 
 .chinese-character-list em {
@@ -10457,11 +10561,12 @@ button.load-forecast-day:hover {
   .chinese-sound-strip,
   .chinese-example-grid,
   .chinese-quiz-options,
-  .chinese-character-list article {
+  .chinese-character-lab,
+  .chinese-character-list button {
     grid-template-columns: 1fr;
   }
 
-  .chinese-character-list button {
+  .chinese-glyph-meta button {
     width: 100%;
   }
 
