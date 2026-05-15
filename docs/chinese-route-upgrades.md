@@ -41,13 +41,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added persistent placement history: calibration actions now save into Memory Core with source day, target day, HSK band, readiness, confidence, and decision status, then render as a compact audit strip under the Placement Matrix.
 - 2026-05-15 - Added placement outcome analysis: the Placement Matrix now compares the seven days before a calibration against the seven days after it using the 500-day practice database, exposing average load, new-word delta, review delta, and whether the decision made the next week heavier, lighter, or stable.
 - 2026-05-15 - Added a collapsible AI coach evidence export: `/chinese` now stages and copies a structured JSON packet containing day scope, memory counters, SRS state, voice weakness, repair status, placement outcome, and a computed next action for a future coaching agent.
+- 2026-05-15 - Added an in-route coach briefing: the evidence packet now resolves into a plain-language intervention with a signal, reason, three-step plan, urgency rail, and command button that can open Focus Tunnel, load repair, route to recall, or continue the guided circuit.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add an in-route coach briefing view that reads the evidence packet and produces a plain-language daily intervention without leaving `/chinese`.
+- Add coach briefing history so repeated interventions can be compared against later SRS, voice, and placement outcomes.
 
 ## Design Rules For Future Passes
 

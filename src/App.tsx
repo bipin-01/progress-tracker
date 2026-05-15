@@ -663,6 +663,17 @@ type ChineseCoachEvidencePacket = {
   nextAction: string;
 };
 
+type ChineseCoachBriefing = {
+  mode: "sample" | "repair" | "review" | "voice" | "placement" | "flow";
+  signal: string;
+  title: string;
+  body: string;
+  why: string;
+  steps: string[];
+  command: string;
+  urgency: number;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -2299,6 +2310,86 @@ function getChineseEvidenceChecksum(value: string) {
     hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
   }
   return hash.toString(36).toUpperCase().padStart(7, "0").slice(-7);
+}
+
+function getChineseCoachBriefing(packet: ChineseCoachEvidencePacket): ChineseCoachBriefing {
+  const weakSymbols = packet.voice.weakHanzi.length ? packet.voice.weakHanzi.slice(0, 3).join(" ") : packet.scope.activeWord;
+
+  if (packet.placement.status === "sample" || packet.placement.confidence < 50) {
+    return {
+      mode: "sample",
+      signal: "calibrate",
+      title: "Run one clean sample",
+      body: `Hold D${String(packet.scope.day).padStart(3, "0")} until listen, build, write, and recall all produce evidence.`,
+      why: `${packet.placement.confidence}% placement confidence is too thin for a schedule move.`,
+      steps: ["Open Focus Tunnel", `Shadow ${packet.scope.activeWord}`, "Build, write, then grade recall"],
+      command: "run sample",
+      urgency: 100 - packet.placement.confidence,
+    };
+  }
+
+  if (packet.repair.delta <= 0 && (packet.voice.weakHanzi.length > 0 || packet.voice.average < 70)) {
+    return {
+      mode: "repair",
+      signal: "tone repair",
+      title: "Repair spoken drift",
+      body: `Prioritize ${weakSymbols} before adding new load.`,
+      why: `${packet.voice.weakTone} is still the highest-risk voice signal.`,
+      steps: [`Replay ${packet.voice.weakTone}`, `Speak ${weakSymbols} five times`, "Lock the repair mission"],
+      command: "load repair",
+      urgency: Math.min(100, 100 - packet.voice.average + 20),
+    };
+  }
+
+  if (packet.srs.due >= 10) {
+    return {
+      mode: "review",
+      signal: "memory pressure",
+      title: "Drain the due queue",
+      body: `${packet.srs.due} cards are due; clear memory pressure before chasing new words.`,
+      why: `${packet.srs.retention}% retained with ${packet.srs.accuracy}% accuracy.`,
+      steps: ["Grade due cards first", "Mark weak ones hard", "Return to today’s active word"],
+      command: "open queue",
+      urgency: Math.min(100, packet.srs.due * 5),
+    };
+  }
+
+  if (packet.placement.weeklyDelta > 8 && packet.placement.readiness < 65) {
+    return {
+      mode: "placement",
+      signal: "load guard",
+      title: "Hold the load",
+      body: "The next week got heavier before readiness caught up.",
+      why: `${packet.placement.weeklyDelta} average-load delta at ${packet.placement.readiness}% readiness.`,
+      steps: ["Stay on current day", "Finish daily circuit", "Recheck placement after recall"],
+      command: "hold day",
+      urgency: Math.min(100, packet.placement.weeklyDelta + (65 - packet.placement.readiness)),
+    };
+  }
+
+  if (packet.voice.average > 0 && packet.voice.average < 82) {
+    return {
+      mode: "voice",
+      signal: "voice polish",
+      title: "Sharpen pronunciation",
+      body: `Voice average is ${packet.voice.average}%; add one spoken pass before SRS grading.`,
+      why: `${packet.voice.weakTone} needs another clean output sample.`,
+      steps: ["Play audio", "Speak full sentence", "Grade only after clean output"],
+      command: "voice pass",
+      urgency: 82 - packet.voice.average,
+    };
+  }
+
+  return {
+    mode: "flow",
+    signal: "green path",
+    title: "Continue the circuit",
+    body: packet.nextAction,
+    why: `${packet.placement.outcome}; ${packet.srs.due} cards due.`,
+    steps: ["Run guided command", "Load active word", "Keep combo alive"],
+    command: "continue",
+    urgency: Math.max(10, Math.min(100, packet.srs.due * 3 + Math.abs(packet.placement.weeklyDelta))),
+  };
 }
 
 function getChineseHskProgress(level: (typeof chineseHskLevels)[number], masteredCharacters: number) {
@@ -13459,6 +13550,7 @@ function ChineseView() {
   const coachEvidenceText = useMemo(() => JSON.stringify(coachEvidencePacket, null, 2), [coachEvidencePacket]);
   const coachEvidenceChecksum = useMemo(() => getChineseEvidenceChecksum(coachEvidenceText), [coachEvidenceText]);
   const coachEvidencePreview = coachEvidenceText.split("\n").slice(0, 10).join("\n");
+  const coachBriefing = useMemo(() => getChineseCoachBriefing(coachEvidencePacket), [coachEvidencePacket]);
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -13706,6 +13798,44 @@ function ChineseView() {
       setCoachPacketOpen(true);
       setRewardMessage(`coach packet staged · ${coachEvidenceChecksum}`);
     }
+  }
+
+  function runCoachBriefing() {
+    if (coachBriefing.mode === "sample") {
+      setLessonFocusActive(true);
+      setActiveLessonStep("listen");
+      setRewardMessage(`coach briefing armed · ${coachBriefing.signal}`);
+      return;
+    }
+
+    if (coachBriefing.mode === "repair") {
+      loadAdaptiveRepairMission();
+      setRewardMessage(`coach briefing armed · ${coachBriefing.signal}`);
+      return;
+    }
+
+    if (coachBriefing.mode === "review") {
+      setActiveReviewId(activeReviewCard.id);
+      setActiveLessonStep("recall");
+      setRewardMessage(`coach briefing armed · ${coachBriefing.signal}`);
+      return;
+    }
+
+    if (coachBriefing.mode === "voice") {
+      setLessonFocusActive(true);
+      setActiveLessonStep("recall");
+      setRewardMessage(`coach briefing armed · ${coachBriefing.signal}`);
+      return;
+    }
+
+    if (coachBriefing.mode === "placement") {
+      selectPracticeDay(selectedPracticeRecord.day);
+      setRewardMessage(`coach briefing armed · ${coachBriefing.signal}`);
+      return;
+    }
+
+    runGuidedCircuitStep();
+    setRewardMessage(`coach briefing armed · ${coachBriefing.signal}`);
   }
 
   function toggleRepairDrill(drill: ChineseAdaptiveRepairDrill) {
@@ -14548,6 +14678,29 @@ function ChineseView() {
                         copy json
                       </button>
                     </div>
+                  </div>
+                  <div
+                    className={`zh-coach-briefing mode-${coachBriefing.mode}`}
+                    style={{ "--coach-urgency": `${coachBriefing.urgency}%` } as CSSProperties}
+                  >
+                    <div>
+                      <span>{coachBriefing.signal}</span>
+                      <strong>{coachBriefing.title}</strong>
+                      <p>{coachBriefing.body}</p>
+                      <em>{coachBriefing.why}</em>
+                    </div>
+                    <div>
+                      {coachBriefing.steps.map((step, index) => (
+                        <span key={step}>
+                          <b>{String(index + 1).padStart(2, "0")}</b>
+                          <i>{step}</i>
+                        </span>
+                      ))}
+                    </div>
+                    <button type="button" onClick={runCoachBriefing}>
+                      {coachBriefing.command}
+                    </button>
+                    <u aria-hidden="true" />
                   </div>
                   <div className="zh-coach-evidence-grid">
                     <span>
