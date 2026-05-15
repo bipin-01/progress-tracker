@@ -615,6 +615,54 @@ type ChinesePlacementOutcome = {
   entry?: ChinesePlacementHistoryEntry;
 };
 
+type ChineseCoachEvidencePacket = {
+  version: 1;
+  packetId: string;
+  generatedAt: string;
+  scope: {
+    route: "/chinese";
+    day: number;
+    phase: string;
+    activeWord: string;
+    activePinyin: string;
+    activeLesson: string;
+  };
+  memory: {
+    xp: number;
+    combo: number;
+    cards: number;
+    voiceAttempts: number;
+    repairEvents: number;
+    placementEvents: number;
+  };
+  srs: {
+    reviewed: number;
+    due: number;
+    accuracy: number;
+    retention: number;
+    activeStatus: string;
+  };
+  voice: {
+    average: number;
+    latestScore: number | null;
+    weakTone: string;
+    weakHanzi: string[];
+  };
+  repair: {
+    mission: string;
+    comparison: string;
+    delta: number;
+  };
+  placement: {
+    status: string;
+    readiness: number;
+    confidence: number;
+    outcome: string;
+    weeklyDelta: number;
+  };
+  nextAction: string;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -2243,6 +2291,14 @@ function getChinesePlacementOutcome(history: ChinesePlacementHistoryEntry[]): Ch
     deltaReviewWords,
     entry,
   };
+}
+
+function getChineseEvidenceChecksum(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36).toUpperCase().padStart(7, "0").slice(-7);
 }
 
 function getChineseHskProgress(level: (typeof chineseHskLevels)[number], masteredCharacters: number) {
@@ -13048,6 +13104,7 @@ function ChineseView() {
   const [speechScore, setSpeechScore] = useState(0);
   const [speechConfidence, setSpeechConfidence] = useState(0);
   const [speechAttempts, setSpeechAttempts] = useState<ChineseSpeechAttempt[]>([]);
+  const [coachPacketOpen, setCoachPacketOpen] = useState(false);
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -13072,7 +13129,7 @@ function ChineseView() {
   const memoryRepairCount = completedRepairDrills.size;
   const memoryPlacementCount = placementHistory.length;
   const repairHistoryStrip = repairHistory.slice(0, 7);
-  const placementHistoryStrip = placementHistory.slice(0, 3);
+  const placementHistoryStrip = placementHistory.slice(0, 2);
   const placementOutcome = getChinesePlacementOutcome(placementHistory);
   const repairComparison = getChineseRepairComparison(repairHistory, speechAttempts);
   const memoryCoreLabel =
@@ -13290,6 +13347,118 @@ function ChineseView() {
     strokeCompletedCount,
     selectedPracticeDay,
   });
+  const coachEvidencePacket = useMemo<ChineseCoachEvidencePacket>(() => {
+    const latestSpeechAttempt = speechAttempts[0];
+    const weakHanzi = [
+      activeVoiceWeakness?.hanzi,
+      ...voiceHeatmap.hanziHotspots.slice(0, 3).map((hotspot) => hotspot.hanzi),
+    ].filter((hanzi, index, list): hanzi is string => Boolean(hanzi) && list.indexOf(hanzi) === index);
+    const nextAction =
+      placementProfile.status === "sample"
+        ? "Run one focus-tunnel placement sample."
+        : adaptiveRepairMission.hasSignal && !repairMissionLocked
+          ? `Lock repair mission for T${adaptiveRepairMission.tone.tone}.`
+          : dueReviewCount > 0
+            ? `Clear ${dueReviewCount} due SRS cards.`
+            : "Continue the daily guided circuit.";
+    const seed = [
+      selectedPracticeRecord.day,
+      reviewedCount,
+      accuracy,
+      reviewMastery,
+      speechAttempts.length,
+      repairHistory.length,
+      placementHistory.length,
+      placementOutcome.status,
+      placementOutcome.deltaAverage,
+    ].join(":");
+
+    return {
+      version: 1,
+      packetId: `ZH-D${String(selectedPracticeRecord.day).padStart(3, "0")}-${getChineseEvidenceChecksum(seed)}`,
+      generatedAt: new Date().toISOString(),
+      scope: {
+        route: "/chinese",
+        day: selectedPracticeRecord.day,
+        phase: selectedPracticeRecord.phaseTitle,
+        activeWord: activePracticeWord.hanzi,
+        activePinyin: activePracticeWord.pinyin,
+        activeLesson: activeLesson.title,
+      },
+      memory: {
+        xp: sessionXp,
+        combo: reviewCombo,
+        cards: memoryCardCount,
+        voiceAttempts: memoryVoiceCount,
+        repairEvents: repairHistory.length,
+        placementEvents: placementHistory.length,
+      },
+      srs: {
+        reviewed: reviewedCount,
+        due: dueReviewCount,
+        accuracy,
+        retention: reviewMastery,
+        activeStatus: activeReviewStatus,
+      },
+      voice: {
+        average: activeSpeechAverage,
+        latestScore: latestSpeechAttempt ? latestSpeechAttempt.score : null,
+        weakTone: `T${activeVoiceToneWeakness.tone} ${activeVoiceToneWeakness.name}`,
+        weakHanzi,
+      },
+      repair: {
+        mission: adaptiveRepairMission.summary,
+        comparison: repairComparison.label,
+        delta: repairComparison.delta,
+      },
+      placement: {
+        status: placementProfile.status,
+        readiness: placementProfile.readiness,
+        confidence: placementProfile.confidence,
+        outcome: placementOutcome.label,
+        weeklyDelta: placementOutcome.deltaAverage,
+      },
+      nextAction,
+    };
+  }, [
+    accuracy,
+    activeLesson.title,
+    activePracticeWord.hanzi,
+    activePracticeWord.pinyin,
+    activeReviewStatus,
+    activeSpeechAverage,
+    activeVoiceToneWeakness.name,
+    activeVoiceToneWeakness.tone,
+    activeVoiceWeakness?.hanzi,
+    adaptiveRepairMission.hasSignal,
+    adaptiveRepairMission.summary,
+    adaptiveRepairMission.tone.tone,
+    dueReviewCount,
+    memoryCardCount,
+    memoryVoiceCount,
+    placementHistory.length,
+    placementOutcome.deltaAverage,
+    placementOutcome.label,
+    placementOutcome.status,
+    placementProfile.confidence,
+    placementProfile.readiness,
+    placementProfile.status,
+    repairComparison.delta,
+    repairComparison.label,
+    repairHistory.length,
+    repairMissionLocked,
+    reviewCombo,
+    reviewMastery,
+    reviewedCount,
+    selectedPracticeRecord.day,
+    selectedPracticeRecord.phaseTitle,
+    sessionXp,
+    speechAttempts,
+    voiceHeatmap.hanziHotspots,
+  ]);
+  const coachEvidenceText = useMemo(() => JSON.stringify(coachEvidencePacket, null, 2), [coachEvidencePacket]);
+  const coachEvidenceChecksum = useMemo(() => getChineseEvidenceChecksum(coachEvidenceText), [coachEvidenceText]);
+  const coachEvidencePreview = coachEvidenceText.split("\n").slice(0, 10).join("\n");
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -13522,6 +13691,21 @@ function ChineseView() {
     setRewardMessage(
       `placement calibrated · ${placementProfile.hskLabel} · D${String(placementProfile.recommendedDay).padStart(3, "0")}`,
     );
+  }
+
+  function stageCoachEvidencePacket() {
+    setCoachPacketOpen((current) => !current);
+    setRewardMessage(`coach packet staged · ${coachEvidenceChecksum}`);
+  }
+
+  async function copyCoachEvidencePacket() {
+    try {
+      await navigator.clipboard.writeText(coachEvidenceText);
+      setRewardMessage(`coach packet copied · ${coachEvidenceChecksum}`);
+    } catch {
+      setCoachPacketOpen(true);
+      setRewardMessage(`coach packet staged · ${coachEvidenceChecksum}`);
+    }
   }
 
   function toggleRepairDrill(drill: ChineseAdaptiveRepairDrill) {
@@ -14293,7 +14477,7 @@ function ChineseView() {
                 <div className="zh-placement-history" aria-label="Placement calibration history">
                   <div>
                     <span>placement log</span>
-                    <strong>{placementHistoryStrip.length}/3</strong>
+                    <strong>{placementHistoryStrip.length}/2</strong>
                   </div>
                   <div>
                     {placementHistoryStrip.length ? (
@@ -14348,6 +14532,42 @@ function ChineseView() {
                     </em>
                   </div>
                   <i aria-hidden="true" />
+                </div>
+                <div className={`zh-coach-evidence ${coachPacketOpen ? "open" : ""}`} aria-label="AI coach evidence export">
+                  <div className="zh-coach-evidence-head">
+                    <div>
+                      <span>coach evidence</span>
+                      <strong>{coachEvidencePacket.packetId}</strong>
+                      <em>{coachEvidenceChecksum} · {coachEvidenceText.length} bytes</em>
+                    </div>
+                    <div>
+                      <button type="button" onClick={stageCoachEvidencePacket}>
+                        {coachPacketOpen ? "hide packet" : "stage packet"}
+                      </button>
+                      <button type="button" onClick={() => void copyCoachEvidencePacket()}>
+                        copy json
+                      </button>
+                    </div>
+                  </div>
+                  <div className="zh-coach-evidence-grid">
+                    <span>
+                      <b>srs</b>
+                      <i>{coachEvidencePacket.srs.due} due</i>
+                    </span>
+                    <span>
+                      <b>voice</b>
+                      <i>{coachEvidencePacket.voice.average}%</i>
+                    </span>
+                    <span>
+                      <b>repair</b>
+                      <i>{coachEvidencePacket.repair.delta > 0 ? "-" : "+"}{Math.abs(coachEvidencePacket.repair.delta)}%</i>
+                    </span>
+                    <span>
+                      <b>placement</b>
+                      <i>{coachEvidencePacket.placement.weeklyDelta > 0 ? "+" : ""}{coachEvidencePacket.placement.weeklyDelta}</i>
+                    </span>
+                  </div>
+                  {coachPacketOpen ? <pre>{coachEvidencePreview}</pre> : null}
                 </div>
               </div>
             </div>

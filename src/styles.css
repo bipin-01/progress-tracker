@@ -13300,7 +13300,12 @@ button.load-forecast-day:hover {
 .zh-placement-history em,
 .zh-placement-history p,
 .zh-placement-outcome span,
-.zh-placement-outcome em {
+.zh-placement-outcome em,
+.zh-coach-evidence span,
+.zh-coach-evidence em,
+.zh-coach-evidence b,
+.zh-coach-evidence i,
+.zh-coach-evidence pre {
   overflow: hidden;
   color: var(--muted);
   font-size: 9px;
@@ -13315,7 +13320,8 @@ button.load-forecast-day:hover {
 
 .zh-placement-core strong,
 .zh-placement-target strong,
-.zh-placement-outcome strong {
+.zh-placement-outcome strong,
+.zh-coach-evidence strong {
   overflow: hidden;
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
@@ -13532,6 +13538,96 @@ button.load-forecast-day:hover {
 .zh-placement-outcome.status-empty > i::before {
   background: var(--cyan);
   opacity: 0.35;
+}
+
+.zh-coach-evidence {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(170, 114, 255, 0.22);
+  background:
+    linear-gradient(90deg, rgba(170, 114, 255, 0.045), transparent 52%),
+    rgba(2, 7, 15, 0.3);
+  padding: 7px;
+}
+
+.zh-coach-evidence.open {
+  border-color: rgba(170, 114, 255, 0.4);
+  box-shadow: inset 0 0 18px rgba(170, 114, 255, 0.045);
+}
+
+.zh-coach-evidence-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.zh-coach-evidence-head > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zh-coach-evidence strong {
+  font-size: 11px;
+}
+
+.zh-coach-evidence-head > div:last-child {
+  display: flex;
+  gap: 5px;
+}
+
+.zh-coach-evidence button {
+  min-height: 28px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(170, 114, 255, 0.04);
+  color: var(--zh-magenta);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 0 8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-coach-evidence button:hover {
+  border-color: rgba(170, 114, 255, 0.48);
+  background: rgba(170, 114, 255, 0.09);
+}
+
+.zh-coach-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.zh-coach-evidence-grid span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.025);
+  padding: 5px 6px;
+}
+
+.zh-coach-evidence i {
+  color: var(--cyan);
+  font-style: normal;
+}
+
+.zh-coach-evidence pre {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.48);
+  color: var(--ink-2);
+  line-height: 1.55;
+  padding: 8px;
+  text-transform: none;
+  white-space: pre-wrap;
 }
 
 .zh-tone-grid {
