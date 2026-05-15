@@ -580,6 +580,19 @@ type ChinesePlacementProfile = {
   signals: ChinesePlacementSignal[];
 };
 
+type ChinesePlacementHistoryEntry = {
+  id: string;
+  createdAt: string;
+  fromDay: number;
+  toDay: number;
+  status: ChinesePlacementProfile["status"];
+  hskLabel: string;
+  readiness: number;
+  confidence: number;
+  action: string;
+  summary: string;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -590,6 +603,7 @@ type ChineseMemorySnapshot = {
   completedDrills: string[];
   completedRepairDrills: string[];
   repairHistory: ChineseRepairHistoryEntry[];
+  placementHistory: ChinesePlacementHistoryEntry[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -1511,6 +1525,10 @@ function isChineseReviewRating(value: unknown): value is ChineseReviewRating {
   return value === "again" || value === "hard" || value === "ok" || value === "easy";
 }
 
+function isChinesePlacementStatus(value: unknown): value is ChinesePlacementProfile["status"] {
+  return value === "sample" || value === "steady" || value === "advance" || value === "repair";
+}
+
 function getChineseStoredReviewState(value: unknown): ChineseReviewState | null {
   if (!isChineseRecord(value)) return null;
   const fallback = getDefaultChineseReviewState();
@@ -1572,6 +1590,25 @@ function getChineseStoredRepairHistoryEntry(value: unknown): ChineseRepairHistor
   };
 }
 
+function getChineseStoredPlacementHistoryEntry(value: unknown): ChinesePlacementHistoryEntry | null {
+  if (!isChineseRecord(value)) return null;
+  const createdAt = typeof value.createdAt === "string" ? value.createdAt : "";
+  const hskLabel = typeof value.hskLabel === "string" ? value.hskLabel : "";
+  if (!createdAt || !hskLabel) return null;
+  return {
+    id: typeof value.id === "string" ? value.id : `${createdAt}-placement`,
+    createdAt,
+    fromDay: getChineseStoredDay(value.fromDay),
+    toDay: getChineseStoredDay(value.toDay),
+    status: isChinesePlacementStatus(value.status) ? value.status : "steady",
+    hskLabel,
+    readiness: getChineseClampedNumber(value.readiness, 0, 0, 100),
+    confidence: getChineseClampedNumber(value.confidence, 0, 0, 100),
+    action: typeof value.action === "string" ? value.action : "hold day",
+    summary: typeof value.summary === "string" ? value.summary : "placement decision logged",
+  };
+}
+
 function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(CHINESE_MEMORY_STORAGE_KEY);
@@ -1598,6 +1635,10 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
       repairHistory: (Array.isArray(parsed.repairHistory) ? parsed.repairHistory : [])
         .map(getChineseStoredRepairHistoryEntry)
         .filter((entry): entry is ChineseRepairHistoryEntry => Boolean(entry))
+        .slice(0, 21),
+      placementHistory: (Array.isArray(parsed.placementHistory) ? parsed.placementHistory : [])
+        .map(getChineseStoredPlacementHistoryEntry)
+        .filter((entry): entry is ChinesePlacementHistoryEntry => Boolean(entry))
         .slice(0, 21),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
@@ -12900,6 +12941,7 @@ function ChineseView() {
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const [completedRepairDrills, setCompletedRepairDrills] = useState<Set<string>>(() => new Set());
   const [repairHistory, setRepairHistory] = useState<ChineseRepairHistoryEntry[]>([]);
+  const [placementHistory, setPlacementHistory] = useState<ChinesePlacementHistoryEntry[]>([]);
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -12931,7 +12973,9 @@ function ChineseView() {
   const memoryCardCount = Object.keys(reviewRatings).length;
   const memoryVoiceCount = speechAttempts.length;
   const memoryRepairCount = completedRepairDrills.size;
+  const memoryPlacementCount = placementHistory.length;
   const repairHistoryStrip = repairHistory.slice(0, 7);
+  const placementHistoryStrip = placementHistory.slice(0, 5);
   const repairComparison = getChineseRepairComparison(repairHistory, speechAttempts);
   const memoryCoreLabel =
     memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
@@ -13177,6 +13221,7 @@ function ChineseView() {
       setCompletedDrills(new Set(["listen", ...snapshot.completedDrills]));
       setCompletedRepairDrills(new Set(snapshot.completedRepairDrills));
       setRepairHistory(snapshot.repairHistory);
+      setPlacementHistory(snapshot.placementHistory);
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -13196,6 +13241,7 @@ function ChineseView() {
       completedDrills: Array.from(completedDrills).sort(),
       completedRepairDrills: Array.from(completedRepairDrills).sort(),
       repairHistory: repairHistory.slice(0, 21),
+      placementHistory: placementHistory.slice(0, 21),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
@@ -13204,6 +13250,7 @@ function ChineseView() {
     completedDrills,
     completedRepairDrills,
     memoryHydrated,
+    placementHistory,
     repairHistory,
     reviewCombo,
     reviewRatings,
@@ -13341,7 +13388,32 @@ function ChineseView() {
     setRewardMessage(`repair history loaded · T${entry.tone} ${entry.toneName}`);
   }
 
+  function logPlacementHistory(profile: ChinesePlacementProfile) {
+    const entry: ChinesePlacementHistoryEntry = {
+      id: `${Date.now()}-${profile.recommendedDay}-${profile.status}`,
+      createdAt: new Date().toISOString(),
+      fromDay: selectedPracticeDay,
+      toDay: profile.status === "sample" ? selectedPracticeDay : profile.recommendedDay,
+      status: profile.status,
+      hskLabel: profile.hskLabel,
+      readiness: profile.readiness,
+      confidence: profile.confidence,
+      action: profile.action,
+      summary: profile.summary,
+    };
+    setPlacementHistory((current) => [entry, ...current].slice(0, 21));
+  }
+
+  function openPlacementHistoryEntry(entry: ChinesePlacementHistoryEntry) {
+    selectPracticeDay(entry.toDay);
+    setRewardMessage(
+      `placement log loaded · ${entry.hskLabel} · ${entry.readiness}% ready / ${entry.confidence}% conf`,
+    );
+  }
+
   function runPlacementCalibration() {
+    logPlacementHistory(placementProfile);
+
     if (placementProfile.status === "sample") {
       setLessonFocusActive(true);
       setRewardMessage("placement sample armed · run listen/build/write/recall");
@@ -13805,7 +13877,7 @@ function ChineseView() {
               <div className={`zh-memory-core ${memoryStatus === "offline" ? "offline" : ""}`}>
                 <span>memory core</span>
                 <strong>{memoryCoreLabel}</strong>
-                <em>{memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair</em>
+                <em>{memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair · {memoryPlacementCount} placement</em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
                 <span>phase signal</span>
@@ -14119,6 +14191,27 @@ function ChineseView() {
                       <i>{signal.score}</i>
                     </span>
                   ))}
+                </div>
+                <div className="zh-placement-history" aria-label="Placement calibration history">
+                  <div>
+                    <span>placement log</span>
+                    <strong>{placementHistoryStrip.length}/5</strong>
+                  </div>
+                  <div>
+                    {placementHistoryStrip.length ? (
+                      placementHistoryStrip.map((entry) => (
+                        <button key={entry.id} type="button" onClick={() => openPlacementHistoryEntry(entry)}>
+                          <span>
+                            D{String(entry.fromDay).padStart(3, "0")}→D{String(entry.toDay).padStart(3, "0")}
+                          </span>
+                          <strong>{entry.status}</strong>
+                          <em>{entry.readiness}% · {entry.confidence}% conf</em>
+                        </button>
+                      ))
+                    ) : (
+                      <p>calibration decisions will appear here</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
