@@ -11216,7 +11216,13 @@ button.load-forecast-day:hover {
 .zh-mini-grade button,
 .zh-daily-circuit button,
 .zh-stroke-matrix button,
-.zh-lesson-strip button {
+.zh-lesson-strip button,
+.zh-practice-phase-btn,
+.zh-practice-day-jump button,
+.zh-practice-day-jump input,
+.zh-practice-range span,
+.zh-review-anchors,
+.zh-practice-word-list button {
   font-family: "Orbitron", sans-serif;
 }
 
@@ -12461,6 +12467,266 @@ button.load-forecast-day:hover {
   color: var(--lime);
 }
 
+.zh-practice-database-grid {
+  display: grid;
+}
+
+.zh-practice-database-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.zh-practice-overview {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.zh-practice-phase-btn {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 10px 9px;
+  text-align: left;
+}
+
+.zh-practice-phase-btn.active,
+.zh-practice-phase-btn:hover {
+  border-color: var(--cyan-dim);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.1), rgba(53, 215, 255, 0.025)),
+    rgba(2, 7, 15, 0.52);
+}
+
+.zh-practice-phase-btn span,
+.zh-practice-phase-btn em,
+.zh-practice-day-head span,
+.zh-practice-day-head em,
+.zh-practice-meter span,
+.zh-practice-meter strong,
+.zh-review-anchors span,
+.zh-review-anchors em,
+.zh-practice-word-list i,
+.zh-practice-word-list b {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.zh-practice-phase-btn strong {
+  color: var(--cyan);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.zh-practice-day-console {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.055), transparent 58%),
+    rgba(2, 7, 15, 0.32);
+  padding: 12px;
+}
+
+.zh-practice-day-head {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1.2fr) minmax(160px, 0.7fr);
+  gap: 10px;
+}
+
+.zh-practice-day-head > div {
+  display: grid;
+  gap: 5px;
+  border-left: 2px solid var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 10px;
+}
+
+.zh-practice-day-head strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-practice-controls {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 1fr) minmax(180px, 0.4fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.zh-practice-day-jump {
+  display: grid;
+  grid-template-columns: 34px 74px 34px;
+  gap: 7px;
+}
+
+.zh-practice-day-jump button,
+.zh-practice-day-jump input {
+  min-height: 34px;
+  border: 1px solid var(--hair);
+  background: rgba(2, 7, 15, 0.48);
+  color: var(--cyan);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.zh-practice-day-jump button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-practice-day-jump input {
+  color: var(--ink);
+  outline: none;
+}
+
+.zh-practice-range {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.zh-practice-range input {
+  width: 100%;
+  accent-color: var(--cyan);
+}
+
+.zh-practice-meter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.zh-practice-meter i {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.zh-practice-meter i::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--practice-progress);
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 9px rgba(53, 215, 255, 0.32);
+}
+
+.zh-practice-meter strong {
+  color: var(--cyan);
+}
+
+.zh-review-anchors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.zh-review-anchors > span {
+  color: var(--cyan);
+}
+
+.zh-review-anchors button {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.4);
+  color: var(--ink-2);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 7px 9px;
+  text-transform: uppercase;
+}
+
+.zh-review-anchors button:hover {
+  border-color: var(--cyan-dim);
+  color: var(--cyan);
+}
+
+.zh-practice-word-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  max-height: 366px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.zh-practice-word-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.44);
+  padding: 10px;
+  text-align: left;
+}
+
+.zh-practice-word-list button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.07);
+}
+
+.zh-practice-word-list span {
+  grid-row: span 2;
+  color: var(--cyan);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.zh-practice-word-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zh-practice-word-list em {
+  overflow: hidden;
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.zh-practice-word-list i {
+  grid-column: 2 / -1;
+  overflow: hidden;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zh-practice-word-list b {
+  grid-column: 3;
+  grid-row: 1;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
 .zh-bottom-scan {
   height: 34px;
   color: var(--cyan);
@@ -12498,6 +12764,10 @@ button.load-forecast-day:hover {
   .zh-right-col {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .zh-practice-overview {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
@@ -12515,7 +12785,10 @@ button.load-forecast-day:hover {
   .zh-dictionary-entry,
   .zh-stroke-matrix > div:last-child,
   .zh-pattern-examples,
-  .zh-review-list {
+  .zh-review-list,
+  .zh-practice-overview,
+  .zh-practice-day-head,
+  .zh-practice-controls {
     grid-template-columns: 1fr;
   }
 

@@ -23,6 +23,7 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added Memory Queue, an Anki-inspired spaced repetition panel with hard/ok/easy grading, review intervals, ease, reps, and due queue.
 - 2026-05-15 - Rebuilt `/chinese` as a standalone Chinese Protocol cockpit based on the provided reference: full-width shell, primary hanzi flashcard, reveal/grading loop, HSK ladder, tone vectors, heatmap, deck queue, pattern reactor, sentence assembler, pinyin decoder, stroke trace, and daily circuit.
 - 2026-05-15 - Deepened the current feature set: SM-2-style review scheduling with due days, retention, lapses, accuracy, XP/combo rewards, 7-day streak cells, dynamic deck due counts, 10-card review queue statuses, Pleco-style dictionary drawer, clickable sentence characters, richer component/radical entries, and a Skritter-inspired stroke grid.
+- 2026-05-15 - Added a 500-day Chinese practice database: 5 words/day for days 1-50, then +5 words/day every 50 days through 50 words/day, with 13,750 scheduled word slots, phase metadata, review anchors, day navigation, and clickable daily words wired into the dictionary drawer.
 
 ## Next Upgrade Candidates
 

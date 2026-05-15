@@ -59,6 +59,13 @@ import {
   signUpWithEmail,
 } from "./dataStore";
 import { seedDatabase } from "./database";
+import {
+  CHINESE_PRACTICE_TOTAL_DAYS,
+  chinesePracticePhases,
+  chinesePracticeSummary,
+  chinesePracticeWordIndex,
+  getChinesePracticeDay,
+} from "./chinesePracticePlan";
 import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
@@ -1291,20 +1298,40 @@ function getChineseDueLabel(state: ChineseReviewState, today = CHINESE_TODAY_IND
 }
 
 function getChineseDictionaryEntry(token: string, fallback?: { pinyin?: string; meaning?: string; note?: string }): ChineseDictionaryEntry {
-  const cleanToken = getChinesePhraseUnits(token)[0] ?? token;
+  const rawToken = token.trim();
+  const cleanToken =
+    chineseDictionary[rawToken] || chinesePracticeWordIndex[rawToken]
+      ? rawToken
+      : getChinesePhraseUnits(token)[0] ?? rawToken;
+  const practiceWord = chinesePracticeWordIndex[cleanToken];
+  const practiceUnits = practiceWord ? getChinesePhraseUnits(practiceWord.hanzi) : [];
   return (
-    chineseDictionary[cleanToken] ?? {
-      hanzi: cleanToken,
-      pinyin: fallback?.pinyin ?? "unknown",
-      meaning: fallback?.meaning ?? "add to dictionary",
-      radical: cleanToken,
-      strokeCount: Math.max(1, cleanToken.codePointAt(0) ? String(cleanToken.codePointAt(0)).length : 1),
-      hsk: 6,
-      frequency: 3000,
-      components: [cleanToken],
-      etymology: fallback?.note ?? "No local entry yet. This card can still be practiced and reviewed.",
-      words: [],
-    }
+    chineseDictionary[cleanToken] ??
+    (practiceWord
+      ? {
+          hanzi: practiceWord.hanzi,
+          pinyin: practiceWord.pinyin,
+          meaning: practiceWord.meaning,
+          radical: practiceUnits[0] ?? practiceWord.hanzi,
+          strokeCount: Math.max(1, practiceUnits.length * 5),
+          hsk: practiceWord.hsk,
+          frequency: 900 + practiceWord.hsk * 120,
+          components: practiceUnits.length > 1 ? practiceUnits.slice(0, 4) : [practiceWord.hanzi],
+          etymology: `Practice-bank entry tagged ${practiceWord.tags.join(", ")}.`,
+          words: [],
+        }
+      : {
+          hanzi: cleanToken,
+          pinyin: fallback?.pinyin ?? "unknown",
+          meaning: fallback?.meaning ?? "add to dictionary",
+          radical: cleanToken,
+          strokeCount: Math.max(1, cleanToken.codePointAt(0) ? String(cleanToken.codePointAt(0)).length : 1),
+          hsk: 6,
+          frequency: 3000,
+          components: [cleanToken],
+          etymology: fallback?.note ?? "No local entry yet. This card can still be practiced and reviewed.",
+          words: [],
+        })
   );
 }
 
@@ -12118,10 +12145,17 @@ function ChineseView() {
   const [reviewRatings, setReviewRatings] = useState<Record<string, ChineseReviewState>>({});
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
+  const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
   const activeDictionaryEntry = getChineseDictionaryEntry(dictionaryToken || activeCharacter.hanzi);
+  const selectedPracticeRecord = getChinesePracticeDay(selectedPracticeDay);
+  const currentPracticeRecord = getChinesePracticeDay(CHINESE_TODAY_INDEX);
+  const selectedPracticePhase = chinesePracticePhases[selectedPracticeRecord.phase - 1];
+  const practicePhaseProgress = Math.round(
+    ((selectedPracticeRecord.day - (selectedPracticeRecord.phase - 1) * 50) / 50) * 100,
+  );
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
   const activePhraseReviewId = `${activeLesson.id}-${selectedPhraseIndex}-${activePhrase.hanzi}`;
   const activeStrokePrefix = `${activeLesson.id}-${activeDictionaryEntry.hanzi}`;
@@ -12335,9 +12369,17 @@ function ChineseView() {
   }
 
   function openDictionary(token: string) {
-    const cleanToken = getChinesePhraseUnits(token)[0] ?? token;
+    const rawToken = token.trim();
+    const cleanToken =
+      chineseDictionary[rawToken] || chinesePracticeWordIndex[rawToken]
+        ? rawToken
+        : getChinesePhraseUnits(token)[0] ?? rawToken;
     if (!cleanToken) return;
     setDictionaryToken(cleanToken);
+  }
+
+  function selectPracticeDay(day: number) {
+    setSelectedPracticeDay(Math.min(Math.max(Math.trunc(day), 1), CHINESE_PRACTICE_TOTAL_DAYS));
   }
 
   function rateReview(rating: ChineseReviewRating, cardId = activeReviewCard.id) {
@@ -12414,6 +12456,7 @@ function ChineseView() {
             <strong>active</strong>
             <span>{sessionXp} XP</span>
             <span>combo {reviewCombo}</span>
+            <span>D{String(selectedPracticeRecord.day).padStart(3, "0")} plan</span>
             <a href="/" className="zh-back-link">
               dashboard
             </a>
@@ -12456,7 +12499,7 @@ function ChineseView() {
               {knownCharacters}
               <span>/{CHINESE_TOTAL_HSK_CHARACTERS}</span>
             </strong>
-            <em>{masteredCharacterSet.size} mastered in session</em>
+            <em>D{String(CHINESE_TODAY_INDEX).padStart(3, "0")} · {currentPracticeRecord.wordsPerDay} words scheduled</em>
           </div>
         </div>
         <div className="zh-hud-wrap">
@@ -12948,6 +12991,123 @@ function ChineseView() {
                   <em>{drill.detail}</em>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="zh-practice-database-grid" aria-label="500 day Chinese practice database">
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-practice-database-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>500-day practice database</span>
+              <em>
+                {chinesePracticeSummary.totalWordSlots.toLocaleString()} word slots · {chinesePracticeSummary.vocabularyBankSize} seed words
+              </em>
+            </div>
+
+            <div className="zh-practice-overview" aria-label="Practice phase selector">
+              {chinesePracticePhases.map((phase) => (
+                <button
+                  key={phase.phase}
+                  type="button"
+                  className={`zh-practice-phase-btn ${phase.phase === selectedPracticeRecord.phase ? "active" : ""}`}
+                  onClick={() => selectPracticeDay((phase.phase - 1) * 50 + 1)}
+                >
+                  <span>{phase.days}</span>
+                  <strong>{phase.wordsPerDay}/day</strong>
+                  <em>{phase.title}</em>
+                </button>
+              ))}
+            </div>
+
+            <div className="zh-practice-day-console">
+              <div className="zh-practice-day-head">
+                <div>
+                  <span>selected day</span>
+                  <strong>D{String(selectedPracticeRecord.day).padStart(3, "0")}</strong>
+                  <em>
+                    {selectedPracticeRecord.wordsPerDay} words · phase {selectedPracticeRecord.phase} · {selectedPracticePhase.days}
+                  </em>
+                </div>
+                <div>
+                  <span>training focus</span>
+                  <strong>{selectedPracticeRecord.phaseTitle}</strong>
+                  <em>{selectedPracticeRecord.focus}</em>
+                </div>
+                <div>
+                  <span>cumulative load</span>
+                  <strong>{selectedPracticeRecord.cumulativeWordSlots.toLocaleString()}</strong>
+                  <em>scheduled word slots through this day</em>
+                </div>
+              </div>
+
+              <div className="zh-practice-controls">
+                <div className="zh-practice-day-jump">
+                  <button type="button" onClick={() => selectPracticeDay(selectedPracticeRecord.day - 1)} aria-label="Previous practice day">
+                    -
+                  </button>
+                  <input
+                    value={selectedPracticeRecord.day}
+                    type="number"
+                    min={1}
+                    max={CHINESE_PRACTICE_TOTAL_DAYS}
+                    onChange={(event) => selectPracticeDay(Number(event.target.value))}
+                    aria-label="Select practice day"
+                  />
+                  <button type="button" onClick={() => selectPracticeDay(selectedPracticeRecord.day + 1)} aria-label="Next practice day">
+                    +
+                  </button>
+                </div>
+                <label className="zh-practice-range">
+                  <span>day rail</span>
+                  <input
+                    type="range"
+                    min={1}
+                    max={CHINESE_PRACTICE_TOTAL_DAYS}
+                    value={selectedPracticeRecord.day}
+                    onChange={(event) => selectPracticeDay(Number(event.target.value))}
+                  />
+                </label>
+                <div className="zh-practice-meter" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
+                  <span>phase progress</span>
+                  <i />
+                  <strong>{practicePhaseProgress}%</strong>
+                </div>
+              </div>
+
+              <div className="zh-review-anchors" aria-label="Spaced repetition anchors">
+                <span>review anchors</span>
+                {selectedPracticeRecord.reviewAnchors.length ? (
+                  selectedPracticeRecord.reviewAnchors.map((anchor) => (
+                    <button key={anchor.offset} type="button" onClick={() => selectPracticeDay(anchor.day)}>
+                      {anchor.label} · D{String(anchor.day).padStart(3, "0")}
+                    </button>
+                  ))
+                ) : (
+                  <em>first-day intake · no prior reviews</em>
+                )}
+              </div>
+
+              <div className="zh-practice-word-list" aria-label={`Day ${selectedPracticeRecord.day} practice words`}>
+                {selectedPracticeRecord.words.map((word) => (
+                  <button
+                    key={word.practiceId}
+                    type="button"
+                    onClick={() => {
+                      openDictionary(word.hanzi);
+                      setCardRevealed(true);
+                    }}
+                  >
+                    <span>{String(word.slot).padStart(2, "0")}</span>
+                    <strong className="zh-cn">{word.hanzi}</strong>
+                    <em className={getChineseToneClass(word.pinyin)}>{word.pinyin}</em>
+                    <i>{word.meaning}</i>
+                    <b>HSK {word.hsk} · C{word.cycle}</b>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
