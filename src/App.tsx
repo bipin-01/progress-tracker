@@ -454,7 +454,7 @@ type ChineseLesson = {
   };
 };
 
-type ChineseReviewRating = "hard" | "ok" | "easy";
+type ChineseReviewRating = "again" | "hard" | "ok" | "easy";
 
 type ChineseReviewState = {
   ease: number;
@@ -621,9 +621,32 @@ const chineseStrokeMatrixSteps = [
 ];
 
 const chineseReviewGrades: Array<{ id: ChineseReviewRating; label: string; detail: string }> = [
-  { id: "hard", label: "hard", detail: "D+1 repair" },
-  { id: "ok", label: "ok", detail: "grow interval" },
-  { id: "easy", label: "easy", detail: "fast track" },
+  { id: "again", label: "again", detail: "< 1 min" },
+  { id: "hard", label: "hard", detail: "6 min" },
+  { id: "ok", label: "good", detail: "3 days" },
+  { id: "easy", label: "easy", detail: "9 days" },
+];
+
+const chineseHskLevels = [
+  { name: "HSK 1", known: 150, total: 150, progress: 100 },
+  { name: "HSK 2", known: 300, total: 300, progress: 100 },
+  { name: "HSK 3", known: 486, total: 600, progress: 81 },
+  { name: "HSK 4", known: 280, total: 1200, progress: 23 },
+  { name: "HSK 5", known: 31, total: 1500, progress: 2, locked: true },
+  { name: "HSK 6", known: 0, total: 1250, progress: 0, locked: true },
+];
+
+const chineseDecks = [
+  { glyph: "字", tone: "cyan", name: "HSK 3 Core", cn: "基础", meta: "486 / 600 · last reviewed 2h ago", due: 12, status: "DUE NOW" },
+  { glyph: "语", tone: "mag", name: "HSK 4 Vocab", cn: "词汇", meta: "280 / 1200 · last reviewed 5h ago", due: 38, status: "DUE NOW" },
+  { glyph: "成", tone: "gold", name: "Chengyu Idioms", cn: "成语", meta: "23 / 200 · last reviewed yesterday", due: 6, status: "DUE NOW" },
+  { glyph: "话", tone: "lime", name: "Daily Phrases", cn: "日常", meta: "147 / 200 · last reviewed 1h ago", due: 0, status: "CLEAR" },
+  { glyph: "音", tone: "amber", name: "Pinyin Drills", cn: "拼音", meta: "412 / 500 · last reviewed 3 days ago", due: 24, status: "DUE NOW" },
+];
+
+const chinesePatternExamples = [
+  { hanzi: "我在喝茶。", pinyin: "wǒ zài hē chá", english: "I am drinking tea." },
+  { hanzi: "他在写邮件。", pinyin: "tā zài xiě yóu jiàn", english: "He is writing an email." },
 ];
 
 const chineseToneProfiles = {
@@ -676,6 +699,10 @@ function getChineseToneNumber(token: string) {
   return 0;
 }
 
+function getChineseToneClass(token: string) {
+  return `zh-tone-${getChineseToneNumber(token)}`;
+}
+
 function getChineseToneSignal(lesson: ChineseLesson) {
   return lesson.examples
     .flatMap((example) => example.pinyin.replace(/[.,?。？]/g, " ").split(/\s+/))
@@ -715,11 +742,13 @@ function getDefaultChineseReviewState(): ChineseReviewState {
 
 function scheduleChineseReview(previous: ChineseReviewState | undefined, rating: ChineseReviewRating): ChineseReviewState {
   const current = previous ?? getDefaultChineseReviewState();
-  const easeAdjustment = rating === "hard" ? -0.2 : rating === "easy" ? 0.15 : 0.05;
+  const easeAdjustment = rating === "again" ? -0.3 : rating === "hard" ? -0.2 : rating === "easy" ? 0.15 : 0.05;
   const ease = Math.max(1.3, Number((current.ease + easeAdjustment).toFixed(2)));
-  const repetitions = rating === "hard" ? 0 : current.repetitions + 1;
+  const repetitions = rating === "again" || rating === "hard" ? 0 : current.repetitions + 1;
   const interval =
-    rating === "hard"
+    rating === "again"
+      ? 0
+      : rating === "hard"
       ? 1
       : rating === "ok"
         ? current.repetitions === 0
@@ -1272,7 +1301,7 @@ function App() {
       <div className="data-noise left">{hexNoise}</div>
       <div className="data-noise right">{hexNoise}</div>
       <div className="scan-top">{hexNoise}</div>
-      <div className="app-shell">
+      <div className={`app-shell ${activeView === "chinese" ? "chinese-shell" : ""}`}>
         <Sidebar
           activeView={activeView}
           goalsCount={goals.length}
@@ -11505,15 +11534,18 @@ function ChineseView() {
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const [pinyinDecoderInput, setPinyinDecoderInput] = useState("");
   const [assemblyTileIds, setAssemblyTileIds] = useState<string[]>([]);
+  const [cardRevealed, setCardRevealed] = useState(false);
   const [activeReviewId, setActiveReviewId] = useState("");
   const [reviewRatings, setReviewRatings] = useState<Record<string, ChineseReviewState>>({});
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
+  const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
   const activePhraseReviewId = `${activeLesson.id}-${selectedPhraseIndex}-${activePhrase.hanzi}`;
   const activeStrokePrefix = `${activeLesson.id}-${activeCharacter.hanzi}`;
+  const activeFlashcardIndex = lessonIndex >= 0 ? lessonIndex * 4 + selectedCharacterIndex + 1 : selectedCharacterIndex + 1;
   const activeToneSignal = useMemo(() => getChineseToneSignal(activeLesson), [activeLesson]);
   const activePhraseUnits = useMemo(() => getChinesePhraseUnits(activePhrase.hanzi), [activePhrase]);
   const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
@@ -11592,6 +11624,22 @@ function ChineseView() {
     (reviewQueue.reduce((total, item) => total + Math.min(item.state.interval, 14) / 14, 0) / Math.max(reviewQueue.length, 1)) *
       100,
   );
+  const completedCount = completedDrills.size;
+  const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
+  const reviewedToday = Math.min(50, 18 + completedCount * 5 + reviewedCount * 3);
+  const knownCharacters = 1200 + activeFlashcardIndex * 7 + reviewedCount;
+  const accuracy = Math.min(98, 82 + completedCount + Math.round(reviewMastery / 12));
+  const activeFrequency = 218 + activeFlashcardIndex * 23;
+  const activeStrokeCount = 6 + selectedCharacterIndex * 2 + lessonIndex;
+  const activeComponents = Array.from(new Set([...getChinesePhraseUnits(activePhrase.hanzi), activeCharacter.hanzi])).slice(0, 4);
+  const heatCells = useMemo(
+    () =>
+      Array.from({ length: 98 }, (_, index) => {
+        const value = Math.abs(Math.sin(index * 14.7 + reviewedCount * 0.8)) % 1;
+        return value < 0.25 ? 1 : value < 0.5 ? 2 : value < 0.75 ? 3 : 4;
+      }),
+    [reviewedCount],
+  );
   const decoderResults = useMemo(
     () =>
       activePinyinUnits.map((target, index) => {
@@ -11615,9 +11663,6 @@ function ChineseView() {
       Math.max(decoderResults.length, 1)) *
       100,
   );
-  const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
-  const completedCount = completedDrills.size;
-  const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
   const strokeProgress = Math.round(
     (chineseStrokeMatrixSteps.filter((step) => strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`)).length /
       chineseStrokeMatrixSteps.length) *
@@ -11628,6 +11673,7 @@ function ChineseView() {
 
   useEffect(() => {
     setAssemblyTileIds([]);
+    setCardRevealed(false);
   }, [activeLesson.id, activePhrase.hanzi]);
 
   useEffect(() => {
@@ -11662,11 +11708,17 @@ function ChineseView() {
     setAssemblyTileIds((current) => current.filter((tileId) => tileId !== id));
   }
 
-  function rateReview(rating: ChineseReviewRating) {
+  function rateReview(rating: ChineseReviewRating, cardId = activeReviewCard.id) {
     setReviewRatings((current) => ({
       ...current,
-      [activeReviewCard.id]: scheduleChineseReview(current[activeReviewCard.id], rating),
+      [cardId]: scheduleChineseReview(current[cardId], rating),
     }));
+  }
+
+  function gradeActivePhrase(rating: ChineseReviewRating) {
+    rateReview(rating, activePhraseReviewId);
+    setCardRevealed(false);
+    setSelectedPhraseIndex((current) => (current + 1) % activeLesson.examples.length);
   }
 
   function toggleStrokeStep(id: string) {
@@ -11692,421 +11744,459 @@ function ChineseView() {
     window.speechSynthesis.speak(utterance);
   }
 
-  return (
-    <>
-      <section className="chinese-command-grid" aria-label="Chinese learning command center">
-        <HudCard className="chinese-hero-card" active>
-          <div className="chinese-hero">
-            <div>
-              <span className="chinese-kicker">Mandarin Zero</span>
-              <strong>Hear the tone, read the pinyin, write the shape, then speak one useful sentence.</strong>
-              <p>
-                Start with sound discipline, then layer characters and sentence patterns. Every module keeps pinyin,
-                hanzi, meaning, and output practice on the same screen.
-              </p>
-              <div className="chinese-hero-actions">
-                <button type="button" onClick={() => speakMandarin(activeLesson.sound)}>
-                  <Volume2 /> play pattern
-                </button>
-                <button type="button" onClick={() => setSelectedOption("")}>
-                  <RotateCcw /> reset quiz
-                </button>
-              </div>
-            </div>
-            <div className="chinese-mastery">
-              <span>path</span>
-              <strong>{String(lessonIndex + 1).padStart(2, "0")}/{String(chineseLessons.length).padStart(2, "0")}</strong>
-              <ProgressBar value={activeLesson.progress} />
-              <em>{activeLesson.progress}% foundation lock</em>
-            </div>
-          </div>
-        </HudCard>
+  const reviewRows = reviewQueue.slice(0, 7);
+  const streakCells = Array.from({ length: 14 }, (_, index) => index < 11);
 
-        <HudCard className="chinese-daily-card">
-          <CardHeader title="Daily Circuit" meta={`${completedCount}/${chineseDailyDrills.length}`} />
-          <div className="chinese-daily-meter">
-            <strong>{dailyProgress}%</strong>
-            <ProgressBar value={dailyProgress} />
+  return (
+    <main className="chinese-protocol-page" aria-label="Chinese protocol learning cockpit">
+      <div className="zh-data-noise zh-data-noise-left" aria-hidden="true">
+        4F7A 6E49 5B66 4E60 58F0 97F3 8BED 6C49 5B57
+      </div>
+      <div className="zh-data-noise zh-data-noise-right" aria-hidden="true">
+        HSK SRS TONE STROKE RADICAL PINYIN SENTENCE MEMORY
+      </div>
+
+      <section className="zh-hud-wrap">
+        <div className="zh-hud zh-protocol-topbar">
+          <span className="zh-brackets" aria-hidden="true" />
+          <div className="zh-brand-mark zh-cn">汉</div>
+          <div>
+            <h1>
+              <span className="zh-cn">汉字协议</span>
+              Chinese Protocol
+            </h1>
+            <p>// learn mandarin · spaced repetition engine · hsk 1 to 6</p>
           </div>
-          <div className="chinese-drill-list">
-            {chineseDailyDrills.map((drill) => (
-              <button
-                className={completedDrills.has(drill.id) ? "done" : ""}
-                type="button"
-                onClick={() => toggleDrill(drill.id)}
-                key={drill.id}
-              >
-                <span className="checkbox">{completedDrills.has(drill.id) && <Check />}</span>
-                <div>
-                  <strong>{drill.title}</strong>
-                  <em>{drill.detail}</em>
-                </div>
-              </button>
-            ))}
+          <div className="zh-protocol-meta">
+            <span>May 15, 2026</span>
+            <span className="zh-sep">·</span>
+            <strong>active</strong>
+            <a href="/" className="zh-back-link">
+              dashboard
+            </a>
           </div>
-        </HudCard>
+        </div>
       </section>
 
-      <section className="chinese-main-grid" aria-label="Chinese lesson workspace">
-        <HudCard className="chinese-roadmap-card">
-          <CardHeader title="Foundation Ladder" meta="scratch path" />
-          <div className="chinese-roadmap">
-            {chineseLessons.map((lesson) => (
-              <button
-                className={lesson.id === activeLesson.id ? "active" : ""}
-                type="button"
-                onClick={() => selectLesson(lesson.id)}
-                key={lesson.id}
-              >
-                <span>{lesson.code}</span>
-                <strong>{lesson.title}</strong>
-                <em>{lesson.focus}</em>
-                <ProgressBar value={lesson.progress} />
-              </button>
-            ))}
+      <section className="zh-streak-strip" aria-label="Chinese learning stats">
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-stat-card">
+            <span className="zh-brackets" aria-hidden="true" />
+            <span className="zh-label">streak integrity</span>
+            <strong>
+              {47 + completedCount}
+              <span>days</span>
+            </strong>
+            <div className="zh-streak-cells" aria-hidden="true">
+              {streakCells.map((filled, index) => (
+                <i key={index} className={filled ? "on" : ""} />
+              ))}
+            </div>
           </div>
-        </HudCard>
+        </div>
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-stat-card">
+            <span className="zh-brackets" aria-hidden="true" />
+            <span className="zh-label">reviewed today</span>
+            <strong className="zh-mag">
+              {reviewedToday}
+              <span>/50</span>
+            </strong>
+            <em>+{Math.max(1, reviewedCount)} vs baseline</em>
+          </div>
+        </div>
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-stat-card">
+            <span className="zh-brackets" aria-hidden="true" />
+            <span className="zh-label">known characters</span>
+            <strong className="zh-gold">
+              {knownCharacters}
+              <span>汉字</span>
+            </strong>
+            <em>HSK 3 consolidation</em>
+          </div>
+        </div>
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-stat-card">
+            <span className="zh-brackets" aria-hidden="true" />
+            <span className="zh-label">recall accuracy</span>
+            <strong className="zh-lime">
+              {accuracy}
+              <span>%</span>
+            </strong>
+            <em>{dailyProgress}% daily circuit</em>
+          </div>
+        </div>
+      </section>
 
-        <HudCard className="chinese-lesson-card">
-          <CardHeader title={activeLesson.title} meta={activeLesson.code} />
-          <div className="chinese-lesson-brief">
-            <span>{activeLesson.focus}</span>
-            <h2>{activeLesson.objective}</h2>
-            <div className="chinese-sound-strip">
-              <button type="button" onClick={() => speakMandarin(activeLesson.sound)}>
+      <section className="zh-main-grid">
+        <div className="zh-hud-wrap active">
+          <div className="zh-hud zh-flashcard-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>today's card</span>
+              <em>
+                card {activeFlashcardIndex} / {reviewCards.length}
+              </em>
+            </div>
+
+            <div className="zh-card-stage">
+              <div className="zh-hsk-chip">HSK {Math.max(1, lessonIndex + 1)}</div>
+              <div className="zh-frequency">freq #{activeFrequency}</div>
+              <button className="zh-hanzi" type="button" onClick={() => setCardRevealed(true)}>
+                {activeCharacter.hanzi}
+              </button>
+              <div className="zh-pinyin">
+                <span className={getChineseToneClass(activeCharacter.pinyin)}>{activeCharacter.pinyin}</span>
+              </div>
+              <button className="zh-gloss" type="button" onClick={() => setCardRevealed(true)}>
+                {cardRevealed ? activeCharacter.meaning : <span>[ tap to reveal meaning ]</span>}
+              </button>
+            </div>
+
+            <div className="zh-decomp-grid">
+              <div>
+                <span>radical</span>
+                <strong className="zh-cn">{activeComponents[0] ?? activeCharacter.hanzi}</strong>
+              </div>
+              <div>
+                <span>strokes</span>
+                <strong>{activeStrokeCount}</strong>
+              </div>
+              <div>
+                <span>structure</span>
+                <strong>{activeCharacter.note}</strong>
+              </div>
+              <div>
+                <span>components</span>
+                <strong className="zh-component-row">
+                  {activeComponents.map((component) => (
+                    <i key={component} className="zh-cn">
+                      {component}
+                    </i>
+                  ))}
+                </strong>
+              </div>
+            </div>
+
+            <div className="zh-example-line">
+              <button type="button" onClick={() => speakMandarin(activePhrase.hanzi)} aria-label="Play Mandarin example">
                 <Volume2 />
               </button>
-              <strong>{activeLesson.sound}</strong>
-              <em>{activeLesson.pattern}</em>
-            </div>
-            <div className="chinese-tone-scope">
-              <div className="chinese-scope-head">
-                <span>tone scope</span>
-                <strong>{activeToneSignal.length} syllables mapped</strong>
-              </div>
-              <div className="chinese-scope-grid">
-                {activeToneSignal.map((signal) => (
-                  <button
-                    className={`chinese-scope-node tone-${signal.tone}`}
-                    type="button"
-                    onClick={() => speakMandarin(activeLesson.sound)}
-                    aria-label={`Play ${activeLesson.title} tone pattern from ${signal.token}`}
-                    key={signal.id}
-                  >
-                    <span>{signal.token}</span>
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                      <polyline points={signal.points} />
-                    </svg>
-                    <em>{signal.name} · {signal.contour}</em>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="chinese-example-grid">
-            {activeLesson.examples.map((example, index) => (
-              <button
-                className={index === selectedPhraseIndex ? "active" : ""}
-                type="button"
-                onClick={() => {
-                  setSelectedPhraseIndex(index);
-                  setPinyinDecoderInput("");
-                  speakMandarin(example.hanzi);
-                }}
-                key={`${activeLesson.id}-${example.hanzi}`}
-              >
-                <strong>{example.hanzi}</strong>
-                <span>{example.pinyin}</span>
-                <em>{example.meaning}</em>
-              </button>
-            ))}
-          </div>
-          <div className="chinese-phrase-reactor">
-            <div className="chinese-reactor-head">
-              <span>phrase reactor</span>
-              <button type="button" onClick={() => speakMandarin(activePhrase.hanzi)}>
-                <Volume2 /> output
-              </button>
-            </div>
-            <div className="chinese-reactor-output">
-              <strong>{activePhrase.hanzi}</strong>
-              <span>{activePhrase.pinyin}</span>
-              <em>{activePhrase.meaning}</em>
-            </div>
-            <div className="chinese-reactor-grid" aria-label={`${activePhrase.hanzi} phrase construction`}>
               <div>
-                <span>hanzi</span>
-                <div className="chinese-reactor-cells">
-                  {activePhraseUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
-                </div>
+                <p className="zh-cn">{activePhrase.hanzi}</p>
+                <span>
+                  {activePinyinUnits.map((unit, index) => (
+                    <i key={`${unit}-${index}`} className={getChineseToneClass(unit)}>
+                      {unit}
+                    </i>
+                  ))}
+                </span>
+                <em>{activePhrase.meaning}</em>
+              </div>
+            </div>
+
+            <div className="zh-lesson-strip" aria-label="Lesson phrase selector">
+              {activeLesson.examples.map((example, index) => (
+                <button
+                  key={example.hanzi}
+                  type="button"
+                  className={index === selectedPhraseIndex ? "active" : ""}
+                  onClick={() => setSelectedPhraseIndex(index)}
+                >
+                  <span className="zh-cn">{example.hanzi}</span>
+                  <em>{example.pinyin}</em>
+                </button>
+              ))}
+            </div>
+
+            <div className="zh-stroke-matrix">
+              <div className="zh-section-head compact">
+                <span>stroke order trace</span>
+                <em>{strokeProgress}% locked</em>
               </div>
               <div>
-                <span>pinyin</span>
-                <div className="chinese-reactor-cells pinyin">
-                  {activePinyinUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
-                </div>
-              </div>
-              <div>
-                <span>meaning</span>
-                <div className="chinese-reactor-cells meaning">
-                  {activeMeaningUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
-                </div>
-              </div>
-            </div>
-            <div className="chinese-sentence-assembler">
-              <div className="chinese-assembler-head">
-                <span>sentence assembler</span>
-                <strong>{assemblyLocked ? "locked" : `${assemblyProgress}% aligned`}</strong>
-              </div>
-              <div className="chinese-assembly-target" aria-label={`Build ${activePhrase.hanzi}`}>
-                {activePhraseUnits.map((unit, index) => {
-                  const tile = assemblyAttemptUnits[index];
+                {chineseStrokeMatrixSteps.map((step) => {
+                  const done = strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`);
                   return (
                     <button
-                      className={tile ? "filled" : ""}
+                      key={step.id}
                       type="button"
-                      disabled={!tile}
-                      onClick={() => tile && removeAssemblyTile(tile.id)}
-                      key={`${unit}-${index}`}
+                      className={done ? "done" : ""}
+                      onClick={() => toggleStrokeStep(step.id)}
                     >
-                      <strong>{tile?.unit ?? "·"}</strong>
-                      <em>{activePinyinUnits[index] ?? "slot"}</em>
+                      <span>{step.label}</span>
+                      <em>{step.detail}</em>
                     </button>
                   );
                 })}
               </div>
-              <ProgressBar value={assemblyProgress} />
-              <div className="chinese-assembly-bank">
+            </div>
+
+            {!cardRevealed ? (
+              <button className="zh-reveal-btn" type="button" onClick={() => setCardRevealed(true)}>
+                reveal meaning
+              </button>
+            ) : null}
+            <div className="zh-grade-actions">
+              {chineseReviewGrades.map((grade) => (
+                <button
+                  key={grade.id}
+                  className={`zh-grade-btn ${grade.id}`}
+                  type="button"
+                  onClick={() => gradeActivePhrase(grade.id)}
+                >
+                  {grade.label}
+                  <span>{grade.detail}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <aside className="zh-right-col" aria-label="Chinese telemetry">
+          <div className="zh-hud-wrap">
+            <div className="zh-hud zh-hsk-panel">
+              <span className="zh-brackets" aria-hidden="true" />
+              <div className="zh-section-head">
+                <span>HSK ladder</span>
+                <em>{reviewMastery}% mastery</em>
+              </div>
+              <div className="zh-hsk-ladder">
+                {chineseHskLevels.map((level) => (
+                  <button
+                    key={level.name}
+                    type="button"
+                    className={level.locked ? "locked" : level.name === `HSK ${Math.max(1, lessonIndex + 1)}` ? "active" : ""}
+                    style={{ "--hsk-progress": `${level.progress}%` } as CSSProperties}
+                    onClick={() => {
+                      const index = Math.min(chineseLessons.length - 1, Math.max(0, Number(level.name.replace("HSK ", "")) - 1));
+                      selectLesson(chineseLessons[index].id);
+                    }}
+                  >
+                    <span>{level.name}</span>
+                    <strong>
+                      {level.known}/{level.total}
+                    </strong>
+                    <i />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="zh-hud-wrap">
+            <div className="zh-hud zh-tone-panel">
+              <span className="zh-brackets" aria-hidden="true" />
+              <div className="zh-section-head">
+                <span>tone vectors</span>
+                <em>dominant T{toneRadar.dominant.tone}</em>
+              </div>
+              <div className="zh-tone-grid">
+                {toneRadar.density.slice(0, 4).map((tone) => {
+                  const profile = chineseToneProfiles[tone.tone as keyof typeof chineseToneProfiles] ?? chineseToneProfiles[1];
+                  return (
+                    <button key={tone.tone} type="button" onClick={() => speakMandarin(tone.sample)}>
+                      <span className={`zh-tone-dot zh-tone-${tone.tone}`}>T{tone.tone}</span>
+                      <strong>{tone.name}</strong>
+                      <em>
+                        {tone.sample} · {tone.shape}
+                      </em>
+                      <svg viewBox="0 0 96 32" role="img" aria-label={`${tone.name} tone contour`}>
+                        <polyline points={profile.pitch.map((point, index) => `${10 + index * 18},${30 - point * 0.28}`).join(" ")} />
+                      </svg>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="zh-hud-wrap">
+            <div className="zh-hud zh-heatmap-panel">
+              <span className="zh-brackets" aria-hidden="true" />
+              <div className="zh-section-head">
+                <span>review heatmap</span>
+                <em>14 weeks</em>
+              </div>
+              <div className="zh-heatmap" aria-label="Chinese review activity heatmap">
+                {heatCells.map((level, index) => (
+                  <i key={index} className={`level-${level}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section className="zh-bottom-grid">
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-decks-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>decks</span>
+              <em>{dueReviewCount} due</em>
+            </div>
+            <div className="zh-deck-list">
+              {chineseDecks.map((deck, index) => (
+                <button
+                  key={deck.name}
+                  type="button"
+                  className={`tone-${deck.tone} ${index === Math.min(2, lessonIndex) ? "active" : ""}`}
+                  onClick={() => selectLesson(chineseLessons[Math.min(chineseLessons.length - 1, index)].id)}
+                >
+                  <span className="zh-cn">{deck.glyph}</span>
+                  <div>
+                    <strong>{deck.name}</strong>
+                    <em>
+                      {deck.cn} · {deck.meta}
+                    </em>
+                  </div>
+                  <i>{deck.status}</i>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-review-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>review queue</span>
+              <em>{reviewRows.length} cards visible</em>
+            </div>
+            <div className="zh-review-list">
+              {reviewRows.map(({ card, state }) => {
+                const status = state.interval <= 0 ? "new" : state.interval <= 1 ? "due" : state.interval <= 3 ? "soon" : "stable";
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    className={activeReviewCard.id === card.id ? "active" : ""}
+                    onClick={() => {
+                      setActiveReviewId(card.id);
+                      setCardRevealed(true);
+                    }}
+                  >
+                    <strong className="zh-cn">{card.hanzi}</strong>
+                    <span>{card.pinyin}</span>
+                    <em>{card.lessonCode}</em>
+                    <i>{status}</i>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="zh-mini-grade">
+              {chineseReviewGrades.map((grade) => (
+                <button key={grade.id} type="button" onClick={() => rateReview(grade.id)}>
+                  {grade.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-pattern-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>pattern reactor</span>
+              <em>{assemblyProgress}% sentence lock</em>
+            </div>
+            <div className="zh-pattern-core">
+              <span className="zh-cn">S 在 V O</span>
+              <strong>progressive action</strong>
+              <p>Use 在 before the verb to mark an action happening now.</p>
+            </div>
+            <div className="zh-pattern-examples">
+              {chinesePatternExamples.map((example) => (
+                <div key={example.hanzi}>
+                  <strong className="zh-cn">{example.hanzi}</strong>
+                  <span>{example.pinyin}</span>
+                  <em>{example.english}</em>
+                </div>
+              ))}
+            </div>
+            <div className="zh-assembly-board">
+              <div className="zh-assembly-target">
+                {activePhraseUnits.map((unit, index) => {
+                  const tile = assemblyAttemptUnits[index];
+                  return tile ? (
+                    <button key={`${tile.id}-target`} type="button" onClick={() => removeAssemblyTile(tile.id)}>
+                      <span className="zh-cn">{tile.unit}</span>
+                      <em>{tile.pinyin}</em>
+                    </button>
+                  ) : (
+                    <i key={`${unit}-${index}`}>slot {index + 1}</i>
+                  );
+                })}
+              </div>
+              <div className="zh-assembly-bank">
                 {availableAssemblyTiles.map((tile) => (
-                  <button type="button" onClick={() => selectAssemblyTile(tile.id)} key={tile.id}>
-                    <strong>{tile.unit}</strong>
+                  <button key={tile.id} type="button" onClick={() => selectAssemblyTile(tile.id)}>
+                    <span className="zh-cn">{tile.unit}</span>
                     <em>{tile.pinyin}</em>
                   </button>
                 ))}
               </div>
-              <div className="chinese-assembly-actions">
-                <span>{assemblyAttempt || "tap tiles to rebuild phrase"}</span>
-                <button type="button" onClick={() => setAssemblyTileIds([])}>reset</button>
-              </div>
             </div>
-            <div className="chinese-pinyin-decoder">
-              <div className="chinese-decoder-head">
-                <span>pinyin decoder</span>
-                <strong>{decoderScore}% sync</strong>
-              </div>
+            <div className="zh-decoder-mini">
+              <span>pinyin decoder</span>
               <input
-                aria-label="Pinyin decoder input"
-                autoComplete="off"
-                spellCheck={false}
                 value={pinyinDecoderInput}
                 onChange={(event) => setPinyinDecoderInput(event.target.value)}
-                placeholder={`type: ${activePhrase.pinyin}`}
+                placeholder={activePhrase.pinyin}
+                aria-label="Type the pinyin for the active phrase"
               />
-              <ProgressBar value={decoderScore} />
-              <div className="chinese-decoder-tokens">
-                {decoderResults.map((result, index) => (
-                  <span className={result.state} key={`${result.target}-${index}`}>
-                    <strong>{result.target}</strong>
-                    <em>{result.typed || "..."}</em>
-                  </span>
-                ))}
-              </div>
+              <strong>{decoderScore}%</strong>
             </div>
           </div>
-        </HudCard>
+        </div>
 
-        <HudCard className="chinese-tone-card">
-          <CardHeader title="Tone Lab" meta="listen first" />
-          <div className="chinese-tone-radar">
-            <div className="chinese-radar-head">
-              <span>tone radar</span>
-              <strong>{toneRadar.dominant.name} dominant</strong>
+        <div className="zh-hud-wrap">
+          <div className="zh-hud zh-proverb-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>daily proverb</span>
+              <em>chengyu seed</em>
             </div>
-            <svg className="chinese-radar-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={`Tone contour radar for ${activeLesson.title}`}>
-              <line className="chinese-radar-gridline" x1="0" y1="25" x2="100" y2="25" />
-              <line className="chinese-radar-gridline" x1="0" y1="50" x2="100" y2="50" />
-              <line className="chinese-radar-gridline" x1="0" y1="75" x2="100" y2="75" />
-              <polyline points={toneRadar.path} />
-              {toneRadar.points.map((point) => (
-                <g key={point.id}>
-                  <circle cx={point.x} cy={point.y} r="2.8" />
-                </g>
-              ))}
-            </svg>
-            <div className="chinese-radar-density">
-              {toneRadar.density.map((item) => (
-                <div key={item.label} className={item.count > 0 ? "active" : ""}>
-                  <span>T{item.label}</span>
-                  <strong>{item.count}</strong>
-                  <i style={{ "--tone-weight": `${item.weight}%` } as CSSProperties} />
-                </div>
+            <blockquote>
+              <strong className="zh-cn">熟能生巧</strong>
+              <span>shú néng shēng qiǎo</span>
+              <p>Practice makes skill. Repeat until recognition feels automatic.</p>
+            </blockquote>
+            <div className="zh-daily-circuit">
+              {chineseDailyDrills.map((drill) => (
+                <button
+                  key={drill.id}
+                  type="button"
+                  className={completedDrills.has(drill.id) ? "done" : ""}
+                  onClick={() => toggleDrill(drill.id)}
+                >
+                  <span>{drill.title}</span>
+                  <em>{drill.detail}</em>
+                </button>
               ))}
             </div>
           </div>
-          <div className="chinese-tone-stack">
-            {chineseToneRails.map((tone) => (
-              <button type="button" onClick={() => speakMandarin(tone.sample)} key={tone.label}>
-                <span>{tone.label}</span>
-                <div>
-                  <strong>{tone.sample}</strong>
-                  <em>{tone.name} · {tone.shape}</em>
-                  <ProgressBar value={tone.value} />
-                </div>
-              </button>
-            ))}
-          </div>
-        </HudCard>
+        </div>
       </section>
 
-      <section className="chinese-practice-grid" aria-label="Chinese practice panels">
-        <HudCard className="chinese-character-card">
-          <CardHeader title="Glyph Forge" meta="shape memory" />
-          <div className="chinese-character-lab">
-            <div className="chinese-glyph-forge">
-              <div className="chinese-glyph-grid" aria-label={`${activeCharacter.hanzi} practice grid`}>
-                <span>{activeCharacter.hanzi}</span>
-              </div>
-              <div className="chinese-glyph-meta">
-                <span>active glyph</span>
-                <strong>{activeCharacter.pinyin} · {activeCharacter.meaning}</strong>
-                <p>{activeCharacter.note}</p>
-                <button type="button" onClick={() => speakMandarin(activeCharacter.hanzi)}>
-                  <Volume2 />
-                  play glyph
-                </button>
-              </div>
-              <div className="chinese-stroke-matrix">
-                <div className="chinese-stroke-head">
-                  <span>stroke matrix</span>
-                  <strong>{strokeProgress}% traced</strong>
-                </div>
-                <ProgressBar value={strokeProgress} />
-                <div className="chinese-stroke-cells">
-                  {chineseStrokeMatrixSteps.map((step) => {
-                    const stepKey = `${activeStrokePrefix}-${step.id}`;
-                    return (
-                      <button
-                        className={strokeMatrixDone.has(stepKey) ? "done" : ""}
-                        type="button"
-                        onClick={() => toggleStrokeStep(step.id)}
-                        key={step.id}
-                      >
-                        <i>{activeCharacter.hanzi}</i>
-                        <span>{step.label}</span>
-                        <em>{step.detail}</em>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+      <div className="zh-bottom-scan" aria-hidden="true">
+        <svg viewBox="0 0 1200 40" preserveAspectRatio="none">
+          <polyline points="0,24 50,22 96,24 140,19 185,24 230,18 280,24 330,16 380,22 430,18 485,25 540,22 600,17 650,21 700,18 760,25 820,20 890,24 960,19 1030,24 1110,20 1200,24" />
+        </svg>
+      </div>
 
-            <div className="chinese-character-list">
-              {activeLesson.characters.map((character, index) => (
-                <button
-                  className={index === selectedCharacterIndex ? "active" : ""}
-                  type="button"
-                  onClick={() => setSelectedCharacterIndex(index)}
-                  key={`${activeLesson.id}-${character.hanzi}`}
-                >
-                  <strong>{character.hanzi}</strong>
-                  <div>
-                    <span>{character.pinyin} · {character.meaning}</span>
-                    <em>{character.note}</em>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </HudCard>
-
-        <HudCard className="chinese-quiz-card">
-          <CardHeader title="Active Recall" meta={quizAnswered ? (quizCorrect ? "locked" : "retry") : "ready"} />
-          <div className="chinese-quiz">
-            <strong>{activeLesson.quiz.prompt}</strong>
-            <div className="chinese-quiz-options">
-              {activeLesson.quiz.options.map((option) => (
-                <button
-                  className={
-                    selectedOption === option
-                      ? option === activeLesson.quiz.answer
-                        ? "correct"
-                        : "wrong"
-                      : ""
-                  }
-                  type="button"
-                  onClick={() => setSelectedOption(option)}
-                  key={option}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            {quizAnswered && <p>{activeLesson.quiz.explanation}</p>}
-          </div>
-        </HudCard>
-
-        <HudCard className="chinese-review-card">
-          <CardHeader title="Memory Queue" meta={`${dueReviewCount} due`} />
-          <div className="chinese-review-console">
-            <div className="chinese-review-meter">
-              <div>
-                <span>review stability</span>
-                <strong>{reviewMastery}%</strong>
-              </div>
-              <ProgressBar value={reviewMastery} />
-            </div>
-            <button className="chinese-review-focus" type="button" onClick={() => speakMandarin(activeReviewCard.hanzi)}>
-              <span>{activeReviewCard.lessonCode} · {activeReviewCard.lessonTitle}</span>
-              <strong>{activeReviewCard.hanzi}</strong>
-              <em>{activeReviewCard.pinyin}</em>
-              <p>{activeReviewCard.meaning}</p>
-            </button>
-            <div className="chinese-review-stats">
-              <div>
-                <span>interval</span>
-                <strong>{activeReviewState.interval ? `D+${activeReviewState.interval}` : "now"}</strong>
-              </div>
-              <div>
-                <span>ease</span>
-                <strong>{activeReviewState.ease.toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>reps</span>
-                <strong>{activeReviewState.repetitions}</strong>
-              </div>
-              <div>
-                <span>rated</span>
-                <strong>{reviewedCount}/{reviewCards.length}</strong>
-              </div>
-            </div>
-            <div className="chinese-review-actions">
-              {chineseReviewGrades.map((grade) => (
-                <button className={activeReviewState.rating === grade.id ? "active" : ""} type="button" onClick={() => rateReview(grade.id)} key={grade.id}>
-                  <span>{grade.label}</span>
-                  <em>{grade.detail}</em>
-                </button>
-              ))}
-            </div>
-            <div className="chinese-review-queue">
-              {reviewQueue.slice(0, 5).map(({ card, state }) => (
-                <button
-                  className={card.id === activeReviewCard.id ? "active" : ""}
-                  type="button"
-                  onClick={() => setActiveReviewId(card.id)}
-                  key={card.id}
-                >
-                  <span>{card.lessonCode}</span>
-                  <strong>{card.hanzi}</strong>
-                  <em>{state.interval ? `D+${state.interval}` : "new"}</em>
-                </button>
-              ))}
-            </div>
-          </div>
-        </HudCard>
-      </section>
-    </>
+      <div className="zh-sysline">
+        <span>// chinese protocol · 汉字协议</span>
+        <strong>▸ srs engine nominal</strong>
+        <span>session 00:{String(reviewedToday).padStart(2, "0")}:47</span>
+      </div>
+    </main>
   );
+
 }
 
 function Sidebar({

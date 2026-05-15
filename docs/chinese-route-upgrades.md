@@ -21,6 +21,7 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - `86aa4f1` - Added Tone Radar with active lesson contour and tone distribution.
 - `a3458c1` - Added Sentence Assembler with clickable hanzi tiles, slots, alignment score, and reset.
 - 2026-05-15 - Added Memory Queue, an Anki-inspired spaced repetition panel with hard/ok/easy grading, review intervals, ease, reps, and due queue.
+- 2026-05-15 - Rebuilt `/chinese` as a standalone Chinese Protocol cockpit based on the provided reference: full-width shell, primary hanzi flashcard, reveal/grading loop, HSK ladder, tone vectors, heatmap, deck queue, pattern reactor, sentence assembler, pinyin decoder, stroke trace, and daily circuit.
 
 ## Next Upgrade Candidates
 
