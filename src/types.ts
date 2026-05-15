@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 
 export type Priority = "ziftinity" | "high" | "medium" | "low";
-export type View = "dashboard" | "today" | "planner" | "goals" | "habits" | "tasks" | "kanban" | "notes" | "calendar" | "progress" | "insights" | "agents";
+export type View = "dashboard" | "today" | "planner" | "goals" | "habits" | "tasks" | "kanban" | "notes" | "chinese" | "calendar" | "progress" | "insights" | "agents";
 export type GoalChart = "line" | "bars" | "blocks" | "dots";
 export type IconKey = "book" | "run" | "wallet" | "code" | "leaf" | "target";
 

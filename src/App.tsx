@@ -12,17 +12,20 @@ import {
   HeartPulse,
   Home,
   Leaf,
+  Languages,
   ListTodo,
   Music,
   NotebookText,
   FileText,
   PersonStanding,
+  RotateCcw,
   Search,
   Settings,
   Sparkles,
   Target,
   TrendingUp,
   Trash2,
+  Volume2,
   WalletCards,
 } from "lucide-react";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
@@ -432,6 +435,175 @@ const initialKanbanCards: KanbanCard[] = [
   },
 ];
 
+type ChineseLesson = {
+  id: string;
+  code: string;
+  title: string;
+  focus: string;
+  progress: number;
+  objective: string;
+  sound: string;
+  pattern: string;
+  examples: Array<{ hanzi: string; pinyin: string; meaning: string }>;
+  characters: Array<{ hanzi: string; pinyin: string; meaning: string; note: string }>;
+  quiz: {
+    prompt: string;
+    options: string[];
+    answer: string;
+    explanation: string;
+  };
+};
+
+const chineseLessons: ChineseLesson[] = [
+  {
+    id: "sound-boot",
+    code: "D01",
+    title: "Sound Boot",
+    focus: "tones before words",
+    progress: 18,
+    objective: "Hear and repeat the five Mandarin tone shapes before memorizing vocabulary.",
+    sound: "mā má mǎ mà ma",
+    pattern: "high / rising / dipping / falling / light",
+    examples: [
+      { hanzi: "妈", pinyin: "mā", meaning: "mother" },
+      { hanzi: "麻", pinyin: "má", meaning: "hemp / numb" },
+      { hanzi: "马", pinyin: "mǎ", meaning: "horse" },
+      { hanzi: "骂", pinyin: "mà", meaning: "scold" },
+    ],
+    characters: [
+      { hanzi: "口", pinyin: "kǒu", meaning: "mouth", note: "speech and opening radical" },
+      { hanzi: "女", pinyin: "nǚ", meaning: "woman", note: "appears inside 妈" },
+      { hanzi: "马", pinyin: "mǎ", meaning: "horse", note: "sound component in 妈" },
+    ],
+    quiz: {
+      prompt: "Which option is the rising second tone?",
+      options: ["mā", "má", "mǎ", "mà"],
+      answer: "má",
+      explanation: "The acute accent rises upward: má is second tone.",
+    },
+  },
+  {
+    id: "pinyin-grid",
+    code: "D02",
+    title: "Pinyin Grid",
+    focus: "initials and finals",
+    progress: 32,
+    objective: "Build syllables by pairing initials like n, h, sh with finals like ao, an, ing.",
+    sound: "nǐ hǎo shì zhōng wén",
+    pattern: "initial + final + tone",
+    examples: [
+      { hanzi: "你", pinyin: "nǐ", meaning: "you" },
+      { hanzi: "好", pinyin: "hǎo", meaning: "good" },
+      { hanzi: "是", pinyin: "shì", meaning: "to be" },
+      { hanzi: "中文", pinyin: "zhōng wén", meaning: "Chinese language" },
+    ],
+    characters: [
+      { hanzi: "你", pinyin: "nǐ", meaning: "you", note: "person radical + phonetic part" },
+      { hanzi: "好", pinyin: "hǎo", meaning: "good", note: "女 + 子, a high-frequency compound" },
+      { hanzi: "是", pinyin: "shì", meaning: "is / yes", note: "core sentence verb" },
+    ],
+    quiz: {
+      prompt: "What does 你好 mean?",
+      options: ["thank you", "hello", "I am", "goodbye"],
+      answer: "hello",
+      explanation: "你 means you and 好 means good; together 你好 is hello.",
+    },
+  },
+  {
+    id: "identity-core",
+    code: "D03",
+    title: "Identity Core",
+    focus: "first sentences",
+    progress: 46,
+    objective: "Speak simple identity statements using pronoun + 是 + name or role.",
+    sound: "我是学生。你是谁？",
+    pattern: "我 / 你 / 他 + 是 + noun",
+    examples: [
+      { hanzi: "我是学生。", pinyin: "wǒ shì xué sheng.", meaning: "I am a student." },
+      { hanzi: "你是谁？", pinyin: "nǐ shì shéi?", meaning: "Who are you?" },
+      { hanzi: "他是老师。", pinyin: "tā shì lǎo shī.", meaning: "He is a teacher." },
+    ],
+    characters: [
+      { hanzi: "我", pinyin: "wǒ", meaning: "I / me", note: "anchor pronoun" },
+      { hanzi: "学", pinyin: "xué", meaning: "study / learn", note: "school and learning family" },
+      { hanzi: "生", pinyin: "shēng", meaning: "life / born", note: "student compound: 学生" },
+    ],
+    quiz: {
+      prompt: "Which sentence says 'I am a student'?",
+      options: ["你是谁？", "我是学生。", "他是老师。", "谢谢你。"],
+      answer: "我是学生。",
+      explanation: "我 = I, 是 = am/is, 学生 = student.",
+    },
+  },
+  {
+    id: "number-time",
+    code: "D04",
+    title: "Number Time",
+    focus: "counts and dates",
+    progress: 58,
+    objective: "Use numbers for time, dates, money, and practice scheduling in Chinese.",
+    sound: "一 二 三 四 五 六 七 八 九 十",
+    pattern: "number + measure word + noun",
+    examples: [
+      { hanzi: "今天五月十五号。", pinyin: "jīn tiān wǔ yuè shí wǔ hào.", meaning: "Today is May 15." },
+      { hanzi: "我有三本书。", pinyin: "wǒ yǒu sān běn shū.", meaning: "I have three books." },
+      { hanzi: "现在九点。", pinyin: "xiàn zài jiǔ diǎn.", meaning: "It is nine o'clock now." },
+    ],
+    characters: [
+      { hanzi: "一", pinyin: "yī", meaning: "one", note: "tone changes before fourth tone" },
+      { hanzi: "月", pinyin: "yuè", meaning: "month / moon", note: "date marker" },
+      { hanzi: "书", pinyin: "shū", meaning: "book", note: "pairs with measure word 本" },
+    ],
+    quiz: {
+      prompt: "What does 三本书 mean?",
+      options: ["three books", "three people", "May third", "three minutes"],
+      answer: "three books",
+      explanation: "三 = three, 本 is the measure word for books, 书 = book.",
+    },
+  },
+  {
+    id: "character-logic",
+    code: "D05",
+    title: "Character Logic",
+    focus: "radicals and memory",
+    progress: 71,
+    objective: "Read characters as components: meaning clue, sound clue, then whole word.",
+    sound: "人 口 日 月 学 语",
+    pattern: "radical + phonetic + meaning",
+    examples: [
+      { hanzi: "中文", pinyin: "zhōng wén", meaning: "Chinese language" },
+      { hanzi: "汉语", pinyin: "hàn yǔ", meaning: "Mandarin / Chinese" },
+      { hanzi: "学习", pinyin: "xué xí", meaning: "to study" },
+    ],
+    characters: [
+      { hanzi: "讠", pinyin: "yán", meaning: "speech radical", note: "language and speaking words" },
+      { hanzi: "语", pinyin: "yǔ", meaning: "language", note: "speech radical + sound clue" },
+      { hanzi: "习", pinyin: "xí", meaning: "practice", note: "second half of 学习" },
+    ],
+    quiz: {
+      prompt: "Which radical often signals speech or language?",
+      options: ["氵", "讠", "木", "心"],
+      answer: "讠",
+      explanation: "讠 is the speech radical; it appears in words like 语.",
+    },
+  },
+];
+
+const chineseToneRails = [
+  { label: "1", name: "flat", sample: "mā", shape: "55", value: 92 },
+  { label: "2", name: "rising", sample: "má", shape: "35", value: 66 },
+  { label: "3", name: "dip", sample: "mǎ", shape: "214", value: 42 },
+  { label: "4", name: "fall", sample: "mà", shape: "51", value: 76 },
+  { label: "0", name: "light", sample: "ma", shape: "neutral", value: 24 },
+];
+
+const chineseDailyDrills = [
+  { id: "listen", title: "Tone shadow", detail: "Repeat one tone pair ten times." },
+  { id: "read", title: "Pinyin scan", detail: "Read today syllables out loud." },
+  { id: "write", title: "Character trace", detail: "Write three characters slowly." },
+  { id: "speak", title: "Sentence output", detail: "Say one useful sentence from memory." },
+];
+
 const navItems = [
   { id: "dashboard", label: "Dashboard", Icon: Home },
   { id: "today", label: "Today", Icon: Sparkles },
@@ -441,6 +613,7 @@ const navItems = [
   { id: "tasks", label: "Tasks", Icon: ListTodo },
   { id: "kanban", label: "Kanban", Icon: Columns3 },
   { id: "notes", label: "Notes", Icon: NotebookText },
+  { id: "chinese", label: "Chinese", Icon: Languages },
   { id: "calendar", label: "Calendar", Icon: CalendarDays },
   { id: "progress", label: "Progress", Icon: TrendingUp },
   { id: "insights", label: "Insights", Icon: Gauge },
@@ -483,6 +656,8 @@ const routeViewMap: Record<string, View> = {
   "/kanban": "kanban",
   "/board": "kanban",
   "/notes": "notes",
+  "/chinese": "chinese",
+  "/mandarin": "chinese",
   "/calendar": "calendar",
   "/calender": "calendar",
   "/progress": "progress",
@@ -833,6 +1008,7 @@ function App() {
         l: "planner",
         k: "kanban",
         n: "notes",
+        m: "chinese",
         c: "calendar",
         p: "progress",
         i: "insights",
@@ -891,15 +1067,17 @@ function App() {
             ? { title: "Execution Board", subtitle: "Workflow state // card-based operations" }
             : activeView === "notes"
               ? { title: "Study Notes", subtitle: "Reading library // markdown workspace" }
-              : activeView === "calendar"
-                ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
-                : activeView === "progress"
-                  ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
-                  : activeView === "insights"
-                    ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
-                    : activeView === "agents"
-                      ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
-                    : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+              : activeView === "chinese"
+                ? { title: "Chinese Lab", subtitle: "Mandarin from zero // sound to sentences" }
+                : activeView === "calendar"
+                  ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
+                  : activeView === "progress"
+                    ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
+                    : activeView === "insights"
+                      ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
+                      : activeView === "agents"
+                        ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
+                      : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
   const appCommands: AppCommand[] = [
     { id: "quick-capture", group: "Capture", title: "Universal Quick Capture", hint: "Open Cmd+J capture and route an idea to notes, tasks, calendar, goals, or board.", action: () => openQuickCapture() },
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
@@ -909,6 +1087,7 @@ function App() {
     { id: "nav-habits", group: "Navigate", title: "Habit Protocol", hint: "Track daily routines and scheduled habits.", action: () => navigateTo("habits") },
     { id: "nav-tasks", group: "Navigate", title: "Task Protocol", hint: "Open day-by-day task projects.", action: () => navigateTo("tasks") },
     { id: "nav-kanban", group: "Navigate", title: "Execution Board", hint: "Open Kanban workflow state.", action: () => navigateTo("kanban") },
+    { id: "nav-chinese", group: "Navigate", title: "Chinese Lab", hint: "Open Mandarin lessons from sound to sentences.", action: () => navigateTo("chinese") },
     { id: "nav-calendar", group: "Navigate", title: "Calendar", hint: "Open deadlines, appointments, and projects.", action: () => navigateTo("calendar") },
     { id: "nav-progress", group: "Navigate", title: "Progress Metrics", hint: "Review streak, focus, and momentum.", action: () => navigateTo("progress") },
     { id: "nav-insights", group: "Navigate", title: "Pattern Analysis", hint: "Open behavior and completion insights.", action: () => navigateTo("insights") },
@@ -1237,6 +1416,8 @@ function App() {
             <KanbanView cards={kanbanCards} activity={kanbanActivity} projects={taskProjects} />
           ) : activeView === "notes" ? (
             <NotesView notes={studyNotes} folders={studyFolders} modeRequest={notesModeRequest} />
+          ) : activeView === "chinese" ? (
+            <ChineseView />
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
@@ -11164,6 +11345,209 @@ function ReflectionCard({ reflection }: { reflection: ReturnType<typeof getDashb
         {reflection.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
       </div>
     </HudCard>
+  );
+}
+
+function ChineseView() {
+  const [activeLessonId, setActiveLessonId] = useState(chineseLessons[0].id);
+  const [selectedOption, setSelectedOption] = useState("");
+  const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
+  const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
+  const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
+  const completedCount = completedDrills.size;
+  const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
+  const quizAnswered = Boolean(selectedOption);
+  const quizCorrect = selectedOption === activeLesson.quiz.answer;
+
+  function selectLesson(id: string) {
+    setActiveLessonId(id);
+    setSelectedOption("");
+  }
+
+  function toggleDrill(id: string) {
+    setCompletedDrills((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function speakMandarin(text: string) {
+    if (!("speechSynthesis" in window)) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "zh-CN";
+    utterance.rate = 0.82;
+    utterance.pitch = 1;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+
+  return (
+    <>
+      <section className="chinese-command-grid" aria-label="Chinese learning command center">
+        <HudCard className="chinese-hero-card" active>
+          <div className="chinese-hero">
+            <div>
+              <span className="chinese-kicker">Mandarin Zero</span>
+              <strong>Hear the tone, read the pinyin, write the shape, then speak one useful sentence.</strong>
+              <p>
+                Start with sound discipline, then layer characters and sentence patterns. Every module keeps pinyin,
+                hanzi, meaning, and output practice on the same screen.
+              </p>
+              <div className="chinese-hero-actions">
+                <button type="button" onClick={() => speakMandarin(activeLesson.sound)}>
+                  <Volume2 /> play pattern
+                </button>
+                <button type="button" onClick={() => setSelectedOption("")}>
+                  <RotateCcw /> reset quiz
+                </button>
+              </div>
+            </div>
+            <div className="chinese-mastery">
+              <span>path</span>
+              <strong>{String(lessonIndex + 1).padStart(2, "0")}/{String(chineseLessons.length).padStart(2, "0")}</strong>
+              <ProgressBar value={activeLesson.progress} />
+              <em>{activeLesson.progress}% foundation lock</em>
+            </div>
+          </div>
+        </HudCard>
+
+        <HudCard className="chinese-daily-card">
+          <CardHeader title="Daily Circuit" meta={`${completedCount}/${chineseDailyDrills.length}`} />
+          <div className="chinese-daily-meter">
+            <strong>{dailyProgress}%</strong>
+            <ProgressBar value={dailyProgress} />
+          </div>
+          <div className="chinese-drill-list">
+            {chineseDailyDrills.map((drill) => (
+              <button
+                className={completedDrills.has(drill.id) ? "done" : ""}
+                type="button"
+                onClick={() => toggleDrill(drill.id)}
+                key={drill.id}
+              >
+                <span className="checkbox">{completedDrills.has(drill.id) && <Check />}</span>
+                <div>
+                  <strong>{drill.title}</strong>
+                  <em>{drill.detail}</em>
+                </div>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="chinese-main-grid" aria-label="Chinese lesson workspace">
+        <HudCard className="chinese-roadmap-card">
+          <CardHeader title="Foundation Ladder" meta="scratch path" />
+          <div className="chinese-roadmap">
+            {chineseLessons.map((lesson) => (
+              <button
+                className={lesson.id === activeLesson.id ? "active" : ""}
+                type="button"
+                onClick={() => selectLesson(lesson.id)}
+                key={lesson.id}
+              >
+                <span>{lesson.code}</span>
+                <strong>{lesson.title}</strong>
+                <em>{lesson.focus}</em>
+                <ProgressBar value={lesson.progress} />
+              </button>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="chinese-lesson-card">
+          <CardHeader title={activeLesson.title} meta={activeLesson.code} />
+          <div className="chinese-lesson-brief">
+            <span>{activeLesson.focus}</span>
+            <h2>{activeLesson.objective}</h2>
+            <div className="chinese-sound-strip">
+              <button type="button" onClick={() => speakMandarin(activeLesson.sound)}>
+                <Volume2 />
+              </button>
+              <strong>{activeLesson.sound}</strong>
+              <em>{activeLesson.pattern}</em>
+            </div>
+          </div>
+          <div className="chinese-example-grid">
+            {activeLesson.examples.map((example) => (
+              <button type="button" onClick={() => speakMandarin(example.hanzi)} key={`${activeLesson.id}-${example.hanzi}`}>
+                <strong>{example.hanzi}</strong>
+                <span>{example.pinyin}</span>
+                <em>{example.meaning}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="chinese-tone-card">
+          <CardHeader title="Tone Lab" meta="listen first" />
+          <div className="chinese-tone-stack">
+            {chineseToneRails.map((tone) => (
+              <button type="button" onClick={() => speakMandarin(tone.sample)} key={tone.label}>
+                <span>{tone.label}</span>
+                <div>
+                  <strong>{tone.sample}</strong>
+                  <em>{tone.name} · {tone.shape}</em>
+                  <ProgressBar value={tone.value} />
+                </div>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="chinese-practice-grid" aria-label="Chinese practice panels">
+        <HudCard className="chinese-character-card">
+          <CardHeader title="Character Logic" meta="radical map" />
+          <div className="chinese-character-list">
+            {activeLesson.characters.map((character) => (
+              <article key={`${activeLesson.id}-${character.hanzi}`}>
+                <button type="button" onClick={() => speakMandarin(character.hanzi)}>
+                  <Volume2 />
+                </button>
+                <strong>{character.hanzi}</strong>
+                <div>
+                  <span>{character.pinyin} · {character.meaning}</span>
+                  <em>{character.note}</em>
+                </div>
+              </article>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="chinese-quiz-card">
+          <CardHeader title="Active Recall" meta={quizAnswered ? (quizCorrect ? "locked" : "retry") : "ready"} />
+          <div className="chinese-quiz">
+            <strong>{activeLesson.quiz.prompt}</strong>
+            <div className="chinese-quiz-options">
+              {activeLesson.quiz.options.map((option) => (
+                <button
+                  className={
+                    selectedOption === option
+                      ? option === activeLesson.quiz.answer
+                        ? "correct"
+                        : "wrong"
+                      : ""
+                  }
+                  type="button"
+                  onClick={() => setSelectedOption(option)}
+                  key={option}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            {quizAnswered && <p>{activeLesson.quiz.explanation}</p>}
+          </div>
+        </HudCard>
+      </section>
+    </>
   );
 }
 
