@@ -604,6 +604,13 @@ const chineseDailyDrills = [
   { id: "speak", title: "Sentence output", detail: "Say one useful sentence from memory." },
 ];
 
+const chineseStrokeMatrixSteps = [
+  { id: "observe", label: "observe", detail: "scan silhouette" },
+  { id: "trace", label: "trace", detail: "copy slowly" },
+  { id: "recall", label: "recall", detail: "hide and write" },
+  { id: "output", label: "output", detail: "say + write" },
+];
+
 const chineseToneProfiles = {
   0: { name: "light", contour: "neutral", pitch: [46, 46, 44, 44] },
   1: { name: "flat", contour: "55", pitch: [82, 82, 82, 82] },
@@ -11459,10 +11466,12 @@ function ChineseView() {
   const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const [pinyinDecoderInput, setPinyinDecoderInput] = useState("");
+  const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
+  const activeStrokePrefix = `${activeLesson.id}-${activeCharacter.hanzi}`;
   const activeToneSignal = useMemo(() => getChineseToneSignal(activeLesson), [activeLesson]);
   const activePhraseUnits = useMemo(() => getChinesePhraseUnits(activePhrase.hanzi), [activePhrase]);
   const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
@@ -11494,6 +11503,11 @@ function ChineseView() {
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const completedCount = completedDrills.size;
   const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
+  const strokeProgress = Math.round(
+    (chineseStrokeMatrixSteps.filter((step) => strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`)).length /
+      chineseStrokeMatrixSteps.length) *
+      100,
+  );
   const quizAnswered = Boolean(selectedOption);
   const quizCorrect = selectedOption === activeLesson.quiz.answer;
 
@@ -11512,6 +11526,19 @@ function ChineseView() {
         next.delete(id);
       } else {
         next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleStrokeStep(id: string) {
+    const key = `${activeStrokePrefix}-${id}`;
+    setStrokeMatrixDone((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
       }
       return next;
     });
@@ -11747,6 +11774,30 @@ function ChineseView() {
                   <Volume2 />
                   play glyph
                 </button>
+              </div>
+              <div className="chinese-stroke-matrix">
+                <div className="chinese-stroke-head">
+                  <span>stroke matrix</span>
+                  <strong>{strokeProgress}% traced</strong>
+                </div>
+                <ProgressBar value={strokeProgress} />
+                <div className="chinese-stroke-cells">
+                  {chineseStrokeMatrixSteps.map((step) => {
+                    const stepKey = `${activeStrokePrefix}-${step.id}`;
+                    return (
+                      <button
+                        className={strokeMatrixDone.has(stepKey) ? "done" : ""}
+                        type="button"
+                        onClick={() => toggleStrokeStep(step.id)}
+                        key={step.id}
+                      >
+                        <i>{activeCharacter.hanzi}</i>
+                        <span>{step.label}</span>
+                        <em>{step.detail}</em>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

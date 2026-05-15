@@ -9791,6 +9791,9 @@ button.load-forecast-day:hover {
 .chinese-reactor-output em,
 .chinese-decoder-head span,
 .chinese-decoder-tokens em,
+.chinese-stroke-head span,
+.chinese-stroke-cells span,
+.chinese-stroke-cells em,
 .chinese-tone-stack em,
 .chinese-character-list span,
 .chinese-character-list em,
@@ -9856,6 +9859,8 @@ button.load-forecast-day:hover {
 .chinese-example-grid button.active,
 .chinese-character-list button:hover,
 .chinese-character-list button.active,
+.chinese-stroke-cells button:hover,
+.chinese-stroke-cells button.done,
 .chinese-quiz-options button:hover {
   border-color: var(--cyan-dim);
   background: rgba(53, 215, 255, 0.08);
@@ -10455,6 +10460,86 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.chinese-stroke-matrix {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.46);
+  padding: 11px;
+}
+
+.chinese-stroke-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-stroke-head strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chinese-stroke-cells {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chinese-stroke-cells button {
+  position: relative;
+  display: grid;
+  min-height: 92px;
+  overflow: hidden;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(rgba(53, 215, 255, 0.06) 1px, transparent 1px) 0 0 / 50% 50%,
+    linear-gradient(90deg, rgba(53, 215, 255, 0.06) 1px, transparent 1px) 0 0 / 50% 50%,
+    rgba(6, 15, 28, 0.58);
+  padding: 9px;
+  text-align: left;
+}
+
+.chinese-stroke-cells button.done {
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+
+.chinese-stroke-cells i {
+  position: absolute;
+  right: 8px;
+  bottom: -10px;
+  color: rgba(230, 240, 255, 0.08);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 68px;
+  font-style: normal;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.chinese-stroke-cells button.done i {
+  color: rgba(53, 215, 255, 0.2);
+}
+
+.chinese-stroke-cells span,
+.chinese-stroke-cells em {
+  position: relative;
+  z-index: 1;
+}
+
+.chinese-stroke-cells span {
+  color: var(--cyan);
+}
+
+.chinese-stroke-cells em {
+  align-self: end;
+  color: var(--ink-2);
+  line-height: 1.35;
+  text-transform: none;
+}
+
 .chinese-character-list button {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -10890,6 +10975,7 @@ button.load-forecast-day:hover {
   .chinese-reactor-grid,
   .chinese-quiz-options,
   .chinese-character-lab,
+  .chinese-stroke-cells,
   .chinese-character-list button {
     grid-template-columns: 1fr;
   }
