@@ -11227,6 +11227,8 @@ button.load-forecast-day:hover {
 .zh-practice-day-jump input,
 .zh-practice-range span,
 .zh-review-anchors,
+.zh-load-forecast,
+.zh-load-forecast button,
 .zh-practice-word-list button {
   font-family: "Orbitron", sans-serif;
 }
@@ -11421,6 +11423,10 @@ button.load-forecast-day:hover {
 .zh-repair-compare span,
 .zh-repair-compare em,
 .zh-repair-compare p,
+.zh-load-forecast span,
+.zh-load-forecast em,
+.zh-load-forecast p,
+.zh-load-forecast i,
 .zh-mission-phase-signal span,
 .zh-mission-phase-signal strong {
   color: var(--muted);
@@ -11874,6 +11880,165 @@ button.load-forecast-day:hover {
 
 .zh-repair-compare.status-hot > i::before {
   background: linear-gradient(90deg, var(--red), var(--zh-magenta));
+}
+
+.zh-load-forecast {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.045), transparent 54%),
+    rgba(2, 7, 15, 0.28);
+  padding: 9px;
+}
+
+.zh-load-forecast.status-heavy,
+.zh-load-forecast.status-overload {
+  border-color: rgba(170, 114, 255, 0.28);
+  background:
+    linear-gradient(90deg, rgba(170, 114, 255, 0.055), transparent 54%),
+    rgba(2, 7, 15, 0.32);
+}
+
+.zh-load-forecast-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.zh-load-forecast-head > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zh-load-forecast strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.09em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-load-forecast.status-heavy strong,
+.zh-load-forecast.status-overload strong {
+  color: var(--zh-magenta);
+}
+
+.zh-load-forecast-head button {
+  min-height: 30px;
+  border: 1px solid rgba(53, 215, 255, 0.24);
+  background: rgba(53, 215, 255, 0.05);
+  color: var(--cyan);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 0 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-load-forecast-head button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-load-forecast-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.zh-load-forecast-strip button {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.36);
+  padding: 6px 6px 10px;
+  text-align: left;
+}
+
+.zh-load-forecast-strip button.active,
+.zh-load-forecast-strip button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.065);
+}
+
+.zh-load-forecast-strip button.status-light {
+  border-color: rgba(158, 255, 102, 0.24);
+}
+
+.zh-load-forecast-strip button.status-heavy {
+  border-color: rgba(255, 209, 102, 0.28);
+}
+
+.zh-load-forecast-strip button.status-overload {
+  border-color: rgba(255, 76, 106, 0.34);
+}
+
+.zh-load-forecast-strip button::after {
+  content: "";
+  position: absolute;
+  inset: auto 5px 4px 5px;
+  height: 2px;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-load-forecast-strip button::before {
+  content: "";
+  position: absolute;
+  inset: auto auto 4px 5px;
+  z-index: 1;
+  width: var(--load-pressure);
+  max-width: calc(100% - 10px);
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 8px rgba(53, 215, 255, 0.2);
+}
+
+.zh-load-forecast-strip button.status-light::before {
+  background: linear-gradient(90deg, var(--cyan), var(--lime));
+}
+
+.zh-load-forecast-strip button.status-overload::before {
+  background: linear-gradient(90deg, var(--red), var(--zh-magenta));
+}
+
+.zh-load-forecast-strip strong {
+  color: var(--ink);
+  font-size: 10px;
+}
+
+.zh-load-forecast-strip button.status-overload strong {
+  color: var(--red);
+}
+
+.zh-load-forecast-strip em,
+.zh-load-forecast-strip i {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zh-load-forecast-strip i {
+  color: var(--ink-2);
+}
+
+.zh-load-forecast p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .zh-mission-footer {
@@ -13817,7 +13982,7 @@ button.load-forecast-day:hover {
 
 .zh-coach-evidence-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px;
 }
 
@@ -14670,6 +14835,7 @@ button.load-forecast-day:hover {
   .zh-repair-uplink,
   .zh-repair-history,
   .zh-repair-compare,
+  .zh-load-forecast-head,
   .zh-mission-footer {
     grid-template-columns: 1fr;
   }
@@ -14711,6 +14877,7 @@ button.load-forecast-day:hover {
   .zh-repair-symbols,
   .zh-repair-drills,
   .zh-repair-history > div:last-child,
+  .zh-load-forecast-strip,
   .zh-practice-overview,
   .zh-practice-day-head,
   .zh-practice-controls,

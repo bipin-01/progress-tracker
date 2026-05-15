@@ -615,6 +615,34 @@ type ChinesePlacementOutcome = {
   entry?: ChinesePlacementHistoryEntry;
 };
 
+type ChineseLoadForecastStatus = "light" | "steady" | "heavy" | "overload";
+
+type ChineseLoadForecastDay = {
+  day: number;
+  label: string;
+  newWords: number;
+  anchorReviewWords: number;
+  srsDue: number;
+  soonDue: number;
+  repairLoad: number;
+  totalLoad: number;
+  pressure: number;
+  status: ChineseLoadForecastStatus;
+  recommendation: string;
+};
+
+type ChineseLoadForecast = {
+  status: ChineseLoadForecastStatus;
+  label: string;
+  summary: string;
+  action: string;
+  averageLoad: number;
+  peak: ChineseLoadForecastDay;
+  recommendedDay: number;
+  trend: number;
+  days: ChineseLoadForecastDay[];
+};
+
 type ChineseCoachEvidencePacket = {
   version: 1;
   packetId: string;
@@ -661,11 +689,19 @@ type ChineseCoachEvidencePacket = {
     outcome: string;
     weeklyDelta: number;
   };
+  forecast: {
+    status: ChineseLoadForecastStatus;
+    peakDay: number;
+    peakLoad: number;
+    averageLoad: number;
+    recommendedDay: number;
+    recommendation: string;
+  };
   nextAction: string;
 };
 
 type ChineseCoachBriefing = {
-  mode: "sample" | "repair" | "review" | "voice" | "placement" | "flow";
+  mode: "sample" | "repair" | "review" | "voice" | "placement" | "forecast" | "flow";
   signal: string;
   title: string;
   body: string;
@@ -685,6 +721,8 @@ type ChineseCoachHistoryBaseline = {
   placementReadiness: number;
   placementConfidence: number;
   placementWeeklyDelta: number;
+  forecastPeakLoad: number;
+  forecastAverageLoad: number;
   xp: number;
   combo: number;
 };
@@ -1649,7 +1687,7 @@ function isChinesePlacementStatus(value: unknown): value is ChinesePlacementProf
 }
 
 function isChineseCoachBriefingMode(value: unknown): value is ChineseCoachBriefing["mode"] {
-  return value === "sample" || value === "repair" || value === "review" || value === "voice" || value === "placement" || value === "flow";
+  return value === "sample" || value === "repair" || value === "review" || value === "voice" || value === "placement" || value === "forecast" || value === "flow";
 }
 
 function getChineseStoredReviewState(value: unknown): ChineseReviewState | null {
@@ -1744,6 +1782,8 @@ function getChineseStoredCoachHistoryBaseline(value: unknown): ChineseCoachHisto
     placementReadiness: getChineseClampedNumber(record.placementReadiness, 0, 0, 100),
     placementConfidence: getChineseClampedNumber(record.placementConfidence, 0, 0, 100),
     placementWeeklyDelta: Math.round(getChineseNumber(record.placementWeeklyDelta, 0)),
+    forecastPeakLoad: Math.max(0, Math.trunc(getChineseNumber(record.forecastPeakLoad, 0))),
+    forecastAverageLoad: Math.max(0, Math.trunc(getChineseNumber(record.forecastAverageLoad, 0))),
     xp: Math.max(0, Math.trunc(getChineseNumber(record.xp, 0))),
     combo: Math.max(0, Math.trunc(getChineseNumber(record.combo, 0))),
   };
@@ -2386,6 +2426,108 @@ function getChinesePlacementOutcome(history: ChinesePlacementHistoryEntry[]): Ch
   };
 }
 
+function getChinesePracticeAnchorLoad(day: number) {
+  return getChinesePracticeDay(day).reviewAnchors.reduce(
+    (total, anchor) => total + getChinesePracticeDay(anchor.day).wordsPerDay,
+    0,
+  );
+}
+
+function getChineseLoadStatus(pressure: number): ChineseLoadForecastStatus {
+  if (pressure >= 92) return "overload";
+  if (pressure >= 72) return "heavy";
+  if (pressure <= 38) return "light";
+  return "steady";
+}
+
+function getChineseLoadForecast({
+  startDay,
+  reviewStates,
+  repairTargetDay,
+  repairActive,
+}: {
+  startDay: number;
+  reviewStates: ChineseReviewState[];
+  repairTargetDay: number;
+  repairActive: boolean;
+}): ChineseLoadForecast {
+  const safeStart = Math.min(Math.max(Math.trunc(startDay), 1), CHINESE_PRACTICE_TOTAL_DAYS);
+  const days = Array.from({ length: 7 }, (_, index): ChineseLoadForecastDay => {
+    const day = Math.min(safeStart + index, CHINESE_PRACTICE_TOTAL_DAYS);
+    const record = getChinesePracticeDay(day);
+    const anchorReviewWords = getChinesePracticeAnchorLoad(day);
+    const srsDue = reviewStates.filter((state) => ["NEW", "DUE", "LATE"].includes(getChineseReviewStatus(state, day))).length;
+    const soonDue = reviewStates.filter((state) => getChineseReviewStatus(state, day) === "SOON").length;
+    const repairLoad = repairActive && repairTargetDay === day ? 12 : 0;
+    const totalLoad = Math.round(record.wordsPerDay + anchorReviewWords + srsDue + soonDue * 0.5 + repairLoad);
+    const expectedLoad = Math.max(55, record.wordsPerDay + anchorReviewWords + 20);
+    const pressure = clampChinesePercent((totalLoad / expectedLoad) * 100);
+    const status = getChineseLoadStatus(pressure);
+    const recommendation =
+      status === "overload"
+        ? "review only"
+        : status === "heavy"
+          ? "preload srs"
+          : status === "light"
+            ? "advance ok"
+            : "normal loop";
+
+    return {
+      day,
+      label: index === 0 ? "today" : `D+${index}`,
+      newWords: record.wordsPerDay,
+      anchorReviewWords,
+      srsDue,
+      soonDue,
+      repairLoad,
+      totalLoad,
+      pressure,
+      status,
+      recommendation,
+    };
+  });
+  const peak = days.reduce((highest, day) => (day.totalLoad > highest.totalLoad ? day : highest), days[0]);
+  const recommended = days.reduce((lightest, day) => (day.pressure < lightest.pressure ? day : lightest), days[0]);
+  const averageLoad = Math.round(days.reduce((total, day) => total + day.totalLoad, 0) / Math.max(days.length, 1));
+  const trend = days[days.length - 1].totalLoad - days[0].totalLoad;
+  const status = getChineseLoadStatus(Math.max(peak.pressure, Math.round(averageLoad / Math.max(peak.totalLoad, 1) * peak.pressure)));
+  const label =
+    status === "overload"
+      ? "overload forming"
+      : status === "heavy"
+        ? "pressure rising"
+        : status === "light"
+          ? "recovery window"
+          : "load stable";
+  const action =
+    status === "overload"
+      ? `load D${String(recommended.day).padStart(3, "0")}`
+      : status === "heavy"
+        ? "preload reviews"
+        : status === "light"
+          ? "advance gently"
+          : "hold rhythm";
+
+  return {
+    status,
+    label,
+    summary:
+      status === "overload"
+        ? `Peak D${String(peak.day).padStart(3, "0")} needs a lighter lane.`
+        : status === "heavy"
+          ? `Peak D${String(peak.day).padStart(3, "0")} is review-heavy; drain SRS early.`
+          : status === "light"
+            ? `D${String(recommended.day).padStart(3, "0")} has room for careful advance.`
+            : "The next seven days can stay on the guided loop.",
+    action,
+    averageLoad,
+    peak,
+    recommendedDay: recommended.day,
+    trend,
+    days,
+  };
+}
+
 function getChineseEvidenceChecksum(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -2396,6 +2538,19 @@ function getChineseEvidenceChecksum(value: string) {
 
 function getChineseCoachBriefing(packet: ChineseCoachEvidencePacket): ChineseCoachBriefing {
   const weakSymbols = packet.voice.weakHanzi.length ? packet.voice.weakHanzi.slice(0, 3).join(" ") : packet.scope.activeWord;
+
+  if (packet.forecast.status === "overload") {
+    return {
+      mode: "forecast",
+      signal: "load forecast",
+      title: "Protect the next week",
+      body: `D${String(packet.forecast.peakDay).padStart(3, "0")} is forecast at ${packet.forecast.peakLoad} load units.`,
+      why: packet.forecast.recommendation,
+      steps: ["Move to the lightest lane", "Drain due SRS before new words", "Run one focused recall pass"],
+      command: "load light day",
+      urgency: Math.min(100, packet.forecast.peakLoad),
+    };
+  }
 
   if (packet.placement.status === "sample" || packet.placement.confidence < 50) {
     return {
@@ -2485,6 +2640,8 @@ function getChineseCoachHistoryBaseline(packet: ChineseCoachEvidencePacket): Chi
     placementReadiness: packet.placement.readiness,
     placementConfidence: packet.placement.confidence,
     placementWeeklyDelta: packet.placement.weeklyDelta,
+    forecastPeakLoad: packet.forecast.peakLoad,
+    forecastAverageLoad: packet.forecast.averageLoad,
     xp: packet.memory.xp,
     combo: packet.memory.combo,
   };
@@ -2509,6 +2666,8 @@ function getChineseCoachHistoryOutcome(
   const placementRiskDelta = Math.abs(entry.baseline.placementWeeklyDelta) - Math.abs(current.placementWeeklyDelta);
   const readinessDelta = current.placementReadiness - entry.baseline.placementReadiness;
   const confidenceDelta = current.placementConfidence - entry.baseline.placementConfidence;
+  const forecastPeakDelta = entry.baseline.forecastPeakLoad - current.forecastPeakLoad;
+  const forecastAverageDelta = entry.baseline.forecastAverageLoad - current.forecastAverageLoad;
   const comboDelta = current.combo - entry.baseline.combo;
   const hasMovement =
     reviewedDelta !== 0 ||
@@ -2520,6 +2679,8 @@ function getChineseCoachHistoryOutcome(
     placementRiskDelta !== 0 ||
     readinessDelta !== 0 ||
     confidenceDelta !== 0 ||
+    forecastPeakDelta !== 0 ||
+    forecastAverageDelta !== 0 ||
     comboDelta !== 0;
 
   if (!hasMovement) {
@@ -2580,6 +2741,19 @@ function getChineseCoachHistoryOutcome(
       label: improved ? "load aligned" : hot ? "load drift" : "placement stable",
       detail: `${getSignedChineseDelta(placementRiskDelta)} load risk · ${getSignedChineseDelta(readinessDelta, "%")} ready`,
       delta: `${getSignedChineseDelta(score)} place`,
+      weight: clampChinesePercent(50 + score),
+    };
+  }
+
+  if (entry.mode === "forecast") {
+    const score = forecastPeakDelta * 2 + forecastAverageDelta + dueReduced;
+    const improved = forecastPeakDelta > 0 || forecastAverageDelta > 0 || dueReduced > 0;
+    const hot = forecastPeakDelta < 0 && forecastAverageDelta < 0;
+    return {
+      status: improved ? "improved" : hot ? "hot" : "steady",
+      label: improved ? "load cooled" : hot ? "load still rising" : "forecast steady",
+      detail: `${getSignedChineseDelta(forecastPeakDelta)} peak · ${getSignedChineseDelta(forecastAverageDelta)} avg`,
+      delta: `${getSignedChineseDelta(score)} load`,
       weight: clampChinesePercent(50 + score),
     };
   }
@@ -13414,10 +13588,7 @@ function ChineseView() {
   const activePracticeWord =
     selectedPracticeRecord.words.find((word) => word.hanzi === activeDictionaryEntry.hanzi || word.hanzi === dictionaryToken) ??
     selectedPracticeRecord.words[0];
-  const practiceAnchorLoad = selectedPracticeRecord.reviewAnchors.reduce(
-    (total, anchor) => total + getChinesePracticeDay(anchor.day).wordsPerDay,
-    0,
-  );
+  const practiceAnchorLoad = getChinesePracticeAnchorLoad(selectedPracticeRecord.day);
   const practiceMissionLoad = selectedPracticeRecord.wordsPerDay + practiceAnchorLoad;
   const missionRailWords = selectedPracticeRecord.words.slice(0, Math.min(12, selectedPracticeRecord.words.length));
   const memoryCardCount = Object.keys(reviewRatings).length;
@@ -13629,6 +13800,12 @@ function ChineseView() {
   const repairMissionScore = Math.round((repairDrillDoneCount / Math.max(adaptiveRepairMission.drills.length, 1)) * 100);
   const repairMissionLocked = adaptiveRepairMission.hasSignal && repairMissionScore === 100;
   const currentRepairHistoryEntry = repairHistory.find((entry) => entry.missionKey === adaptiveRepairMission.key);
+  const loadForecast = getChineseLoadForecast({
+    startDay: selectedPracticeRecord.day,
+    reviewStates: reviewQueue.map(({ state }) => state),
+    repairTargetDay: adaptiveRepairMission.targetDay,
+    repairActive: adaptiveRepairMission.hasSignal && !repairMissionLocked,
+  });
   const placementProfile = getChinesePlacementProfile({
     knownCharacters,
     reviewMastery,
@@ -13651,7 +13828,9 @@ function ChineseView() {
       ...voiceHeatmap.hanziHotspots.slice(0, 3).map((hotspot) => hotspot.hanzi),
     ].filter((hanzi, index, list): hanzi is string => Boolean(hanzi) && list.indexOf(hanzi) === index);
     const nextAction =
-      placementProfile.status === "sample"
+      loadForecast.status === "overload"
+        ? `Lighten D${String(loadForecast.peak.day).padStart(3, "0")} before adding new words.`
+        : placementProfile.status === "sample"
         ? "Run one focus-tunnel placement sample."
         : adaptiveRepairMission.hasSignal && !repairMissionLocked
           ? `Lock repair mission for T${adaptiveRepairMission.tone.tone}.`
@@ -13668,6 +13847,9 @@ function ChineseView() {
       placementHistory.length,
       placementOutcome.status,
       placementOutcome.deltaAverage,
+      loadForecast.status,
+      loadForecast.peak.day,
+      loadForecast.peak.totalLoad,
     ].join(":");
 
     return {
@@ -13716,6 +13898,14 @@ function ChineseView() {
         outcome: placementOutcome.label,
         weeklyDelta: placementOutcome.deltaAverage,
       },
+      forecast: {
+        status: loadForecast.status,
+        peakDay: loadForecast.peak.day,
+        peakLoad: loadForecast.peak.totalLoad,
+        averageLoad: loadForecast.averageLoad,
+        recommendedDay: loadForecast.recommendedDay,
+        recommendation: loadForecast.summary,
+      },
       nextAction,
     };
   }, [
@@ -13732,6 +13922,12 @@ function ChineseView() {
     adaptiveRepairMission.summary,
     adaptiveRepairMission.tone.tone,
     dueReviewCount,
+    loadForecast.averageLoad,
+    loadForecast.peak.day,
+    loadForecast.peak.totalLoad,
+    loadForecast.recommendedDay,
+    loadForecast.status,
+    loadForecast.summary,
     memoryCardCount,
     memoryCoachCount,
     memoryVoiceCount,
@@ -14042,8 +14238,20 @@ function ChineseView() {
     setRewardMessage(`coach log loaded · ${entry.signal} · ${entry.packetId}`);
   }
 
+  function applyLoadForecast() {
+    selectPracticeDay(loadForecast.recommendedDay);
+    setRewardMessage(
+      `load forecast applied · D${String(loadForecast.recommendedDay).padStart(3, "0")} · ${loadForecast.label}`,
+    );
+  }
+
   function runCoachBriefing() {
     logCoachBriefing();
+
+    if (coachBriefing.mode === "forecast") {
+      applyLoadForecast();
+      return;
+    }
 
     if (coachBriefing.mode === "sample") {
       setLessonFocusActive(true);
@@ -14517,6 +14725,42 @@ function ChineseView() {
               <i aria-hidden="true" />
             </div>
 
+            <div className={`zh-load-forecast status-${loadForecast.status}`} aria-label="Seven day Chinese load forecast">
+              <div className="zh-load-forecast-head">
+                <div>
+                  <span>7-day load forecast</span>
+                  <strong>{loadForecast.label}</strong>
+                  <em>
+                    avg {loadForecast.averageLoad} · peak D{String(loadForecast.peak.day).padStart(3, "0")} / {loadForecast.peak.totalLoad}
+                    {loadForecast.trend > 0 ? ` · +${loadForecast.trend}` : loadForecast.trend < 0 ? ` · ${loadForecast.trend}` : " · flat"}
+                  </em>
+                </div>
+                <button type="button" onClick={applyLoadForecast}>
+                  {loadForecast.action}
+                </button>
+              </div>
+              <div className="zh-load-forecast-strip">
+                {loadForecast.days.map((day, index) => (
+                  <button
+                    key={`${day.day}-${index}`}
+                    type="button"
+                    className={`status-${day.status} ${day.day === selectedPracticeRecord.day ? "active" : ""}`}
+                    style={{ "--load-pressure": `${day.pressure}%` } as CSSProperties}
+                    title={`${day.recommendation}: ${day.newWords} new, ${day.anchorReviewWords} review anchors, ${day.srsDue} SRS due`}
+                    onClick={() => selectPracticeDay(day.day)}
+                  >
+                    <span>{day.label}</span>
+                    <strong>D{String(day.day).padStart(3, "0")}</strong>
+                    <em>{day.totalLoad} load</em>
+                    <i>
+                      {day.newWords}N · {day.anchorReviewWords}R · {day.srsDue}S
+                    </i>
+                  </button>
+                ))}
+              </div>
+              <p>{loadForecast.summary}</p>
+            </div>
+
             <div className="zh-mission-footer">
               <div className="zh-mission-anchor-strip">
                 <span>review anchors</span>
@@ -14533,7 +14777,7 @@ function ChineseView() {
               <div className={`zh-memory-core ${memoryStatus === "offline" ? "offline" : ""}`}>
                 <span>memory core</span>
                 <strong>{memoryCoreLabel}</strong>
-                <em>{memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair · {memoryPlacementCount} placement</em>
+                <em>{memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair · {memoryPlacementCount} placement · {memoryCoachCount} coach</em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
                 <span>phase signal</span>
@@ -14991,6 +15235,10 @@ function ChineseView() {
                     <span>
                       <b>placement</b>
                       <i>{coachEvidencePacket.placement.weeklyDelta > 0 ? "+" : ""}{coachEvidencePacket.placement.weeklyDelta}</i>
+                    </span>
+                    <span>
+                      <b>forecast</b>
+                      <i>D{String(coachEvidencePacket.forecast.peakDay).padStart(3, "0")} / {coachEvidencePacket.forecast.peakLoad}</i>
                     </span>
                   </div>
                   {coachPacketOpen ? <pre>{coachEvidencePreview}</pre> : null}
