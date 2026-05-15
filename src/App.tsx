@@ -5255,6 +5255,7 @@ function NotesView({
   const allFolderIndex = useMemo(() => buildStudyFolderIndex(folders, notes), [folders, notes]);
   const folderTree = folderIndex.tree;
   const knowledgeNexus = useMemo(() => getNotesKnowledgeNexus(liveNotes, folderIndex), [folderIndex, liveNotes]);
+  const notesOrbitItems = useMemo(() => getNotesOrbitItems(liveNotes, folderIndex), [folderIndex, liveNotes]);
   const folderStructureKey = useMemo(
     () => folderTree.map((folder) => `${folder.id}:${folder.depth}:${folder.childCount}:${folder.parentId ?? STUDY_FOLDER_ROOT_ID}`).join("|"),
     [folderTree],
@@ -6513,6 +6514,88 @@ function NotesView({
                     </div>
                   </section>
 
+                  <section className="notes-orbit-panel">
+                    <div className="notes-orbit-head">
+                      <div>
+                        <span>Knowledge Orbit</span>
+                        <strong>{notesOrbitItems.length ? `${notesOrbitItems.length} live nodes` : "Orbit awaiting notes"}</strong>
+                      </div>
+                      <em>{libraryTelemetry.averageSignal}% coherence</em>
+                    </div>
+                    <div className="notes-orbit-body">
+                      <div className="notes-orbit-stage" aria-label="Note signal orbit">
+                        <i className="notes-orbit-ring outer" aria-hidden="true" />
+                        <i className="notes-orbit-ring middle" aria-hidden="true" />
+                        <i className="notes-orbit-ring inner" aria-hidden="true" />
+                        <div className="notes-orbit-core">
+                          <span>Core</span>
+                          <strong>{libraryTelemetry.averageSignal}%</strong>
+                          <small>{libraryTelemetry.documentCount} docs / {libraryTelemetry.cardCount} cards</small>
+                        </div>
+                        {notesOrbitItems.length === 0 ? (
+                          <div className="notes-orbit-empty">// create or upload notes to light the orbit</div>
+                        ) : (
+                          notesOrbitItems.map((item) => (
+                            <button
+                              className={`notes-orbit-node ${item.signal.tier} ${activeNote?.id === item.note.id ? "active" : ""}`}
+                              type="button"
+                              onClick={() => {
+                                setActiveNoteId(item.note.id);
+                                setMode(item.note.kind === "document" ? "reading" : "writing");
+                                logActivityEvent({
+                                  domain: "notes",
+                                  action: "opened",
+                                  entityId: item.note.id,
+                                  entityTitle: item.note.title || "Untitled note",
+                                  source: "Knowledge orbit",
+                                  metadata: { kind: item.note.kind, score: item.signal.score, folderId: item.note.folderId },
+                                });
+                              }}
+                              style={{
+                                "--x": `${item.x}%`,
+                                "--y": `${item.y}%`,
+                                "--size": `${item.size}px`,
+                                "--delay": `${item.delay}ms`,
+                              } as CSSProperties}
+                              key={item.note.id}
+                            >
+                              <span>{item.signal.score}</span>
+                              <em>{item.label}</em>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      <div className="notes-orbit-queue">
+                        <div className="ask-note-head">
+                          <span>Priority Signals</span>
+                          <strong>{notesOrbitItems.filter((item) => item.signal.tier === "thin").length} thin</strong>
+                        </div>
+                        {notesOrbitItems.length === 0 ? (
+                          <div className="kanban-empty">// no orbit signals yet</div>
+                        ) : (
+                          notesOrbitItems.slice(0, 5).map((item, index) => (
+                            <button
+                              className={item.signal.tier}
+                              type="button"
+                              onClick={() => {
+                                setActiveNoteId(item.note.id);
+                                setMode(item.signal.tier === "thin" ? "ai" : item.note.kind === "document" ? "reading" : "writing");
+                              }}
+                              key={item.note.id}
+                            >
+                              <span>{String(index + 1).padStart(2, "0")}</span>
+                              <div>
+                                <strong>{item.note.title || "Untitled note"}</strong>
+                                <em>{item.signal.directive}</em>
+                              </div>
+                              <i>{item.signal.score}%</i>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
                   <div className="notes-home-grid">
                     <section className="notes-home-panel continue-panel">
                       <div className="ask-note-head">
@@ -7057,6 +7140,16 @@ type StudyOutlineItem = {
   bullets: number;
   preview: string;
   signal: number;
+};
+
+type NotesOrbitItem = {
+  note: StudyNote;
+  signal: ReturnType<typeof getNoteStudySignal>;
+  label: string;
+  x: number;
+  y: number;
+  size: number;
+  delay: number;
 };
 
 function StudyOutlinePanel({
@@ -7875,6 +7968,41 @@ function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderInde
     folderSignals,
     tagSignals,
   };
+}
+
+function getNotesOrbitItems(notes: StudyNote[], folderIndex: StudyFolderIndex): NotesOrbitItem[] {
+  const positions = [
+    { x: 18, y: 28 },
+    { x: 44, y: 15 },
+    { x: 72, y: 25 },
+    { x: 82, y: 56 },
+    { x: 60, y: 79 },
+    { x: 28, y: 76 },
+    { x: 13, y: 55 },
+    { x: 50, y: 49 },
+  ];
+  return notes
+    .map((note) => {
+      const signal = getNoteStudySignal(note, note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null);
+      const focusWeight =
+        (100 - signal.score) * 0.44 +
+        (note.kind === "document" ? 12 : 4) +
+        (isRecentNote(note) ? 10 : 0) +
+        (note.pinned ? 8 : 0) +
+        (signal.progress < 50 ? 7 : 0);
+      return { note, signal, focusWeight };
+    })
+    .sort((a, b) => b.focusWeight - a.focusWeight || b.signal.score - a.signal.score)
+    .slice(0, positions.length)
+    .map((item, index) => ({
+      note: item.note,
+      signal: item.signal,
+      label: truncateText(item.note.title || "Untitled", 18),
+      x: positions[index].x,
+      y: positions[index].y,
+      size: Math.round(clamp(46 + item.signal.score * 0.28, 50, 76)),
+      delay: index * 80,
+    }));
 }
 
 function isRecentNote(note: StudyNote) {
