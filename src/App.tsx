@@ -5204,7 +5204,6 @@ function NotesView({
   const [filter, setFilter] = useState<"all" | "pinned" | "recent">("all");
   const [activeFolderId, setActiveFolderId] = useState("all");
   const [query, setQuery] = useState("");
-  const [activeTag, setActiveTag] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [folderInput, setFolderInput] = useState("");
   const [folderParentId, setFolderParentId] = useState(STUDY_FOLDER_ROOT_ID);
@@ -5250,7 +5249,6 @@ function NotesView({
   const weakNotes = useMemo(() => getWeakStudyNotes(liveNotes), [liveNotes]);
   const reviewedToday = useMemo(() => allSavedFlashcards.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length, [allSavedFlashcards]);
   const recentStudyNotes = sortedNotes.slice(0, 4);
-  const allTags = useMemo(() => Array.from(new Set(liveNotes.flatMap((note) => note.tags))).sort(), [liveNotes]);
   const folderIndex = useMemo(() => buildStudyFolderIndex(liveFolders, liveNotes), [liveFolders, liveNotes]);
   const allFolderIndex = useMemo(() => buildStudyFolderIndex(folders, notes), [folders, notes]);
   const folderTree = folderIndex.tree;
@@ -5306,9 +5304,8 @@ function NotesView({
     const matchesFolder =
       activeFolderId === "all" ||
       (activeFolderId === STUDY_FOLDER_UNCATEGORIZED_ID ? !note.folderId : activeFolderScope.includes(note.folderId ?? ""));
-    const matchesTag = !activeTag || note.tags.includes(activeTag);
     const haystack = `${note.title} ${note.body} ${note.extractedText ?? ""} ${note.tags.join(" ")}`.toLowerCase();
-    return matchesFilter && matchesFolder && matchesTag && haystack.includes(query.trim().toLowerCase());
+    return matchesFilter && matchesFolder && haystack.includes(query.trim().toLowerCase());
   });
 
   useEffect(() => {
@@ -6232,12 +6229,6 @@ function NotesView({
               <div className="notes-tabs">
                 {(["all", "pinned", "recent"] as const).map((item) => (
                   <button className={filter === item ? "active" : ""} type="button" onClick={() => setFilter(item)} key={item}>{item}</button>
-                ))}
-              </div>
-              <div className="notes-tags">
-                <button className={!activeTag ? "active" : ""} type="button" onClick={() => setActiveTag("")}>all tags</button>
-                {allTags.map((tag) => (
-                  <button className={activeTag === tag ? "active" : ""} type="button" onClick={() => setActiveTag(tag)} key={tag}>{tag}</button>
                 ))}
               </div>
               <div className="note-list">
