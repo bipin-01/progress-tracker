@@ -11347,6 +11347,12 @@ button.load-forecast-day:hover {
   box-shadow: 0 0 8px rgba(158, 255, 102, 0.34);
 }
 
+.zh-streak-cells i.today {
+  border-color: rgba(170, 114, 255, 0.62);
+  background: var(--zh-magenta);
+  box-shadow: 0 0 10px rgba(170, 114, 255, 0.34);
+}
+
 .zh-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(330px, 0.44fr);
@@ -11384,6 +11390,57 @@ button.load-forecast-day:hover {
 
 .zh-section-head.compact {
   padding: 0 2px;
+}
+
+.zh-lesson-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.zh-lesson-steps button {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.38);
+  padding: 9px;
+  text-align: left;
+}
+
+.zh-lesson-steps button.active,
+.zh-lesson-steps button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-lesson-steps button.done {
+  border-color: rgba(158, 255, 102, 0.42);
+}
+
+.zh-lesson-steps span {
+  overflow: hidden;
+  color: var(--cyan);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-lesson-steps button.done span {
+  color: var(--lime);
+}
+
+.zh-lesson-steps em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .zh-card-stage {
@@ -11520,20 +11577,38 @@ button.load-forecast-day:hover {
   line-height: 1;
 }
 
+.zh-decomp-token {
+  width: max-content;
+  border: 0;
+  color: var(--zh-gold);
+  font-size: 26px;
+  line-height: 1;
+  text-align: left;
+}
+
+.zh-decomp-token:hover {
+  color: var(--cyan);
+}
+
 .zh-component-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.zh-component-row i {
+.zh-component-row button {
   display: inline-grid;
   place-items: center;
   width: 30px;
   height: 30px;
   border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.04);
   color: var(--cyan);
-  font-style: normal;
+}
+
+.zh-component-row button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.1);
 }
 
 .zh-example-line {
@@ -11561,10 +11636,30 @@ button.load-forecast-day:hover {
 }
 
 .zh-example-line p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
   margin: 0;
   color: var(--ink);
   font-size: 28px;
   line-height: 1.1;
+}
+
+.zh-sentence button {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  padding: 0 1px;
+}
+
+.zh-sentence button:hover {
+  color: var(--cyan);
+}
+
+.zh-sentence button.target {
+  color: var(--zh-gold);
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.32);
 }
 
 .zh-example-line span {
@@ -11645,6 +11740,63 @@ button.load-forecast-day:hover {
   gap: 8px;
 }
 
+.zh-writing-console {
+  display: grid;
+  gap: 8px;
+}
+
+.zh-writing-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.zh-writing-grid svg {
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.04) 1px, transparent 1px) 0 0 / 25% 25%,
+    linear-gradient(rgba(53, 215, 255, 0.04) 1px, transparent 1px) 0 0 / 25% 25%,
+    rgba(2, 7, 15, 0.42);
+}
+
+.zh-writing-grid text {
+  fill: rgba(230, 240, 255, 0.1);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: 52px;
+  font-weight: 700;
+}
+
+.zh-writing-grid polyline {
+  fill: none;
+  stroke: rgba(94, 114, 153, 0.65);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 5;
+}
+
+.zh-writing-grid polyline.active {
+  stroke: var(--cyan);
+  filter: drop-shadow(0 0 6px rgba(53, 215, 255, 0.45));
+}
+
+.zh-writing-grid polyline.done {
+  stroke: var(--lime);
+  filter: drop-shadow(0 0 6px rgba(158, 255, 102, 0.35));
+}
+
+.zh-grid-guide {
+  stroke: rgba(53, 215, 255, 0.18);
+  stroke-dasharray: 4 5;
+  stroke-width: 0.8;
+}
+
+.zh-grid-guide.muted {
+  stroke: rgba(53, 215, 255, 0.1);
+}
+
 .zh-stroke-matrix > div:last-child {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -11721,6 +11873,7 @@ button.load-forecast-day:hover {
 .zh-hsk-panel,
 .zh-tone-panel,
 .zh-heatmap-panel,
+.zh-dictionary-panel,
 .zh-decks-panel,
 .zh-review-panel,
 .zh-pattern-panel,
@@ -11734,6 +11887,7 @@ button.load-forecast-day:hover {
 .zh-tone-grid,
 .zh-deck-list,
 .zh-review-list,
+.zh-dictionary-words,
 .zh-daily-circuit {
   display: grid;
   gap: 8px;
@@ -11894,6 +12048,117 @@ button.load-forecast-day:hover {
   box-shadow: 0 0 9px rgba(158, 255, 102, 0.28);
 }
 
+.zh-dictionary-entry {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.zh-dictionary-glyph {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.045);
+  padding: 10px;
+  text-align: center;
+}
+
+.zh-dictionary-glyph strong {
+  color: var(--ink);
+  font-size: 48px;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(53, 215, 255, 0.28);
+}
+
+.zh-dictionary-glyph span,
+.zh-dictionary-body em,
+.zh-dictionary-body p,
+.zh-dictionary-words em,
+.zh-dictionary-words p {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.zh-dictionary-body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zh-dictionary-body > span {
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+}
+
+.zh-dictionary-body strong {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.zh-dictionary-body p {
+  margin: 0;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.zh-dictionary-components {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.zh-dictionary-components button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.42);
+  color: var(--cyan);
+  font-size: 17px;
+}
+
+.zh-dictionary-components button:hover,
+.zh-dictionary-words button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-dictionary-words button {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 3px 9px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.36);
+  padding: 8px;
+  text-align: left;
+}
+
+.zh-dictionary-words span {
+  grid-row: span 2;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.zh-dictionary-words strong {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .zh-bottom-grid {
   display: grid;
   grid-template-columns: minmax(280px, 0.82fr) minmax(300px, 0.84fr) minmax(320px, 1fr) minmax(260px, 0.72fr);
@@ -11994,6 +12259,19 @@ button.load-forecast-day:hover {
 .zh-review-list i {
   color: var(--lime);
   text-align: right;
+}
+
+.zh-review-list button.status-late i,
+.zh-review-list button.status-again i {
+  color: var(--red);
+}
+
+.zh-review-list button.status-due i {
+  color: var(--amber);
+}
+
+.zh-review-list button.status-new i {
+  color: var(--cyan);
 }
 
 .zh-mini-grade {
@@ -12150,6 +12428,15 @@ button.load-forecast-day:hover {
   text-transform: none;
 }
 
+.zh-proverb-panel cite {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
 .zh-daily-circuit button {
   display: grid;
   gap: 5px;
@@ -12222,7 +12509,10 @@ button.load-forecast-day:hover {
   .zh-streak-strip,
   .zh-right-col,
   .zh-decomp-grid,
+  .zh-lesson-steps,
   .zh-lesson-strip,
+  .zh-writing-grid,
+  .zh-dictionary-entry,
   .zh-stroke-matrix > div:last-child,
   .zh-pattern-examples,
   .zh-review-list {

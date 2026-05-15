@@ -460,8 +460,36 @@ type ChineseReviewState = {
   ease: number;
   interval: number;
   repetitions: number;
+  dueDay: number;
+  lastReviewedDay?: number;
+  totalReviews: number;
+  successfulReviews: number;
+  lapses: number;
+  stability: number;
+  difficulty: number;
   rating?: ChineseReviewRating;
 };
+
+type ChineseDictionaryEntry = {
+  hanzi: string;
+  traditional?: string;
+  pinyin: string;
+  meaning: string;
+  radical: string;
+  strokeCount: number;
+  hsk: number;
+  frequency: number;
+  components: string[];
+  etymology: string;
+  words: Array<{ hanzi: string; pinyin: string; meaning: string }>;
+};
+
+type ChineseLessonStepId = "listen" | "meaning" | "build" | "write" | "recall";
+
+const CHINESE_TODAY_INDEX = 41;
+const CHINESE_DAILY_REVIEW_TARGET = 50;
+const CHINESE_KNOWN_CHARACTER_BASE = 1247;
+const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
 
 const chineseLessons: ChineseLesson[] = [
   {
@@ -613,6 +641,14 @@ const chineseDailyDrills = [
   { id: "speak", title: "Sentence output", detail: "Say one useful sentence from memory." },
 ];
 
+const chineseLessonSteps: Array<{ id: ChineseLessonStepId; title: string; detail: string }> = [
+  { id: "listen", title: "listen", detail: "shadow the audio" },
+  { id: "meaning", title: "meaning", detail: "reveal the card" },
+  { id: "build", title: "build", detail: "assemble sentence" },
+  { id: "write", title: "write", detail: "trace strokes" },
+  { id: "recall", title: "recall", detail: "grade memory" },
+];
+
 const chineseStrokeMatrixSteps = [
   { id: "observe", label: "observe", detail: "scan silhouette" },
   { id: "trace", label: "trace", detail: "copy slowly" },
@@ -637,17 +673,440 @@ const chineseHskLevels = [
 ];
 
 const chineseDecks = [
-  { glyph: "字", tone: "cyan", name: "HSK 3 Core", cn: "基础", meta: "486 / 600 · last reviewed 2h ago", due: 12, status: "DUE NOW" },
-  { glyph: "语", tone: "mag", name: "HSK 4 Vocab", cn: "词汇", meta: "280 / 1200 · last reviewed 5h ago", due: 38, status: "DUE NOW" },
-  { glyph: "成", tone: "gold", name: "Chengyu Idioms", cn: "成语", meta: "23 / 200 · last reviewed yesterday", due: 6, status: "DUE NOW" },
-  { glyph: "话", tone: "lime", name: "Daily Phrases", cn: "日常", meta: "147 / 200 · last reviewed 1h ago", due: 0, status: "CLEAR" },
-  { glyph: "音", tone: "amber", name: "Pinyin Drills", cn: "拼音", meta: "412 / 500 · last reviewed 3 days ago", due: 24, status: "DUE NOW" },
+  { glyph: "字", tone: "cyan", name: "HSK Core", cn: "基础", meta: "frequency-first vocabulary", lessonIds: ["pinyin-grid", "identity-core", "number-time", "character-logic"] },
+  { glyph: "语", tone: "mag", name: "Daily Phrases", cn: "日常", meta: "spoken output patterns", lessonIds: ["identity-core", "number-time"] },
+  { glyph: "成", tone: "gold", name: "Idioms", cn: "成语", meta: "classical compression", lessonIds: ["character-logic"] },
+  { glyph: "话", tone: "lime", name: "Conversation", cn: "会话", meta: "question and answer loops", lessonIds: ["pinyin-grid", "identity-core"] },
+  { glyph: "音", tone: "amber", name: "Pinyin Drills", cn: "拼音", meta: "tone and syllable repair", lessonIds: ["sound-boot", "pinyin-grid"] },
 ];
 
 const chinesePatternExamples = [
   { hanzi: "我在喝茶。", pinyin: "wǒ zài hē chá", english: "I am drinking tea." },
   { hanzi: "他在写邮件。", pinyin: "tā zài xiě yóu jiàn", english: "He is writing an email." },
 ];
+
+const chineseProverbOfDay = {
+  hanzi: "熟能生巧",
+  pinyin: "shú néng shēng qiǎo",
+  meaning: "Practice makes skill. Repeat until recognition feels automatic.",
+  source: "Qing dynasty usage, commonly taught as a four-character 成语",
+};
+
+const chineseDictionary: Record<string, ChineseDictionaryEntry> = {
+  妈: {
+    hanzi: "妈",
+    traditional: "媽",
+    pinyin: "mā",
+    meaning: "mother; mom",
+    radical: "女",
+    strokeCount: 6,
+    hsk: 1,
+    frequency: 241,
+    components: ["女", "马"],
+    etymology: "Semantic 女 marks a female family word; 马 gives the sound clue ma.",
+    words: [
+      { hanzi: "妈妈", pinyin: "mā ma", meaning: "mom" },
+      { hanzi: "爸妈", pinyin: "bà mā", meaning: "parents" },
+    ],
+  },
+  麻: {
+    hanzi: "麻",
+    pinyin: "má",
+    meaning: "hemp; numb; tingling",
+    radical: "麻",
+    strokeCount: 11,
+    hsk: 5,
+    frequency: 1460,
+    components: ["广", "林"],
+    etymology: "A plant-fiber character; the tone distinguishes it sharply from 妈, 马, and 骂.",
+    words: [
+      { hanzi: "麻烦", pinyin: "má fan", meaning: "trouble; troublesome" },
+      { hanzi: "麻木", pinyin: "má mù", meaning: "numb" },
+    ],
+  },
+  马: {
+    hanzi: "马",
+    traditional: "馬",
+    pinyin: "mǎ",
+    meaning: "horse; surname Ma",
+    radical: "马",
+    strokeCount: 3,
+    hsk: 2,
+    frequency: 347,
+    components: ["马"],
+    etymology: "Originally a pictograph of a horse; now also a common phonetic component.",
+    words: [
+      { hanzi: "马上", pinyin: "mǎ shàng", meaning: "immediately" },
+      { hanzi: "马路", pinyin: "mǎ lù", meaning: "road" },
+    ],
+  },
+  骂: {
+    hanzi: "骂",
+    traditional: "罵",
+    pinyin: "mà",
+    meaning: "to scold; to curse",
+    radical: "马",
+    strokeCount: 9,
+    hsk: 5,
+    frequency: 1180,
+    components: ["口", "口", "马"],
+    etymology: "Two mouths over 马 cue a noisy spoken action; fourth tone falls hard.",
+    words: [
+      { hanzi: "骂人", pinyin: "mà rén", meaning: "to curse at someone" },
+      { hanzi: "责骂", pinyin: "zé mà", meaning: "to reproach" },
+    ],
+  },
+  口: {
+    hanzi: "口",
+    pinyin: "kǒu",
+    meaning: "mouth; opening",
+    radical: "口",
+    strokeCount: 3,
+    hsk: 1,
+    frequency: 198,
+    components: ["口"],
+    etymology: "A square opening, used as a radical for speech, eating, and sound.",
+    words: [
+      { hanzi: "人口", pinyin: "rén kǒu", meaning: "population" },
+      { hanzi: "出口", pinyin: "chū kǒu", meaning: "exit" },
+    ],
+  },
+  女: {
+    hanzi: "女",
+    pinyin: "nǚ",
+    meaning: "woman; female",
+    radical: "女",
+    strokeCount: 3,
+    hsk: 1,
+    frequency: 256,
+    components: ["女"],
+    etymology: "A core semantic radical in family, gender, and relationship characters.",
+    words: [
+      { hanzi: "女儿", pinyin: "nǚ ér", meaning: "daughter" },
+      { hanzi: "女生", pinyin: "nǚ shēng", meaning: "female student" },
+    ],
+  },
+  你: {
+    hanzi: "你",
+    pinyin: "nǐ",
+    meaning: "you",
+    radical: "亻",
+    strokeCount: 7,
+    hsk: 1,
+    frequency: 19,
+    components: ["亻", "尔"],
+    etymology: "Person radical 亻 plus a phonetic clue; one of the first pronouns to automate.",
+    words: [
+      { hanzi: "你好", pinyin: "nǐ hǎo", meaning: "hello" },
+      { hanzi: "你们", pinyin: "nǐ men", meaning: "you plural" },
+    ],
+  },
+  好: {
+    hanzi: "好",
+    pinyin: "hǎo",
+    meaning: "good; well",
+    radical: "女",
+    strokeCount: 6,
+    hsk: 1,
+    frequency: 58,
+    components: ["女", "子"],
+    etymology: "女 plus 子 forms a high-frequency character for good, okay, or well.",
+    words: [
+      { hanzi: "你好", pinyin: "nǐ hǎo", meaning: "hello" },
+      { hanzi: "很好", pinyin: "hěn hǎo", meaning: "very good" },
+    ],
+  },
+  是: {
+    hanzi: "是",
+    pinyin: "shì",
+    meaning: "to be; yes",
+    radical: "日",
+    strokeCount: 9,
+    hsk: 1,
+    frequency: 3,
+    components: ["日", "正"],
+    etymology: "A grammar engine character; fourth tone should be crisp and short.",
+    words: [
+      { hanzi: "我是", pinyin: "wǒ shì", meaning: "I am" },
+      { hanzi: "不是", pinyin: "bú shì", meaning: "is not" },
+    ],
+  },
+  中: {
+    hanzi: "中",
+    pinyin: "zhōng",
+    meaning: "middle; China",
+    radical: "丨",
+    strokeCount: 4,
+    hsk: 1,
+    frequency: 12,
+    components: ["口", "丨"],
+    etymology: "A line through a center; the idea of middle extends into 中国 and 中文.",
+    words: [
+      { hanzi: "中文", pinyin: "zhōng wén", meaning: "Chinese language" },
+      { hanzi: "中国", pinyin: "zhōng guó", meaning: "China" },
+    ],
+  },
+  文: {
+    hanzi: "文",
+    pinyin: "wén",
+    meaning: "language; writing; culture",
+    radical: "文",
+    strokeCount: 4,
+    hsk: 1,
+    frequency: 116,
+    components: ["文"],
+    etymology: "A writing/culture root that appears in 中文 and 文化.",
+    words: [
+      { hanzi: "中文", pinyin: "zhōng wén", meaning: "Chinese language" },
+      { hanzi: "文化", pinyin: "wén huà", meaning: "culture" },
+    ],
+  },
+  我: {
+    hanzi: "我",
+    pinyin: "wǒ",
+    meaning: "I; me",
+    radical: "戈",
+    strokeCount: 7,
+    hsk: 1,
+    frequency: 5,
+    components: ["扌", "戈"],
+    etymology: "The anchor first-person pronoun; third tone dips before rising.",
+    words: [
+      { hanzi: "我们", pinyin: "wǒ men", meaning: "we" },
+      { hanzi: "我是", pinyin: "wǒ shì", meaning: "I am" },
+    ],
+  },
+  学: {
+    hanzi: "学",
+    traditional: "學",
+    pinyin: "xué",
+    meaning: "to study; learning",
+    radical: "子",
+    strokeCount: 8,
+    hsk: 1,
+    frequency: 63,
+    components: ["⺍", "冖", "子"],
+    etymology: "A child under a learning roof; used in 学生 and 学习.",
+    words: [
+      { hanzi: "学生", pinyin: "xué sheng", meaning: "student" },
+      { hanzi: "学习", pinyin: "xué xí", meaning: "to study" },
+    ],
+  },
+  生: {
+    hanzi: "生",
+    pinyin: "shēng",
+    meaning: "life; born; student suffix",
+    radical: "生",
+    strokeCount: 5,
+    hsk: 1,
+    frequency: 70,
+    components: ["生"],
+    etymology: "A sprout rising from the ground; extends to life and student identity.",
+    words: [
+      { hanzi: "学生", pinyin: "xué sheng", meaning: "student" },
+      { hanzi: "生日", pinyin: "shēng rì", meaning: "birthday" },
+    ],
+  },
+  一: {
+    hanzi: "一",
+    pinyin: "yī",
+    meaning: "one",
+    radical: "一",
+    strokeCount: 1,
+    hsk: 1,
+    frequency: 2,
+    components: ["一"],
+    etymology: "One horizontal stroke; tone changes in connected speech.",
+    words: [
+      { hanzi: "一个", pinyin: "yí ge", meaning: "one item" },
+      { hanzi: "一起", pinyin: "yì qǐ", meaning: "together" },
+    ],
+  },
+  月: {
+    hanzi: "月",
+    pinyin: "yuè",
+    meaning: "moon; month",
+    radical: "月",
+    strokeCount: 4,
+    hsk: 1,
+    frequency: 108,
+    components: ["月"],
+    etymology: "Moon pictograph; used for calendar months and body-part radicals.",
+    words: [
+      { hanzi: "五月", pinyin: "wǔ yuè", meaning: "May" },
+      { hanzi: "月亮", pinyin: "yuè liang", meaning: "moon" },
+    ],
+  },
+  书: {
+    hanzi: "书",
+    traditional: "書",
+    pinyin: "shū",
+    meaning: "book",
+    radical: "乛",
+    strokeCount: 4,
+    hsk: 1,
+    frequency: 405,
+    components: ["书"],
+    etymology: "Simplified from a brush-written book character; pairs with measure word 本.",
+    words: [
+      { hanzi: "本书", pinyin: "běn shū", meaning: "book" },
+      { hanzi: "书店", pinyin: "shū diàn", meaning: "bookstore" },
+    ],
+  },
+  语: {
+    hanzi: "语",
+    traditional: "語",
+    pinyin: "yǔ",
+    meaning: "language; speech",
+    radical: "讠",
+    strokeCount: 9,
+    hsk: 2,
+    frequency: 462,
+    components: ["讠", "吾"],
+    etymology: "Speech radical 讠 carries meaning; 吾 gives sound-family support.",
+    words: [
+      { hanzi: "汉语", pinyin: "hàn yǔ", meaning: "Mandarin / Chinese" },
+      { hanzi: "语言", pinyin: "yǔ yán", meaning: "language" },
+    ],
+  },
+  习: {
+    hanzi: "习",
+    traditional: "習",
+    pinyin: "xí",
+    meaning: "practice; habit",
+    radical: "乙",
+    strokeCount: 3,
+    hsk: 2,
+    frequency: 682,
+    components: ["习"],
+    etymology: "Repeated practice; the second half of 学习.",
+    words: [
+      { hanzi: "学习", pinyin: "xué xí", meaning: "to study" },
+      { hanzi: "练习", pinyin: "liàn xí", meaning: "practice" },
+    ],
+  },
+  广: {
+    hanzi: "广",
+    pinyin: "guǎng",
+    meaning: "wide; shelter radical",
+    radical: "广",
+    strokeCount: 3,
+    hsk: 4,
+    frequency: 770,
+    components: ["广"],
+    etymology: "A shelter-like radical that often suggests a building or covered space.",
+    words: [
+      { hanzi: "广告", pinyin: "guǎng gào", meaning: "advertisement" },
+      { hanzi: "广场", pinyin: "guǎng chǎng", meaning: "public square" },
+    ],
+  },
+  林: {
+    hanzi: "林",
+    pinyin: "lín",
+    meaning: "woods; forest",
+    radical: "木",
+    strokeCount: 8,
+    hsk: 3,
+    frequency: 540,
+    components: ["木", "木"],
+    etymology: "Two trees make a grove; repeated components often intensify meaning.",
+    words: [
+      { hanzi: "森林", pinyin: "sēn lín", meaning: "forest" },
+      { hanzi: "林子", pinyin: "lín zi", meaning: "woods" },
+    ],
+  },
+  亻: {
+    hanzi: "亻",
+    pinyin: "rén",
+    meaning: "person radical",
+    radical: "亻",
+    strokeCount: 2,
+    hsk: 1,
+    frequency: 120,
+    components: ["亻"],
+    etymology: "The standing-person form used on the left side of people-related characters.",
+    words: [
+      { hanzi: "你", pinyin: "nǐ", meaning: "you" },
+      { hanzi: "他", pinyin: "tā", meaning: "he" },
+    ],
+  },
+  子: {
+    hanzi: "子",
+    pinyin: "zǐ",
+    meaning: "child; son; suffix",
+    radical: "子",
+    strokeCount: 3,
+    hsk: 2,
+    frequency: 136,
+    components: ["子"],
+    etymology: "A child form that appears in 好 and many family or suffix words.",
+    words: [
+      { hanzi: "孩子", pinyin: "hái zi", meaning: "child" },
+      { hanzi: "儿子", pinyin: "ér zi", meaning: "son" },
+    ],
+  },
+  日: {
+    hanzi: "日",
+    pinyin: "rì",
+    meaning: "sun; day",
+    radical: "日",
+    strokeCount: 4,
+    hsk: 1,
+    frequency: 92,
+    components: ["日"],
+    etymology: "Sun/day radical used in time words and date expressions.",
+    words: [
+      { hanzi: "生日", pinyin: "shēng rì", meaning: "birthday" },
+      { hanzi: "日子", pinyin: "rì zi", meaning: "day; date" },
+    ],
+  },
+  正: {
+    hanzi: "正",
+    pinyin: "zhèng",
+    meaning: "correct; upright",
+    radical: "止",
+    strokeCount: 5,
+    hsk: 3,
+    frequency: 184,
+    components: ["一", "止"],
+    etymology: "Upright/correct semantic family; appears as a component in 是.",
+    words: [
+      { hanzi: "正在", pinyin: "zhèng zài", meaning: "currently" },
+      { hanzi: "正确", pinyin: "zhèng què", meaning: "correct" },
+    ],
+  },
+  尔: {
+    hanzi: "尔",
+    traditional: "爾",
+    pinyin: "ěr",
+    meaning: "you; phonetic component",
+    radical: "小",
+    strokeCount: 5,
+    hsk: 5,
+    frequency: 920,
+    components: ["小"],
+    etymology: "Often appears as a sound component, including inside 你.",
+    words: [
+      { hanzi: "偶尔", pinyin: "ǒu ěr", meaning: "occasionally" },
+      { hanzi: "哈尔滨", pinyin: "hā ěr bīn", meaning: "Harbin" },
+    ],
+  },
+  吾: {
+    hanzi: "吾",
+    pinyin: "wú",
+    meaning: "I; me; phonetic component",
+    radical: "口",
+    strokeCount: 7,
+    hsk: 6,
+    frequency: 1750,
+    components: ["五", "口"],
+    etymology: "Classical first-person word; gives a sound-family clue in 语.",
+    words: [
+      { hanzi: "吾辈", pinyin: "wú bèi", meaning: "we; our generation" },
+      { hanzi: "支吾", pinyin: "zhī wu", meaning: "to hem and haw" },
+    ],
+  },
+};
 
 const chineseToneProfiles = {
   0: { name: "light", contour: "neutral", pitch: [46, 46, 44, 44] },
@@ -737,28 +1196,143 @@ function getChineseMeaningUnits(value: string) {
 }
 
 function getDefaultChineseReviewState(): ChineseReviewState {
-  return { ease: 2.5, interval: 0, repetitions: 0 };
+  return {
+    ease: 2.5,
+    interval: 0,
+    repetitions: 0,
+    dueDay: CHINESE_TODAY_INDEX,
+    totalReviews: 0,
+    successfulReviews: 0,
+    lapses: 0,
+    stability: 0,
+    difficulty: 0.5,
+  };
 }
 
-function scheduleChineseReview(previous: ChineseReviewState | undefined, rating: ChineseReviewRating): ChineseReviewState {
+function getChineseReviewQuality(rating: ChineseReviewRating) {
+  return rating === "again" ? 1 : rating === "hard" ? 3 : rating === "ok" ? 4 : 5;
+}
+
+function scheduleChineseReview(
+  previous: ChineseReviewState | undefined,
+  rating: ChineseReviewRating,
+  today = CHINESE_TODAY_INDEX,
+): ChineseReviewState {
   const current = previous ?? getDefaultChineseReviewState();
-  const easeAdjustment = rating === "again" ? -0.3 : rating === "hard" ? -0.2 : rating === "easy" ? 0.15 : 0.05;
-  const ease = Math.max(1.3, Number((current.ease + easeAdjustment).toFixed(2)));
-  const repetitions = rating === "again" || rating === "hard" ? 0 : current.repetitions + 1;
+  const quality = getChineseReviewQuality(rating);
+  const ease = Math.max(
+    1.3,
+    Number((current.ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))).toFixed(2)),
+  );
+  const success = quality >= 4;
+  const repetitions = success ? current.repetitions + 1 : 0;
   const interval =
     rating === "again"
       ? 0
       : rating === "hard"
-      ? 1
+      ? Math.max(1, Math.round(Math.max(current.interval, 1) * 1.2))
       : rating === "ok"
         ? current.repetitions === 0
           ? 2
-          : Math.max(3, Math.round(Math.max(current.interval, 1) * ease))
+          : current.repetitions === 1
+            ? 6
+            : Math.max(3, Math.round(Math.max(current.interval, 1) * ease))
         : current.repetitions === 0
           ? 4
-          : Math.max(5, Math.round(Math.max(current.interval, 1) * (ease + 0.8)));
+          : current.repetitions === 1
+            ? 9
+            : Math.max(5, Math.round(Math.max(current.interval, 1) * (ease + 0.85)));
+  const totalReviews = current.totalReviews + 1;
+  const successfulReviews = current.successfulReviews + (success ? 1 : 0);
+  const lapses = current.lapses + (rating === "again" ? 1 : 0);
+  const stability = Math.max(0, Math.round(interval * ease));
+  const difficulty = Math.min(
+    0.96,
+    Math.max(0.08, Number((current.difficulty + (rating === "again" ? 0.16 : rating === "hard" ? 0.08 : rating === "easy" ? -0.05 : -0.02)).toFixed(2))),
+  );
 
-  return { ease, interval, repetitions, rating };
+  return {
+    ease,
+    interval,
+    repetitions,
+    dueDay: today + interval,
+    lastReviewedDay: today,
+    totalReviews,
+    successfulReviews,
+    lapses,
+    stability,
+    difficulty,
+    rating,
+  };
+}
+
+function getChineseRetention(state: ChineseReviewState, today = CHINESE_TODAY_INDEX) {
+  if (!state.totalReviews) return 0;
+  if (state.interval === 0) return state.rating === "again" ? 18 : 42;
+  const elapsed = Math.max(0, today - (state.lastReviewedDay ?? today));
+  const stability = Math.max(state.stability, state.interval, 1);
+  return Math.max(0, Math.min(99, Math.round(100 * Math.exp(-elapsed / stability))));
+}
+
+function getChineseReviewStatus(state: ChineseReviewState, today = CHINESE_TODAY_INDEX) {
+  if (!state.totalReviews) return "NEW";
+  if (state.dueDay < today) return "LATE";
+  if (state.dueDay === today || state.interval <= 1) return "DUE";
+  if (state.dueDay - today <= 3) return "SOON";
+  return "OK";
+}
+
+function getChineseDueLabel(state: ChineseReviewState, today = CHINESE_TODAY_INDEX) {
+  if (!state.totalReviews) return "new";
+  const delta = state.dueDay - today;
+  if (delta < 0) return `${Math.abs(delta)}d late`;
+  if (delta === 0) return "due now";
+  return `D+${delta}`;
+}
+
+function getChineseDictionaryEntry(token: string, fallback?: { pinyin?: string; meaning?: string; note?: string }): ChineseDictionaryEntry {
+  const cleanToken = getChinesePhraseUnits(token)[0] ?? token;
+  return (
+    chineseDictionary[cleanToken] ?? {
+      hanzi: cleanToken,
+      pinyin: fallback?.pinyin ?? "unknown",
+      meaning: fallback?.meaning ?? "add to dictionary",
+      radical: cleanToken,
+      strokeCount: Math.max(1, cleanToken.codePointAt(0) ? String(cleanToken.codePointAt(0)).length : 1),
+      hsk: 6,
+      frequency: 3000,
+      components: [cleanToken],
+      etymology: fallback?.note ?? "No local entry yet. This card can still be practiced and reviewed.",
+      words: [],
+    }
+  );
+}
+
+function getChineseStrokePlan(entry: ChineseDictionaryEntry) {
+  const count = Math.max(1, Math.min(entry.strokeCount, 8));
+  return Array.from({ length: count }, (_, index) => {
+    const x1 = 18 + ((index * 17) % 58);
+    const y1 = 20 + ((index * 23) % 54);
+    const x2 = Math.min(88, x1 + 24 + (index % 2) * 10);
+    const y2 = Math.min(86, y1 + (index % 3 === 0 ? 0 : 20));
+    return {
+      id: `${entry.hanzi}-stroke-${index + 1}`,
+      label: `S${String(index + 1).padStart(2, "0")}`,
+      points: `${x1},${y1} ${x2},${y2}`,
+    };
+  });
+}
+
+function getChineseCardCharacters(card: { hanzi: string }) {
+  return Array.from(new Set(getChinesePhraseUnits(card.hanzi)));
+}
+
+function getChineseHskProgress(level: (typeof chineseHskLevels)[number], masteredCharacters: number) {
+  const boostedKnown = level.name === "HSK 3" ? Math.min(level.total, level.known + masteredCharacters) : level.known;
+  return {
+    known: boostedKnown,
+    progress: Math.round((boostedKnown / level.total) * 100),
+  };
 }
 
 function normalizeChinesePinyinToken(token: string) {
@@ -11535,6 +12109,11 @@ function ChineseView() {
   const [pinyinDecoderInput, setPinyinDecoderInput] = useState("");
   const [assemblyTileIds, setAssemblyTileIds] = useState<string[]>([]);
   const [cardRevealed, setCardRevealed] = useState(false);
+  const [activeLessonStep, setActiveLessonStep] = useState<ChineseLessonStepId>("listen");
+  const [dictionaryToken, setDictionaryToken] = useState(chineseLessons[0].characters[0].hanzi);
+  const [sessionXp, setSessionXp] = useState(0);
+  const [reviewCombo, setReviewCombo] = useState(0);
+  const [rewardMessage, setRewardMessage] = useState("");
   const [activeReviewId, setActiveReviewId] = useState("");
   const [reviewRatings, setReviewRatings] = useState<Record<string, ChineseReviewState>>({});
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
@@ -11542,10 +12121,12 @@ function ChineseView() {
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
+  const activeDictionaryEntry = getChineseDictionaryEntry(dictionaryToken || activeCharacter.hanzi);
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
   const activePhraseReviewId = `${activeLesson.id}-${selectedPhraseIndex}-${activePhrase.hanzi}`;
-  const activeStrokePrefix = `${activeLesson.id}-${activeCharacter.hanzi}`;
-  const activeFlashcardIndex = lessonIndex >= 0 ? lessonIndex * 4 + selectedCharacterIndex + 1 : selectedCharacterIndex + 1;
+  const activeStrokePrefix = `${activeLesson.id}-${activeDictionaryEntry.hanzi}`;
+  const activeFlashcardIndex = lessonIndex >= 0 ? lessonIndex * 4 + selectedPhraseIndex + 1 : selectedPhraseIndex + 1;
+  const strokePlan = useMemo(() => getChineseStrokePlan(activeDictionaryEntry), [activeDictionaryEntry.hanzi]);
   const activeToneSignal = useMemo(() => getChineseToneSignal(activeLesson), [activeLesson]);
   const activePhraseUnits = useMemo(() => getChinesePhraseUnits(activePhrase.hanzi), [activePhrase]);
   const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
@@ -11615,23 +12196,34 @@ function ChineseView() {
   );
   const reviewQueue = reviewCards
     .map((card) => ({ card, state: reviewRatings[card.id] ?? getDefaultChineseReviewState() }))
-    .sort((a, b) => a.state.interval - b.state.interval || a.card.lessonCode.localeCompare(b.card.lessonCode));
+    .sort(
+      (a, b) =>
+        a.state.dueDay - b.state.dueDay ||
+        getChineseRetention(a.state) - getChineseRetention(b.state) ||
+        a.card.lessonCode.localeCompare(b.card.lessonCode),
+    );
   const activeReviewCard = reviewCards.find((card) => card.id === (activeReviewId || activePhraseReviewId)) ?? reviewCards[0];
   const activeReviewState = reviewRatings[activeReviewCard.id] ?? getDefaultChineseReviewState();
-  const reviewedCount = Object.keys(reviewRatings).length;
-  const dueReviewCount = reviewQueue.filter(({ state }) => state.interval <= 1).length;
+  const reviewedStates = Object.values(reviewRatings);
+  const reviewedCount = reviewedStates.reduce((total, state) => total + state.totalReviews, 0);
+  const successfulReviewCount = reviewedStates.reduce((total, state) => total + state.successfulReviews, 0);
+  const dueReviewCount = reviewQueue.filter(({ state }) => ["NEW", "DUE", "LATE"].includes(getChineseReviewStatus(state))).length;
   const reviewMastery = Math.round(
-    (reviewQueue.reduce((total, item) => total + Math.min(item.state.interval, 14) / 14, 0) / Math.max(reviewQueue.length, 1)) *
-      100,
+    reviewQueue.reduce((total, item) => total + getChineseRetention(item.state), 0) / Math.max(reviewQueue.length, 1),
   );
   const completedCount = completedDrills.size;
   const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
-  const reviewedToday = Math.min(50, 18 + completedCount * 5 + reviewedCount * 3);
-  const knownCharacters = 1200 + activeFlashcardIndex * 7 + reviewedCount;
-  const accuracy = Math.min(98, 82 + completedCount + Math.round(reviewMastery / 12));
-  const activeFrequency = 218 + activeFlashcardIndex * 23;
-  const activeStrokeCount = 6 + selectedCharacterIndex * 2 + lessonIndex;
-  const activeComponents = Array.from(new Set([...getChinesePhraseUnits(activePhrase.hanzi), activeCharacter.hanzi])).slice(0, 4);
+  const reviewedToday = Math.min(CHINESE_DAILY_REVIEW_TARGET, reviewedStates.reduce((total, state) => total + (state.lastReviewedDay === CHINESE_TODAY_INDEX ? state.totalReviews : 0), 0));
+  const masteredCharacterSet = new Set(
+    reviewQueue
+      .filter(({ state }) => getChineseRetention(state) >= 70)
+      .flatMap(({ card }) => getChineseCardCharacters(card)),
+  );
+  const knownCharacters = CHINESE_KNOWN_CHARACTER_BASE + masteredCharacterSet.size;
+  const accuracy = reviewedCount ? Math.round((successfulReviewCount / reviewedCount) * 100) : 0;
+  const activeFrequency = activeDictionaryEntry.frequency;
+  const activeStrokeCount = activeDictionaryEntry.strokeCount;
+  const activeComponents = activeDictionaryEntry.components.slice(0, 4);
   const heatCells = useMemo(
     () =>
       Array.from({ length: 98 }, (_, index) => {
@@ -11668,13 +12260,44 @@ function ChineseView() {
       chineseStrokeMatrixSteps.length) *
       100,
   );
+  const strokeCompletedCount = chineseStrokeMatrixSteps.filter((step) => strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`)).length;
   const quizAnswered = Boolean(selectedOption);
   const quizCorrect = selectedOption === activeLesson.quiz.answer;
+  const activeReviewRetention = getChineseRetention(activeReviewState);
+  const activeReviewStatus = getChineseReviewStatus(activeReviewState);
+  const deckStats = chineseDecks.map((deck) => {
+    const cards = reviewQueue.filter(({ card }) => deck.lessonIds.includes(card.lessonId));
+    const due = cards.filter(({ state }) => ["NEW", "DUE", "LATE"].includes(getChineseReviewStatus(state))).length;
+    const retained = cards.filter(({ state }) => getChineseRetention(state) >= 70).length;
+    return {
+      ...deck,
+      due,
+      total: cards.length,
+      retained,
+      status: due ? `${due} DUE` : "CLEAR",
+      meta: `${retained}/${Math.max(cards.length, 1)} retained · ${deck.meta}`,
+    };
+  });
+  const lessonStepStatus = chineseLessonSteps.map((step) => {
+    const done =
+      step.id === "listen"
+        ? completedDrills.has("listen")
+        : step.id === "meaning"
+          ? cardRevealed
+          : step.id === "build"
+            ? assemblyLocked
+            : step.id === "write"
+              ? strokeProgress === 100
+              : Boolean(reviewRatings[activePhraseReviewId]?.totalReviews);
+    return { ...step, done };
+  });
 
   useEffect(() => {
     setAssemblyTileIds([]);
     setCardRevealed(false);
-  }, [activeLesson.id, activePhrase.hanzi]);
+    setActiveLessonStep("listen");
+    setDictionaryToken(getChinesePhraseUnits(activePhrase.hanzi)[0] ?? activeCharacter.hanzi);
+  }, [activeCharacter.hanzi, activeLesson.id, activePhrase.hanzi]);
 
   useEffect(() => {
     setActiveReviewId(activePhraseReviewId);
@@ -11686,6 +12309,9 @@ function ChineseView() {
     setSelectedPhraseIndex(0);
     setPinyinDecoderInput("");
     setSelectedOption("");
+    setActiveLessonStep("listen");
+    setDictionaryToken((chineseLessons.find((lesson) => lesson.id === id) ?? chineseLessons[0]).characters[0].hanzi);
+    setRewardMessage("");
   }
 
   function toggleDrill(id: string) {
@@ -11708,11 +12334,22 @@ function ChineseView() {
     setAssemblyTileIds((current) => current.filter((tileId) => tileId !== id));
   }
 
+  function openDictionary(token: string) {
+    const cleanToken = getChinesePhraseUnits(token)[0] ?? token;
+    if (!cleanToken) return;
+    setDictionaryToken(cleanToken);
+  }
+
   function rateReview(rating: ChineseReviewRating, cardId = activeReviewCard.id) {
+    const xp = rating === "again" ? 3 : rating === "hard" ? 6 : rating === "ok" ? 10 : 15;
     setReviewRatings((current) => ({
       ...current,
       [cardId]: scheduleChineseReview(current[cardId], rating),
     }));
+    setSessionXp((current) => current + xp);
+    setReviewCombo((current) => (rating === "again" ? 0 : current + 1));
+    setRewardMessage(`${xp} XP · ${rating === "again" ? "repair queued" : rating === "hard" ? "short interval" : rating === "ok" ? "memory strengthened" : "easy recall"}`);
+    setActiveLessonStep("recall");
   }
 
   function gradeActivePhrase(rating: ChineseReviewRating) {
@@ -11744,8 +12381,12 @@ function ChineseView() {
     window.speechSynthesis.speak(utterance);
   }
 
-  const reviewRows = reviewQueue.slice(0, 7);
-  const streakCells = Array.from({ length: 14 }, (_, index) => index < 11);
+  const reviewRows = reviewQueue.slice(0, 10);
+  const streakCells = Array.from({ length: 7 }, (_, index) => ({
+    id: `streak-${index}`,
+    active: index < 6 || reviewedToday > 0,
+    today: index === 6,
+  }));
 
   return (
     <main className="chinese-protocol-page" aria-label="Chinese protocol learning cockpit">
@@ -11771,6 +12412,8 @@ function ChineseView() {
             <span>May 15, 2026</span>
             <span className="zh-sep">·</span>
             <strong>active</strong>
+            <span>{sessionXp} XP</span>
+            <span>combo {reviewCombo}</span>
             <a href="/" className="zh-back-link">
               dashboard
             </a>
@@ -11784,12 +12427,12 @@ function ChineseView() {
             <span className="zh-brackets" aria-hidden="true" />
             <span className="zh-label">streak integrity</span>
             <strong>
-              {47 + completedCount}
+              {47 + (reviewedToday > 0 ? 1 : 0)}
               <span>days</span>
             </strong>
             <div className="zh-streak-cells" aria-hidden="true">
-              {streakCells.map((filled, index) => (
-                <i key={index} className={filled ? "on" : ""} />
+              {streakCells.map((cell) => (
+                <i key={cell.id} className={`${cell.active ? "on" : ""} ${cell.today ? "today" : ""}`} />
               ))}
             </div>
           </div>
@@ -11800,9 +12443,9 @@ function ChineseView() {
             <span className="zh-label">reviewed today</span>
             <strong className="zh-mag">
               {reviewedToday}
-              <span>/50</span>
+              <span>/{CHINESE_DAILY_REVIEW_TARGET}</span>
             </strong>
-            <em>+{Math.max(1, reviewedCount)} vs baseline</em>
+            <em>{rewardMessage || `${dueReviewCount} cards due now`}</em>
           </div>
         </div>
         <div className="zh-hud-wrap">
@@ -11811,9 +12454,9 @@ function ChineseView() {
             <span className="zh-label">known characters</span>
             <strong className="zh-gold">
               {knownCharacters}
-              <span>汉字</span>
+              <span>/{CHINESE_TOTAL_HSK_CHARACTERS}</span>
             </strong>
-            <em>HSK 3 consolidation</em>
+            <em>{masteredCharacterSet.size} mastered in session</em>
           </div>
         </div>
         <div className="zh-hud-wrap">
@@ -11824,7 +12467,7 @@ function ChineseView() {
               {accuracy}
               <span>%</span>
             </strong>
-            <em>{dailyProgress}% daily circuit</em>
+            <em>{dailyProgress}% daily circuit · {reviewMastery}% retention</em>
           </div>
         </div>
       </section>
@@ -11840,40 +12483,71 @@ function ChineseView() {
               </em>
             </div>
 
+            <div className="zh-lesson-steps" aria-label="Bite-sized lesson path">
+              {lessonStepStatus.map((step) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  className={`${activeLessonStep === step.id ? "active" : ""} ${step.done ? "done" : ""}`}
+                  onClick={() => setActiveLessonStep(step.id)}
+                >
+                  <span>{step.title}</span>
+                  <em>{step.detail}</em>
+                </button>
+              ))}
+            </div>
+
             <div className="zh-card-stage">
               <div className="zh-hsk-chip">HSK {Math.max(1, lessonIndex + 1)}</div>
               <div className="zh-frequency">freq #{activeFrequency}</div>
-              <button className="zh-hanzi" type="button" onClick={() => setCardRevealed(true)}>
-                {activeCharacter.hanzi}
+              <button
+                className="zh-hanzi"
+                type="button"
+                onClick={() => {
+                  setCardRevealed(true);
+                  openDictionary(activeDictionaryEntry.hanzi);
+                  setActiveLessonStep("meaning");
+                }}
+              >
+                {activeDictionaryEntry.hanzi}
               </button>
               <div className="zh-pinyin">
-                <span className={getChineseToneClass(activeCharacter.pinyin)}>{activeCharacter.pinyin}</span>
+                <span className={getChineseToneClass(activeDictionaryEntry.pinyin)}>{activeDictionaryEntry.pinyin}</span>
               </div>
-              <button className="zh-gloss" type="button" onClick={() => setCardRevealed(true)}>
-                {cardRevealed ? activeCharacter.meaning : <span>[ tap to reveal meaning ]</span>}
+              <button
+                className="zh-gloss"
+                type="button"
+                onClick={() => {
+                  setCardRevealed(true);
+                  setActiveLessonStep("meaning");
+                }}
+              >
+                {cardRevealed ? activeDictionaryEntry.meaning : <span>[ tap to reveal meaning ]</span>}
               </button>
             </div>
 
             <div className="zh-decomp-grid">
               <div>
                 <span>radical</span>
-                <strong className="zh-cn">{activeComponents[0] ?? activeCharacter.hanzi}</strong>
+                <button className="zh-decomp-token zh-cn" type="button" onClick={() => openDictionary(activeDictionaryEntry.radical)}>
+                  {activeDictionaryEntry.radical}
+                </button>
               </div>
               <div>
                 <span>strokes</span>
                 <strong>{activeStrokeCount}</strong>
               </div>
               <div>
-                <span>structure</span>
-                <strong>{activeCharacter.note}</strong>
+                <span>etymology</span>
+                <strong>{activeDictionaryEntry.etymology}</strong>
               </div>
               <div>
                 <span>components</span>
                 <strong className="zh-component-row">
                   {activeComponents.map((component) => (
-                    <i key={component} className="zh-cn">
+                    <button key={component} type="button" className="zh-cn" onClick={() => openDictionary(component)}>
                       {component}
-                    </i>
+                    </button>
                   ))}
                 </strong>
               </div>
@@ -11884,7 +12558,22 @@ function ChineseView() {
                 <Volume2 />
               </button>
               <div>
-                <p className="zh-cn">{activePhrase.hanzi}</p>
+                <p className="zh-cn zh-sentence">
+                  {[...activePhrase.hanzi].map((unit, index) =>
+                    /[，。？！,.?\s]/.test(unit) ? (
+                      <span key={`${unit}-${index}`}>{unit}</span>
+                    ) : (
+                      <button
+                        key={`${unit}-${index}`}
+                        type="button"
+                        className={unit === activeDictionaryEntry.hanzi ? "target" : ""}
+                        onClick={() => openDictionary(unit)}
+                      >
+                        {unit}
+                      </button>
+                    ),
+                  )}
+                </p>
                 <span>
                   {activePinyinUnits.map((unit, index) => (
                     <i key={`${unit}-${index}`} className={getChineseToneClass(unit)}>
@@ -11902,7 +12591,11 @@ function ChineseView() {
                   key={example.hanzi}
                   type="button"
                   className={index === selectedPhraseIndex ? "active" : ""}
-                  onClick={() => setSelectedPhraseIndex(index)}
+                  onClick={() => {
+                    setSelectedPhraseIndex(index);
+                    openDictionary(getChinesePhraseUnits(example.hanzi)[0] ?? activeCharacter.hanzi);
+                    setActiveLessonStep("listen");
+                  }}
                 >
                   <span className="zh-cn">{example.hanzi}</span>
                   <em>{example.pinyin}</em>
@@ -11910,31 +12603,59 @@ function ChineseView() {
               ))}
             </div>
 
-            <div className="zh-stroke-matrix">
+            <div className="zh-writing-console">
               <div className="zh-section-head compact">
                 <span>stroke order trace</span>
-                <em>{strokeProgress}% locked</em>
+                <em>{strokeProgress}% locked · {activeDictionaryEntry.hanzi}</em>
               </div>
-              <div>
-                {chineseStrokeMatrixSteps.map((step) => {
-                  const done = strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`);
-                  return (
-                    <button
-                      key={step.id}
-                      type="button"
-                      className={done ? "done" : ""}
-                      onClick={() => toggleStrokeStep(step.id)}
-                    >
-                      <span>{step.label}</span>
-                      <em>{step.detail}</em>
-                    </button>
-                  );
-                })}
+              <div className="zh-writing-grid">
+                <svg viewBox="0 0 100 100" role="img" aria-label={`Stroke order guide for ${activeDictionaryEntry.hanzi}`}>
+                  <line className="zh-grid-guide" x1="50" y1="8" x2="50" y2="92" />
+                  <line className="zh-grid-guide" x1="8" y1="50" x2="92" y2="50" />
+                  <line className="zh-grid-guide muted" x1="8" y1="8" x2="92" y2="92" />
+                  <line className="zh-grid-guide muted" x1="92" y1="8" x2="8" y2="92" />
+                  {strokePlan.map((stroke, index) => (
+                    <polyline
+                      key={stroke.id}
+                      className={index < strokeCompletedCount ? "done" : index === strokeCompletedCount ? "active" : ""}
+                      points={stroke.points}
+                    />
+                  ))}
+                  <text x="50" y="58" textAnchor="middle">
+                    {activeDictionaryEntry.hanzi}
+                  </text>
+                </svg>
+                <div className="zh-stroke-matrix">
+                  {chineseStrokeMatrixSteps.map((step) => {
+                    const done = strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`);
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        className={done ? "done" : ""}
+                        onClick={() => {
+                          toggleStrokeStep(step.id);
+                          setActiveLessonStep("write");
+                        }}
+                      >
+                        <span>{step.label}</span>
+                        <em>{step.detail}</em>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
             {!cardRevealed ? (
-              <button className="zh-reveal-btn" type="button" onClick={() => setCardRevealed(true)}>
+              <button
+                className="zh-reveal-btn"
+                type="button"
+                onClick={() => {
+                  setCardRevealed(true);
+                  setActiveLessonStep("meaning");
+                }}
+              >
                 reveal meaning
               </button>
             ) : null}
@@ -11960,27 +12681,74 @@ function ChineseView() {
               <span className="zh-brackets" aria-hidden="true" />
               <div className="zh-section-head">
                 <span>HSK ladder</span>
-                <em>{reviewMastery}% mastery</em>
+                <em>{knownCharacters}/{CHINESE_TOTAL_HSK_CHARACTERS} chars</em>
               </div>
               <div className="zh-hsk-ladder">
-                {chineseHskLevels.map((level) => (
-                  <button
-                    key={level.name}
-                    type="button"
-                    className={level.locked ? "locked" : level.name === `HSK ${Math.max(1, lessonIndex + 1)}` ? "active" : ""}
-                    style={{ "--hsk-progress": `${level.progress}%` } as CSSProperties}
-                    onClick={() => {
-                      const index = Math.min(chineseLessons.length - 1, Math.max(0, Number(level.name.replace("HSK ", "")) - 1));
-                      selectLesson(chineseLessons[index].id);
-                    }}
-                  >
-                    <span>{level.name}</span>
-                    <strong>
-                      {level.known}/{level.total}
-                    </strong>
-                    <i />
+                {chineseHskLevels.map((level) => {
+                  const hskProgress = getChineseHskProgress(level, masteredCharacterSet.size);
+                  return (
+                    <button
+                      key={level.name}
+                      type="button"
+                      className={level.locked ? "locked" : level.name === `HSK ${activeDictionaryEntry.hsk}` ? "active" : ""}
+                      style={{ "--hsk-progress": `${hskProgress.progress}%` } as CSSProperties}
+                      onClick={() => {
+                        const index = Math.min(chineseLessons.length - 1, Math.max(0, Number(level.name.replace("HSK ", "")) - 1));
+                        selectLesson(chineseLessons[index].id);
+                      }}
+                    >
+                      <span>{level.name}</span>
+                      <strong>
+                        {hskProgress.known}/{level.total}
+                      </strong>
+                      <i />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="zh-hud-wrap">
+            <div className="zh-hud zh-dictionary-panel">
+              <span className="zh-brackets" aria-hidden="true" />
+              <div className="zh-section-head">
+                <span>Pleco drawer</span>
+                <em>freq #{activeDictionaryEntry.frequency}</em>
+              </div>
+              <div className="zh-dictionary-entry">
+                <div className="zh-dictionary-glyph">
+                  <strong className="zh-cn">{activeDictionaryEntry.hanzi}</strong>
+                  {activeDictionaryEntry.traditional ? <span className="zh-cn">trad. {activeDictionaryEntry.traditional}</span> : <span>simplified</span>}
+                </div>
+                <div className="zh-dictionary-body">
+                  <span className={getChineseToneClass(activeDictionaryEntry.pinyin)}>{activeDictionaryEntry.pinyin}</span>
+                  <strong>{activeDictionaryEntry.meaning}</strong>
+                  <em>
+                    radical {activeDictionaryEntry.radical} · {activeDictionaryEntry.strokeCount} strokes · HSK {activeDictionaryEntry.hsk}
+                  </em>
+                  <p>{activeDictionaryEntry.etymology}</p>
+                </div>
+              </div>
+              <div className="zh-dictionary-components">
+                {activeDictionaryEntry.components.map((component) => (
+                  <button key={component} type="button" className="zh-cn" onClick={() => openDictionary(component)}>
+                    {component}
                   </button>
                 ))}
+              </div>
+              <div className="zh-dictionary-words">
+                {activeDictionaryEntry.words.length ? (
+                  activeDictionaryEntry.words.map((word) => (
+                    <button key={word.hanzi} type="button" onClick={() => openDictionary(word.hanzi)}>
+                      <span className="zh-cn">{word.hanzi}</span>
+                      <em>{word.pinyin}</em>
+                      <strong>{word.meaning}</strong>
+                    </button>
+                  ))
+                ) : (
+                  <p>// no local compounds yet</p>
+                )}
               </div>
             </div>
           </div>
@@ -12038,7 +12806,7 @@ function ChineseView() {
               <em>{dueReviewCount} due</em>
             </div>
             <div className="zh-deck-list">
-              {chineseDecks.map((deck, index) => (
+              {deckStats.map((deck, index) => (
                 <button
                   key={deck.name}
                   type="button"
@@ -12064,24 +12832,25 @@ function ChineseView() {
             <span className="zh-brackets" aria-hidden="true" />
             <div className="zh-section-head">
               <span>review queue</span>
-              <em>{reviewRows.length} cards visible</em>
+              <em>{activeReviewStatus} · {activeReviewRetention}% retained</em>
             </div>
             <div className="zh-review-list">
               {reviewRows.map(({ card, state }) => {
-                const status = state.interval <= 0 ? "new" : state.interval <= 1 ? "due" : state.interval <= 3 ? "soon" : "stable";
+                const status = getChineseReviewStatus(state);
                 return (
                   <button
                     key={card.id}
                     type="button"
-                    className={activeReviewCard.id === card.id ? "active" : ""}
+                    className={`${activeReviewCard.id === card.id ? "active" : ""} status-${status.toLowerCase()}`}
                     onClick={() => {
                       setActiveReviewId(card.id);
                       setCardRevealed(true);
+                      openDictionary(getChinesePhraseUnits(card.hanzi)[0] ?? card.hanzi);
                     }}
                   >
                     <strong className="zh-cn">{card.hanzi}</strong>
                     <span>{card.pinyin}</span>
-                    <em>{card.lessonCode}</em>
+                    <em>{card.lessonCode} · {getChineseDueLabel(state)}</em>
                     <i>{status}</i>
                   </button>
                 );
@@ -12159,12 +12928,13 @@ function ChineseView() {
             <span className="zh-brackets" aria-hidden="true" />
             <div className="zh-section-head">
               <span>daily proverb</span>
-              <em>chengyu seed</em>
+              <em>source logged</em>
             </div>
             <blockquote>
-              <strong className="zh-cn">熟能生巧</strong>
-              <span>shú néng shēng qiǎo</span>
-              <p>Practice makes skill. Repeat until recognition feels automatic.</p>
+              <strong className="zh-cn">{chineseProverbOfDay.hanzi}</strong>
+              <span>{chineseProverbOfDay.pinyin}</span>
+              <p>{chineseProverbOfDay.meaning}</p>
+              <cite>{chineseProverbOfDay.source}</cite>
             </blockquote>
             <div className="zh-daily-circuit">
               {chineseDailyDrills.map((drill) => (

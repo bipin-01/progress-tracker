@@ -22,14 +22,15 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - `a3458c1` - Added Sentence Assembler with clickable hanzi tiles, slots, alignment score, and reset.
 - 2026-05-15 - Added Memory Queue, an Anki-inspired spaced repetition panel with hard/ok/easy grading, review intervals, ease, reps, and due queue.
 - 2026-05-15 - Rebuilt `/chinese` as a standalone Chinese Protocol cockpit based on the provided reference: full-width shell, primary hanzi flashcard, reveal/grading loop, HSK ladder, tone vectors, heatmap, deck queue, pattern reactor, sentence assembler, pinyin decoder, stroke trace, and daily circuit.
+- 2026-05-15 - Deepened the current feature set: SM-2-style review scheduling with due days, retention, lapses, accuracy, XP/combo rewards, 7-day streak cells, dynamic deck due counts, 10-card review queue statuses, Pleco-style dictionary drawer, clickable sentence characters, richer component/radical entries, and a Skritter-inspired stroke grid.
 
 ## Next Upgrade Candidates
 
-- Pleco-style dictionary drawer: click any hanzi/pinyin tile and open a compact entry with definition, tone, radical, example words, and related lesson.
-- Skritter-style stroke order simulation: animate stroke ghost paths for active characters and add stroke count checkpoints.
-- Duolingo-style streak circuit: daily XP, streak freeze, lesson completion burst, and tiny reward state tied to Daily Circuit.
+- Persist `/chinese` review history in IndexedDB/Supabase so streak, XP, and retention survive refreshes and sync to the future Mac app.
+- Add speech scoring: compare browser speech recognition output against active phrase and mark tone/pinyin confidence.
+- Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - HelloChinese-style guided lesson flow: one focused step at a time with listen, choose, speak, write, and review checkpoints.
-- Speech scoring: compare browser speech recognition output against active phrase and mark tone/pinyin confidence.
+- Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
 
 ## Design Rules For Future Passes
 
