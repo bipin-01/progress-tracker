@@ -5300,6 +5300,8 @@ function NotesView({
   const activeNotePhases = activeNoteSignal ? getNotePhaseRail(activeNoteSignal) : [];
   const writingCommandDeck = activeDraftSignal ? getWritingCommandDeck(draftBody, activeDraftSignal) : [];
   const primaryWritingCommand = writingCommandDeck.find((command) => command.progress < 82) ?? writingCommandDeck[0];
+  const readerImmersionNodes = activeNote && activeDraftSignal ? getReaderImmersionNodes(activeNote, activeDraftSignal, activeReadingProgress) : [];
+  const primaryReaderNode = readerImmersionNodes.find((node) => node.progress < 80) ?? readerImmersionNodes[0];
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -5780,6 +5782,13 @@ function NotesView({
     const spacer = draftBody.trim() ? (draftBody.endsWith("\n") ? "\n" : "\n\n") : "";
     updateDraftBody(`${draftBody}${spacer}${command.insert}`);
     setMode("writing");
+    requestAnimationFrame(() => editorRef.current?.focus());
+  }
+
+  function appendReaderCapture(node: ReaderImmersionNode) {
+    const spacer = draftBody.trim() ? (draftBody.endsWith("\n") ? "\n" : "\n\n") : "";
+    updateDraftBody(`${draftBody}${spacer}${node.insert}`);
+    setMode("reading");
     requestAnimationFrame(() => editorRef.current?.focus());
   }
 
@@ -6866,6 +6875,35 @@ function NotesView({
                     <span>{activeNote.sourceName ?? activeNote.kind}</span>
                     <strong>{getReadingMinutes(activeNote.extractedText ?? activeNote.body)} min read</strong>
                   </div>
+                  {activeDraftSignal && primaryReaderNode && (
+                    <section className={`reading-immersion-dock ${activeDraftSignal.tier}`}>
+                      <div className="reading-immersion-core">
+                        <span>Immersion Dock</span>
+                        <strong>{primaryReaderNode.command}</strong>
+                        <p>{getReaderImmersionDirective(activeReadingProgress, activeDraftSignal, primaryReaderNode)}</p>
+                        <div className="reading-immersion-progress" aria-label={`Reading sync ${activeReadingProgress}%`}>
+                          <i><b style={{ width: `${activeReadingProgress}%` }} /></i>
+                          <div>
+                            {[25, 50, 75, 100].map((mark) => (
+                              <button className={activeReadingProgress === mark ? "active" : ""} type="button" onClick={() => updateActiveReadingProgress(mark)} key={mark}>
+                                {mark}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="reading-immersion-grid">
+                        {readerImmersionNodes.map((node) => (
+                          <button className={node.tone} type="button" onClick={() => appendReaderCapture(node)} key={node.id}>
+                            <span>{node.title}</span>
+                            <strong>{node.command}</strong>
+                            <em>{node.detail}</em>
+                            <i aria-label={`${node.title} ${node.progress}%`}><b style={{ width: `${node.progress}%` }} /></i>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <div className="reading-layout">
                     <section className="reading-document-pane">
                       {activeNote.mimeType === "application/pdf" && activeNote.fileDataUrl ? (
@@ -6882,7 +6920,7 @@ function NotesView({
                         <span>{getWordCount(draftBody)} words</span>
                       </div>
                       <StudyOutlinePanel outline={activeNoteOutline} compact onJump={jumpToOutlineItem} onAddSection={addOutlineSection} />
-                      <textarea value={draftBody} onChange={(event) => updateDraftBody(event.target.value)} placeholder="Capture summaries, questions, formulas, examples, or follow-up tasks while reading..." />
+                      <textarea ref={editorRef} value={draftBody} onChange={(event) => updateDraftBody(event.target.value)} placeholder="Capture summaries, questions, formulas, examples, or follow-up tasks while reading..." />
                       <div className="capture-actions">
                         {["Key idea", "Question", "Definition", "Action item"].map((label) => (
                           <button type="button" onClick={() => updateDraftBody(`${draftBody}\n\n### ${label}\n\n- `)} key={label}>{label}</button>
@@ -7346,6 +7384,16 @@ type NotePhaseStep = {
 
 type WritingCommandCard = {
   id: "summary" | "concept-map" | "question-bank" | "recall-seed";
+  title: string;
+  command: string;
+  detail: string;
+  progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  insert: string;
+};
+
+type ReaderImmersionNode = {
+  id: "scan" | "capture" | "questions" | "recall";
   title: string;
   command: string;
   detail: string;
@@ -8345,6 +8393,62 @@ function getWritingCommandDirective(signal: ReturnType<typeof getNoteStudySignal
   if (command.id === "concept-map") return "The next upgrade is structure: make each idea scannable, connected, and easy to revisit.";
   if (command.id === "question-bank") return "Convert uncertainty into questions so the note starts training recall instead of only storing text.";
   return "Recall seeds are the bridge into review mode. Add Q/A atoms here, then generate or save cards.";
+}
+
+function getReaderImmersionNodes(note: StudyNote, signal: ReturnType<typeof getNoteStudySignal>, readingProgress: number): ReaderImmersionNode[] {
+  const questionCount = (note.body.match(/\?/g) ?? []).length + signal.askCount;
+  const captureProgress = Math.round(clamp(signal.headings * 16 + signal.bullets * 5 + signal.wordCount / 16, 0, 100));
+  const questionProgress = Math.round(clamp(questionCount * 18 + signal.cards * 6, 0, 100));
+  const recallProgress = Math.round(clamp(signal.cards * 22 + readingProgress * 0.34 + questionCount * 6, 0, 100));
+  const scanProgress = Math.round(clamp(readingProgress + (note.kind === "document" ? 10 : 0), 0, 100));
+  const sourceLabel = (note.sourceName ?? note.title) || "active source";
+
+  return [
+    {
+      id: "scan",
+      title: "Scan Pass",
+      command: scanProgress >= 75 ? "deep scan stable" : "continue scan",
+      detail: `${signal.readingMins} min source / ${readingProgress}% synced`,
+      progress: scanProgress,
+      tone: scanProgress >= 75 ? "lime" : "cyan",
+      insert: `### Reading Checkpoint\n\n- Source: ${sourceLabel}\n- Progress: ${readingProgress}%\n- What I understand:\n- What still feels unclear:`,
+    },
+    {
+      id: "capture",
+      title: "Capture Density",
+      command: captureProgress >= 70 ? "capture field dense" : "capture key signals",
+      detail: `${signal.headings} heads / ${signal.bullets} anchors`,
+      progress: captureProgress,
+      tone: captureProgress >= 70 ? "lime" : "amber",
+      insert: "### Key Signals\n\n- Concept:\n- Evidence or example:\n- Why it matters:\n- Connected topic:",
+    },
+    {
+      id: "questions",
+      title: "Question Charge",
+      command: questionProgress >= 70 ? "questions live" : "extract questions",
+      detail: `${questionCount} questions detected`,
+      progress: questionProgress,
+      tone: questionProgress >= 70 ? "lime" : "violet",
+      insert: "### Reading Questions\n\n- What would I be tested on here?\n- Which term needs a cleaner definition?\n- What example proves I understand it?",
+    },
+    {
+      id: "recall",
+      title: "Recall Bridge",
+      command: recallProgress >= 70 ? "recall bridge online" : "bridge to recall",
+      detail: `${signal.cards} saved cards / ${signal.askCount} asks`,
+      progress: recallProgress,
+      tone: recallProgress >= 70 ? "lime" : "cyan",
+      insert: "### Recall Bridge\n\nQ: \nA: \nSource: reading pass\n\nQ: \nA: \nSource: reading pass",
+    },
+  ];
+}
+
+function getReaderImmersionDirective(progress: number, signal: ReturnType<typeof getNoteStudySignal>, node: ReaderImmersionNode) {
+  if (progress >= 100) return "Reading pass is sealed. Convert the strongest captures into review cards before moving on.";
+  if (node.id === "scan") return signal.wordCount < 120 ? "Use the first pass to collect raw signal, then lock the source into checkpoints." : "Keep scanning, but mark checkpoints so the document does not become passive reading.";
+  if (node.id === "capture") return "The next upgrade is density: extract terms, examples, and relations while the source is still open.";
+  if (node.id === "questions") return "Questions turn reading into pressure. Capture what you would test yourself on later.";
+  return "Bridge the reading session into recall now so the material survives beyond today.";
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {
