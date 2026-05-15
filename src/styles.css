@@ -11217,6 +11217,8 @@ button.load-forecast-day:hover {
 .zh-daily-circuit button,
 .zh-stroke-matrix button,
 .zh-lesson-strip button,
+.zh-guided-circuit,
+.zh-guided-circuit button,
 .zh-mission-panel button,
 .zh-practice-phase-btn,
 .zh-practice-day-jump button,
@@ -11714,6 +11716,144 @@ button.load-forecast-day:hover {
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.zh-guided-circuit {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(210px, 0.58fr) minmax(0, 1fr) minmax(170px, 0.34fr);
+  align-items: stretch;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.18);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.07), transparent 46%),
+    linear-gradient(270deg, rgba(170, 114, 255, 0.07), transparent 52%),
+    rgba(2, 7, 15, 0.44);
+  padding: 10px;
+}
+
+.zh-guided-circuit::before {
+  content: "";
+  position: absolute;
+  inset: auto 10px 7px 10px;
+  height: 2px;
+  background: rgba(53, 215, 255, 0.11);
+}
+
+.zh-guided-circuit::after {
+  content: "";
+  position: absolute;
+  inset: auto auto 7px 10px;
+  width: var(--circuit-progress);
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 12px rgba(53, 215, 255, 0.36);
+}
+
+.zh-circuit-primary,
+.zh-circuit-command {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.zh-circuit-primary span,
+.zh-circuit-primary em,
+.zh-circuit-command span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.zh-circuit-primary strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-circuit-rail {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.zh-circuit-rail button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.42);
+  padding: 8px;
+  text-align: left;
+}
+
+.zh-circuit-rail button.active,
+.zh-circuit-rail button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.075);
+}
+
+.zh-circuit-rail button.done {
+  border-color: rgba(158, 255, 102, 0.38);
+}
+
+.zh-circuit-rail i {
+  color: var(--cyan);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+}
+
+.zh-circuit-rail button.done i {
+  color: var(--lime);
+}
+
+.zh-circuit-rail span {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-circuit-command {
+  justify-items: stretch;
+}
+
+.zh-circuit-command button {
+  min-height: 34px;
+  border: 1px solid var(--hair);
+  background: rgba(53, 215, 255, 0.04);
+  color: var(--cyan);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.zh-circuit-command button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
 }
 
 .zh-card-stage {
@@ -13052,6 +13192,8 @@ button.load-forecast-day:hover {
   .zh-right-col,
   .zh-decomp-grid,
   .zh-lesson-steps,
+  .zh-guided-circuit,
+  .zh-circuit-rail,
   .zh-lesson-strip,
   .zh-writing-grid,
   .zh-dictionary-entry,

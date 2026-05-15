@@ -670,6 +670,47 @@ const chineseLessonSteps: Array<{ id: ChineseLessonStepId; title: string; detail
   { id: "recall", title: "recall", detail: "grade memory" },
 ];
 
+const chineseGuidedCircuitCopy: Record<
+  ChineseLessonStepId,
+  { signal: string; title: string; objective: string; command: string; telemetry: string }
+> = {
+  listen: {
+    signal: "audio",
+    title: "Shadow the sentence",
+    objective: "Hear the full phrase before breaking it into symbols.",
+    command: "play + lock listen",
+    telemetry: "sound first",
+  },
+  meaning: {
+    signal: "semantic",
+    title: "Reveal the meaning",
+    objective: "Connect hanzi, pinyin, and English before recall starts.",
+    command: "reveal + open drawer",
+    telemetry: "meaning gate",
+  },
+  build: {
+    signal: "syntax",
+    title: "Assemble the sentence",
+    objective: "Place the next hanzi tile in order and watch the sentence lock.",
+    command: "place next tile",
+    telemetry: "order check",
+  },
+  write: {
+    signal: "motor",
+    title: "Trace the character",
+    objective: "Advance one stroke pass from observe to output.",
+    command: "advance stroke",
+    telemetry: "stroke memory",
+  },
+  recall: {
+    signal: "srs",
+    title: "Commit to memory",
+    objective: "Grade the phrase and schedule its next return.",
+    command: "grade good",
+    telemetry: "review scheduled",
+  },
+};
+
 const chineseStrokeMatrixSteps = [
   { id: "observe", label: "observe", detail: "scan silhouette" },
   { id: "trace", label: "trace", detail: "copy slowly" },
@@ -12420,18 +12461,18 @@ function ChineseView() {
     };
   });
   const lessonStepStatus = chineseLessonSteps.map((step) => {
-    const done =
-      step.id === "listen"
-        ? completedDrills.has("listen")
-        : step.id === "meaning"
-          ? cardRevealed
-          : step.id === "build"
-            ? assemblyLocked
-            : step.id === "write"
-              ? strokeProgress === 100
-              : Boolean(reviewRatings[activePhraseReviewId]?.totalReviews);
+    let done = false;
+    if (step.id === "listen") done = completedDrills.has("listen");
+    if (step.id === "meaning") done = cardRevealed;
+    if (step.id === "build") done = assemblyLocked;
+    if (step.id === "write") done = strokeProgress === 100;
+    if (step.id === "recall") done = Boolean(reviewRatings[activePhraseReviewId]?.totalReviews);
     return { ...step, done };
   });
+  const nextCircuitStep = lessonStepStatus.find((step) => !step.done) ?? lessonStepStatus[lessonStepStatus.length - 1];
+  const activeCircuitCopy = chineseGuidedCircuitCopy[nextCircuitStep.id];
+  const circuitProgress = Math.round((lessonStepStatus.filter((step) => step.done).length / lessonStepStatus.length) * 100);
+  const circuitCursor = Math.max(1, lessonStepStatus.findIndex((step) => step.id === nextCircuitStep.id) + 1);
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12554,6 +12595,48 @@ function ChineseView() {
       }
       return next;
     });
+  }
+
+  function runGuidedCircuitStep() {
+    setActiveLessonStep(nextCircuitStep.id);
+
+    if (nextCircuitStep.id === "listen") {
+      speakMandarin(activePhrase.hanzi);
+      setCompletedDrills((current) => new Set(current).add("listen"));
+      setRewardMessage("listen gate locked · tone shadow started");
+      return;
+    }
+
+    if (nextCircuitStep.id === "meaning") {
+      setCardRevealed(true);
+      openDictionary(activeDictionaryEntry.hanzi);
+      setRewardMessage("meaning gate open · dictionary focused");
+      return;
+    }
+
+    if (nextCircuitStep.id === "build") {
+      const nextTile = assemblyTiles.find((tile) => tile.index === assemblyAttemptUnits.length && !assemblyTileIds.includes(tile.id));
+      if (nextTile) {
+        selectAssemblyTile(nextTile.id);
+        setRewardMessage(`syntax slot ${nextTile.index + 1} locked`);
+      } else {
+        setRewardMessage("sentence order already locked");
+      }
+      return;
+    }
+
+    if (nextCircuitStep.id === "write") {
+      const nextStrokeStep = chineseStrokeMatrixSteps.find((step) => !strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`));
+      if (nextStrokeStep) {
+        toggleStrokeStep(nextStrokeStep.id);
+        setRewardMessage(`${nextStrokeStep.label} stroke pass locked`);
+      } else {
+        setRewardMessage("stroke matrix already complete");
+      }
+      return;
+    }
+
+    rateReview("ok", activePhraseReviewId);
   }
 
   function speakMandarin(text: string) {
@@ -12759,6 +12842,36 @@ function ChineseView() {
                   <em>{step.detail}</em>
                 </button>
               ))}
+            </div>
+
+            <div className="zh-guided-circuit" style={{ "--circuit-progress": `${circuitProgress}%` } as CSSProperties}>
+              <div className="zh-circuit-primary">
+                <span>{activeCircuitCopy.signal} circuit</span>
+                <strong>{activeCircuitCopy.title}</strong>
+                <em>{activeCircuitCopy.objective}</em>
+              </div>
+              <div className="zh-circuit-rail" aria-label="Guided lesson circuit progress">
+                {lessonStepStatus.map((step, index) => (
+                  <button
+                    key={step.id}
+                    type="button"
+                    className={`${step.id === nextCircuitStep.id ? "active" : ""} ${step.done ? "done" : ""}`}
+                    onClick={() => setActiveLessonStep(step.id)}
+                    aria-label={`${step.title} circuit step`}
+                  >
+                    <i>{String(index + 1).padStart(2, "0")}</i>
+                    <span>{step.title}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="zh-circuit-command">
+                <span>
+                  {circuitCursor}/{lessonStepStatus.length} · {activeCircuitCopy.telemetry}
+                </span>
+                <button type="button" onClick={runGuidedCircuitStep}>
+                  {activeCircuitCopy.command}
+                </button>
+              </div>
             </div>
 
             <div className="zh-card-stage">
