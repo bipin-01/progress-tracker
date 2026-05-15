@@ -11227,6 +11227,8 @@ button.load-forecast-day:hover {
 .zh-practice-day-jump input,
 .zh-practice-range span,
 .zh-review-anchors,
+.zh-review-first-lane,
+.zh-review-first-lane button,
 .zh-load-forecast,
 .zh-load-forecast button,
 .zh-practice-word-list button {
@@ -11406,6 +11408,10 @@ button.load-forecast-day:hover {
 .zh-mission-active-word span,
 .zh-mission-active-word p,
 .zh-mission-load i,
+.zh-review-first-lane span,
+.zh-review-first-lane em,
+.zh-review-first-lane i,
+.zh-review-first-lane p,
 .zh-mission-anchor-strip,
 .zh-memory-core span,
 .zh-memory-core em,
@@ -11485,6 +11491,18 @@ button.load-forecast-day:hover {
   text-shadow: 0 0 16px rgba(255, 209, 102, 0.28);
 }
 
+.zh-mission-active-word.review-first {
+  border-color: rgba(170, 114, 255, 0.28);
+  background:
+    linear-gradient(180deg, rgba(170, 114, 255, 0.07), transparent),
+    rgba(2, 7, 15, 0.42);
+}
+
+.zh-mission-active-word.review-first strong {
+  color: var(--zh-magenta);
+  text-shadow: 0 0 16px rgba(170, 114, 255, 0.28);
+}
+
 .zh-mission-active-word p {
   margin: 5px 0 0;
   color: var(--ink-2);
@@ -11555,6 +11573,142 @@ button.load-forecast-day:hover {
   text-overflow: ellipsis;
   text-transform: none;
   white-space: nowrap;
+}
+
+.zh-review-first-lane {
+  position: relative;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(170, 114, 255, 0.24);
+  background:
+    linear-gradient(90deg, rgba(170, 114, 255, 0.055), transparent 52%),
+    rgba(2, 7, 15, 0.42);
+  padding: 8px 8px 12px;
+}
+
+.zh-review-first-lane.status-overload {
+  border-color: rgba(255, 76, 106, 0.36);
+  background:
+    linear-gradient(90deg, rgba(255, 76, 106, 0.055), transparent 52%),
+    rgba(2, 7, 15, 0.44);
+}
+
+.zh-review-first-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.zh-review-first-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zh-review-first-lane strong {
+  overflow: hidden;
+  color: var(--zh-magenta);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-review-first-head button {
+  min-height: 30px;
+  border: 1px solid rgba(170, 114, 255, 0.34);
+  background: rgba(170, 114, 255, 0.055);
+  color: var(--zh-magenta);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 0 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-review-first-head button:hover {
+  border-color: var(--zh-magenta);
+  background: rgba(170, 114, 255, 0.11);
+}
+
+.zh-review-first-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.zh-review-first-cards button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 6px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 6px;
+  text-align: left;
+}
+
+.zh-review-first-cards button.active,
+.zh-review-first-cards button:hover {
+  border-color: rgba(170, 114, 255, 0.48);
+  background: rgba(170, 114, 255, 0.075);
+}
+
+.zh-review-first-cards span {
+  grid-row: span 2;
+  color: var(--cyan);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.zh-review-first-cards strong.zh-cn {
+  color: var(--ink);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: 19px;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+}
+
+.zh-review-first-cards em,
+.zh-review-first-cards i,
+.zh-review-first-lane p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zh-review-first-cards em {
+  text-transform: none;
+}
+
+.zh-review-first-lane p {
+  margin: 0;
+  color: var(--ink-2);
+  text-transform: none;
+}
+
+.zh-review-first-lane > u {
+  position: absolute;
+  inset: auto 8px 5px 8px;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.08);
+  text-decoration: none;
+}
+
+.zh-review-first-lane > u::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--review-first-progress);
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 8px rgba(170, 114, 255, 0.25);
 }
 
 .zh-repair-uplink {
@@ -14833,6 +14987,7 @@ button.load-forecast-day:hover {
 
   .zh-mission-primary,
   .zh-repair-uplink,
+  .zh-review-first-head,
   .zh-repair-history,
   .zh-repair-compare,
   .zh-load-forecast-head,
@@ -14876,6 +15031,7 @@ button.load-forecast-day:hover {
   .zh-mission-word-rail,
   .zh-repair-symbols,
   .zh-repair-drills,
+  .zh-review-first-cards,
   .zh-repair-history > div:last-child,
   .zh-load-forecast-strip,
   .zh-practice-overview,

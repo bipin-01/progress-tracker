@@ -44,13 +44,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added an in-route coach briefing: the evidence packet now resolves into a plain-language intervention with a signal, reason, three-step plan, urgency rail, and command button that can open Focus Tunnel, load repair, route to recall, or continue the guided circuit.
 - 2026-05-15 - Added persistent coach briefing history: each armed coach command now saves to Memory Core with baseline SRS, voice, repair, placement, XP, combo, day, and active word, then compares later evidence to show whether the intervention improved, stayed stable, is waiting, or stayed hot.
 - 2026-05-15 - Added a seven-day load forecast: Daily Mission Uplink now predicts upcoming new-word load, review-anchor weight, SRS pressure, and repair injections, recommends light/heavy/overload actions, exposes the forecast in the coach evidence packet, and lets the coach route the user to the lightest day before overload compounds.
+- 2026-05-15 - Added Review-First Shield: when the load forecast enters heavy or overload, the daily new-word rail is replaced by a recall lane, the active word card becomes a review target, and the coach forecast command opens Focus Tunnel on the next SRS card before any new vocabulary is loaded.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add a focused review-first mode that temporarily hides new words when the load forecast enters heavy or overload status.
+- Add a post-review unlock animation/state that restores the new-word rail once forecast pressure drops back to steady.
 
 ## Design Rules For Future Passes
 

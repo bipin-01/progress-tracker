@@ -2539,16 +2539,16 @@ function getChineseEvidenceChecksum(value: string) {
 function getChineseCoachBriefing(packet: ChineseCoachEvidencePacket): ChineseCoachBriefing {
   const weakSymbols = packet.voice.weakHanzi.length ? packet.voice.weakHanzi.slice(0, 3).join(" ") : packet.scope.activeWord;
 
-  if (packet.forecast.status === "overload") {
+  if (packet.forecast.status === "overload" || packet.forecast.status === "heavy") {
     return {
       mode: "forecast",
       signal: "load forecast",
-      title: "Protect the next week",
+      title: packet.forecast.status === "overload" ? "Protect the next week" : "Review before new words",
       body: `D${String(packet.forecast.peakDay).padStart(3, "0")} is forecast at ${packet.forecast.peakLoad} load units.`,
       why: packet.forecast.recommendation,
-      steps: ["Move to the lightest lane", "Drain due SRS before new words", "Run one focused recall pass"],
-      command: "load light day",
-      urgency: Math.min(100, packet.forecast.peakLoad),
+      steps: ["Shield new words", "Drain due SRS", "Return when pressure stabilizes"],
+      command: "review first",
+      urgency: Math.min(100, packet.forecast.peakLoad + (packet.forecast.status === "overload" ? 12 : 0)),
     };
   }
 
@@ -13667,6 +13667,7 @@ function ChineseView() {
         lesson.examples.map((example, index) => ({
           id: `${lesson.id}-${index}-${example.hanzi}`,
           lessonId: lesson.id,
+          exampleIndex: index,
           lessonCode: lesson.code,
           lessonTitle: lesson.title,
           ...example,
@@ -13806,6 +13807,14 @@ function ChineseView() {
     repairTargetDay: adaptiveRepairMission.targetDay,
     repairActive: adaptiveRepairMission.hasSignal && !repairMissionLocked,
   });
+  const reviewFirstActive = loadForecast.status === "heavy" || loadForecast.status === "overload";
+  const reviewedDueRows = reviewQueue.filter(({ state }) => {
+    const status = getChineseReviewStatus(state);
+    return state.totalReviews > 0 && ["LATE", "DUE", "SOON"].includes(status);
+  });
+  const reviewFirstRows = (reviewedDueRows.length ? reviewedDueRows : reviewQueue).slice(0, 6);
+  const reviewFirstTarget = reviewFirstRows[0]?.card ?? activeReviewCard;
+  const reviewFirstProgress = clampChinesePercent((reviewedToday / Math.max(CHINESE_DAILY_REVIEW_TARGET, 1)) * 100);
   const placementProfile = getChinesePlacementProfile({
     knownCharacters,
     reviewMastery,
@@ -13828,8 +13837,8 @@ function ChineseView() {
       ...voiceHeatmap.hanziHotspots.slice(0, 3).map((hotspot) => hotspot.hanzi),
     ].filter((hanzi, index, list): hanzi is string => Boolean(hanzi) && list.indexOf(hanzi) === index);
     const nextAction =
-      loadForecast.status === "overload"
-        ? `Lighten D${String(loadForecast.peak.day).padStart(3, "0")} before adding new words.`
+      reviewFirstActive
+        ? `Review-first shield active: clear recall before adding D${String(selectedPracticeRecord.day).padStart(3, "0")} words.`
         : placementProfile.status === "sample"
         ? "Run one focus-tunnel placement sample."
         : adaptiveRepairMission.hasSignal && !repairMissionLocked
@@ -13943,6 +13952,7 @@ function ChineseView() {
     repairHistory.length,
     repairMissionLocked,
     reviewCombo,
+    reviewFirstActive,
     reviewMastery,
     reviewedCount,
     selectedPracticeRecord.day,
@@ -14245,11 +14255,26 @@ function ChineseView() {
     );
   }
 
+  function loadReviewFirstCard(card = reviewFirstTarget, openFocus = false) {
+    setActiveLessonId(card.lessonId);
+    setSelectedPhraseIndex(card.exampleIndex);
+    setActiveReviewId(card.id);
+    setActiveLessonStep("recall");
+    setCardRevealed(true);
+    openDictionary(getChinesePhraseUnits(card.hanzi)[0] ?? card.hanzi);
+    if (openFocus) setLessonFocusActive(true);
+    setRewardMessage(`review-first loaded · ${card.lessonCode} · ${card.hanzi}`);
+  }
+
+  function startReviewFirstSession() {
+    loadReviewFirstCard(reviewFirstTarget, true);
+  }
+
   function runCoachBriefing() {
     logCoachBriefing();
 
     if (coachBriefing.mode === "forecast") {
-      applyLoadForecast();
+      startReviewFirstSession();
       return;
     }
 
@@ -14605,32 +14630,73 @@ function ChineseView() {
                 </div>
               </div>
 
-              <div className="zh-mission-active-word">
+              <div className={`zh-mission-active-word ${reviewFirstActive ? "review-first" : ""}`}>
                 <div>
-                  <span>active word</span>
-                  <strong className="zh-cn">{activePracticeWord.hanzi}</strong>
-                  <em className={getChineseToneClass(activePracticeWord.pinyin)}>{activePracticeWord.pinyin}</em>
-                  <p>{activePracticeWord.meaning}</p>
+                  <span>{reviewFirstActive ? "review target" : "active word"}</span>
+                  <strong className="zh-cn">{reviewFirstActive ? reviewFirstTarget.hanzi : activePracticeWord.hanzi}</strong>
+                  <em className={getChineseToneClass(reviewFirstActive ? reviewFirstTarget.pinyin : activePracticeWord.pinyin)}>
+                    {reviewFirstActive ? reviewFirstTarget.pinyin : activePracticeWord.pinyin}
+                  </em>
+                  <p>{reviewFirstActive ? reviewFirstTarget.meaning : activePracticeWord.meaning}</p>
                 </div>
-                <button type="button" onClick={() => loadPracticeWord(activePracticeWord)}>
-                  load word
+                <button type="button" onClick={reviewFirstActive ? startReviewFirstSession : () => loadPracticeWord(activePracticeWord)}>
+                  {reviewFirstActive ? "review first" : "load word"}
                 </button>
               </div>
 
-              <div className="zh-mission-word-rail" aria-label="Daily practice quick rail">
-                {missionRailWords.map((word) => (
-                  <button
-                    key={word.practiceId}
-                    type="button"
-                    className={word.practiceId === activePracticeWord.practiceId ? "active" : ""}
-                    onClick={() => loadPracticeWord(word)}
-                  >
-                    <span>{String(word.slot).padStart(2, "0")}</span>
-                    <strong className="zh-cn">{word.hanzi}</strong>
-                    <em className={getChineseToneClass(word.pinyin)}>{word.pinyin}</em>
-                  </button>
-                ))}
-              </div>
+              {reviewFirstActive ? (
+                <div
+                  className={`zh-review-first-lane status-${loadForecast.status}`}
+                  style={{ "--review-first-progress": `${reviewFirstProgress}%` } as CSSProperties}
+                  aria-label="Review first mode"
+                >
+                  <div className="zh-review-first-head">
+                    <div>
+                      <span>review-first shield</span>
+                      <strong>{loadForecast.status === "overload" ? "new words locked" : "new words paused"}</strong>
+                      <em>{dueReviewCount} due · {reviewedToday}/{CHINESE_DAILY_REVIEW_TARGET} reviewed</em>
+                    </div>
+                    <button type="button" onClick={startReviewFirstSession}>
+                      start recall
+                    </button>
+                  </div>
+                  <div className="zh-review-first-cards">
+                    {reviewFirstRows.map(({ card, state }) => {
+                      const status = getChineseReviewStatus(state);
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          className={`${activeReviewCard.id === card.id ? "active" : ""} status-${status.toLowerCase()}`}
+                          onClick={() => loadReviewFirstCard(card)}
+                        >
+                          <span>{status}</span>
+                          <strong className="zh-cn">{card.hanzi}</strong>
+                          <em className={getChineseToneClass(card.pinyin)}>{card.pinyin}</em>
+                          <i>{getChineseDueLabel(state)}</i>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p>{loadForecast.summary}</p>
+                  <u aria-hidden="true" />
+                </div>
+              ) : (
+                <div className="zh-mission-word-rail" aria-label="Daily practice quick rail">
+                  {missionRailWords.map((word) => (
+                    <button
+                      key={word.practiceId}
+                      type="button"
+                      className={word.practiceId === activePracticeWord.practiceId ? "active" : ""}
+                      onClick={() => loadPracticeWord(word)}
+                    >
+                      <span>{String(word.slot).padStart(2, "0")}</span>
+                      <strong className="zh-cn">{word.hanzi}</strong>
+                      <em className={getChineseToneClass(word.pinyin)}>{word.pinyin}</em>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className={`zh-repair-uplink ${adaptiveRepairMission.hasSignal ? "active" : "standby"}`}>
