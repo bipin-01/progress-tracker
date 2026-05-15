@@ -647,6 +647,18 @@ function getChineseToneSignal(lesson: ChineseLesson) {
     });
 }
 
+function getChinesePhraseUnits(value: string) {
+  return [...value].filter((unit) => !/[，。？！,.?\s]/.test(unit));
+}
+
+function getChinesePinyinUnits(value: string) {
+  return value.replace(/[.,?。？]/g, " ").split(/\s+/).filter(Boolean);
+}
+
+function getChineseMeaningUnits(value: string) {
+  return value.replace(/[.,?]/g, " ").split(/\s+/).filter(Boolean).slice(0, 8);
+}
+
 const navItems = [
   { id: "dashboard", label: "Dashboard", Icon: Home },
   { id: "today", label: "Today", Icon: Sparkles },
@@ -11395,10 +11407,15 @@ function ChineseView() {
   const [activeLessonId, setActiveLessonId] = useState(chineseLessons[0].id);
   const [selectedOption, setSelectedOption] = useState("");
   const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
+  const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
+  const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
   const activeToneSignal = useMemo(() => getChineseToneSignal(activeLesson), [activeLesson]);
+  const activePhraseUnits = useMemo(() => getChinesePhraseUnits(activePhrase.hanzi), [activePhrase]);
+  const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
+  const activeMeaningUnits = useMemo(() => getChineseMeaningUnits(activePhrase.meaning), [activePhrase]);
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const completedCount = completedDrills.size;
   const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
@@ -11408,6 +11425,7 @@ function ChineseView() {
   function selectLesson(id: string) {
     setActiveLessonId(id);
     setSelectedCharacterIndex(0);
+    setSelectedPhraseIndex(0);
     setSelectedOption("");
   }
 
@@ -11545,13 +11563,54 @@ function ChineseView() {
             </div>
           </div>
           <div className="chinese-example-grid">
-            {activeLesson.examples.map((example) => (
-              <button type="button" onClick={() => speakMandarin(example.hanzi)} key={`${activeLesson.id}-${example.hanzi}`}>
+            {activeLesson.examples.map((example, index) => (
+              <button
+                className={index === selectedPhraseIndex ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setSelectedPhraseIndex(index);
+                  speakMandarin(example.hanzi);
+                }}
+                key={`${activeLesson.id}-${example.hanzi}`}
+              >
                 <strong>{example.hanzi}</strong>
                 <span>{example.pinyin}</span>
                 <em>{example.meaning}</em>
               </button>
             ))}
+          </div>
+          <div className="chinese-phrase-reactor">
+            <div className="chinese-reactor-head">
+              <span>phrase reactor</span>
+              <button type="button" onClick={() => speakMandarin(activePhrase.hanzi)}>
+                <Volume2 /> output
+              </button>
+            </div>
+            <div className="chinese-reactor-output">
+              <strong>{activePhrase.hanzi}</strong>
+              <span>{activePhrase.pinyin}</span>
+              <em>{activePhrase.meaning}</em>
+            </div>
+            <div className="chinese-reactor-grid" aria-label={`${activePhrase.hanzi} phrase construction`}>
+              <div>
+                <span>hanzi</span>
+                <div className="chinese-reactor-cells">
+                  {activePhraseUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
+                </div>
+              </div>
+              <div>
+                <span>pinyin</span>
+                <div className="chinese-reactor-cells pinyin">
+                  {activePinyinUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
+                </div>
+              </div>
+              <div>
+                <span>meaning</span>
+                <div className="chinese-reactor-cells meaning">
+                  {activeMeaningUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
+                </div>
+              </div>
+            </div>
           </div>
         </HudCard>
 

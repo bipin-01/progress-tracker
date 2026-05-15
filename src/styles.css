@@ -9785,6 +9785,10 @@ button.load-forecast-day:hover {
 .chinese-scope-node em,
 .chinese-example-grid span,
 .chinese-example-grid em,
+.chinese-reactor-head span,
+.chinese-reactor-grid > div > span,
+.chinese-reactor-output span,
+.chinese-reactor-output em,
 .chinese-tone-stack em,
 .chinese-character-list span,
 .chinese-character-list em,
@@ -9847,6 +9851,7 @@ button.load-forecast-day:hover {
 .chinese-tone-stack button:hover,
 .chinese-roadmap button:hover,
 .chinese-roadmap button.active,
+.chinese-example-grid button.active,
 .chinese-character-list button:hover,
 .chinese-character-list button.active,
 .chinese-quiz-options button:hover {
@@ -10107,6 +10112,128 @@ button.load-forecast-day:hover {
   color: var(--ink-2);
   line-height: 1.35;
   text-transform: none;
+}
+
+.chinese-example-grid span {
+  text-transform: none;
+}
+
+.chinese-phrase-reactor {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.06), rgba(170, 114, 255, 0.04)),
+    rgba(2, 7, 15, 0.48);
+  padding: 12px;
+}
+
+.chinese-reactor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-reactor-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  border: 1px solid var(--hair);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  padding: 0 9px;
+  text-transform: uppercase;
+}
+
+.chinese-reactor-head button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.chinese-reactor-head svg {
+  width: 13px;
+  height: 13px;
+}
+
+.chinese-reactor-output {
+  display: grid;
+  gap: 6px;
+  border-left: 2px solid var(--violet);
+  background: rgba(5, 9, 18, 0.44);
+  padding: 12px;
+}
+
+.chinese-reactor-output strong {
+  color: var(--ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.chinese-reactor-output span {
+  color: var(--cyan);
+  text-transform: none;
+}
+
+.chinese-reactor-output em {
+  color: var(--ink-2);
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.chinese-reactor-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 1.05fr;
+  gap: 10px;
+}
+
+.chinese-reactor-grid > div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(6, 15, 28, 0.52);
+  padding: 10px;
+}
+
+.chinese-reactor-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chinese-reactor-cells i {
+  display: inline-flex;
+  min-width: 31px;
+  min-height: 31px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hair);
+  background: rgba(53, 215, 255, 0.05);
+  color: var(--ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 20px;
+  font-style: normal;
+  line-height: 1;
+  padding: 4px 7px;
+}
+
+.chinese-reactor-cells.pinyin i,
+.chinese-reactor-cells.meaning i {
+  min-width: 0;
+  color: var(--cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  text-transform: none;
+}
+
+.chinese-reactor-cells.meaning i {
+  color: var(--ink-2);
 }
 
 .chinese-tone-stack button {
@@ -10666,6 +10793,7 @@ button.load-forecast-day:hover {
   .chinese-sound-strip,
   .chinese-scope-grid,
   .chinese-example-grid,
+  .chinese-reactor-grid,
   .chinese-quiz-options,
   .chinese-character-lab,
   .chinese-character-list button {
