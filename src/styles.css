@@ -11418,6 +11418,9 @@ button.load-forecast-day:hover {
 .zh-repair-history span,
 .zh-repair-history em,
 .zh-repair-history p,
+.zh-repair-compare span,
+.zh-repair-compare em,
+.zh-repair-compare p,
 .zh-mission-phase-signal span,
 .zh-mission-phase-signal strong {
   color: var(--muted);
@@ -11799,6 +11802,78 @@ button.load-forecast-day:hover {
   align-self: center;
   color: var(--ink-2);
   text-transform: none;
+}
+
+.zh-repair-compare {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.32fr) minmax(92px, 0.16fr) minmax(92px, 0.16fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.045), transparent 46%),
+    rgba(2, 7, 15, 0.28);
+  padding: 8px 10px 12px;
+}
+
+.zh-repair-compare > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zh-repair-compare strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.zh-repair-compare.status-improved strong {
+  color: var(--lime);
+}
+
+.zh-repair-compare.status-hot strong {
+  color: var(--red);
+}
+
+.zh-repair-compare.status-waiting strong,
+.zh-repair-compare.status-empty strong {
+  color: var(--cyan);
+}
+
+.zh-repair-compare p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink-2);
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.zh-repair-compare > i {
+  position: absolute;
+  inset: auto 10px 5px 10px;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-repair-compare > i::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--repair-delta);
+  background: linear-gradient(90deg, var(--cyan), var(--lime));
+  box-shadow: 0 0 10px rgba(158, 255, 102, 0.28);
+}
+
+.zh-repair-compare.status-hot > i::before {
+  background: linear-gradient(90deg, var(--red), var(--zh-magenta));
 }
 
 .zh-mission-footer {
@@ -14006,6 +14081,7 @@ button.load-forecast-day:hover {
   .zh-mission-primary,
   .zh-repair-uplink,
   .zh-repair-history,
+  .zh-repair-compare,
   .zh-mission-footer {
     grid-template-columns: 1fr;
   }

@@ -548,6 +548,17 @@ type ChineseRepairHistoryEntry = {
   summary: string;
 };
 
+type ChineseRepairComparison = {
+  status: "empty" | "waiting" | "improved" | "hot";
+  label: string;
+  detail: string;
+  baselineRisk: number;
+  followUpRisk: number | null;
+  delta: number;
+  attempt?: ChineseSpeechAttempt;
+  entry?: ChineseRepairHistoryEntry;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -1869,6 +1880,67 @@ function getChineseAdaptiveRepairMission(
     summary: hasSignal
       ? `${tone.name} tone · ${tone.risk}% risk · ${symbols.length || tone.misses} repair targets`
       : "voice attempts below 82% will generate tomorrow's repair injection",
+  };
+}
+
+function getChineseRepairBaselineRisk(summary: string) {
+  const match = summary.match(/(\d+)% risk/);
+  return match ? Math.min(100, Math.max(0, Number(match[1]))) : 100;
+}
+
+function doesChineseAttemptMatchRepair(attempt: ChineseSpeechAttempt, entry: ChineseRepairHistoryEntry) {
+  const phraseUnits = getChineseSpeechUnits(attempt.phrase);
+  if (entry.symbols.some((symbol) => phraseUnits.includes(symbol))) return true;
+  return getChinesePhrasePinyinForSpeech(attempt.phrase).some((token) => getChineseToneNumber(token) === entry.tone);
+}
+
+function getChineseRepairComparison(
+  history: ChineseRepairHistoryEntry[],
+  attempts: ChineseSpeechAttempt[],
+): ChineseRepairComparison {
+  const entry = history[0];
+  if (!entry) {
+    return {
+      status: "empty",
+      label: "no repair baseline",
+      detail: "lock a repair mission to compare the next spoken attempt",
+      baselineRisk: 0,
+      followUpRisk: null,
+      delta: 0,
+    };
+  }
+
+  const completedAt = Date.parse(entry.completedAt);
+  const baselineRisk = getChineseRepairBaselineRisk(entry.summary);
+  const followUp = attempts
+    .filter((attempt) => Date.parse(attempt.createdAt) > completedAt && doesChineseAttemptMatchRepair(attempt, entry))
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))[0];
+
+  if (!followUp) {
+    return {
+      status: "waiting",
+      label: "awaiting voice check",
+      detail: `speak T${entry.tone} ${entry.symbols.join(" ") || entry.toneName} after repair`,
+      baselineRisk,
+      followUpRisk: null,
+      delta: 0,
+      entry,
+    };
+  }
+
+  const followUpRisk = Math.max(0, 100 - followUp.score);
+  const delta = baselineRisk - followUpRisk;
+  const status = delta > 0 ? "improved" : "hot";
+
+  return {
+    status,
+    label: status === "improved" ? "risk dropped" : "risk still hot",
+    detail: `${followUp.score}% voice score · ${followUp.matched}/${followUp.total} hanzi matched`,
+    baselineRisk,
+    followUpRisk,
+    delta,
+    attempt: followUp,
+    entry,
   };
 }
 
@@ -12697,6 +12769,7 @@ function ChineseView() {
   const memoryVoiceCount = speechAttempts.length;
   const memoryRepairCount = completedRepairDrills.size;
   const repairHistoryStrip = repairHistory.slice(0, 7);
+  const repairComparison = getChineseRepairComparison(repairHistory, speechAttempts);
   const memoryCoreLabel =
     memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
@@ -13497,6 +13570,32 @@ function ChineseView() {
                   <p>complete a repair mission to log the weakness that was fixed</p>
                 )}
               </div>
+            </div>
+
+            <div
+              className={`zh-repair-compare status-${repairComparison.status}`}
+              style={{ "--repair-delta": `${Math.min(Math.max(Math.abs(repairComparison.delta), 0), 100)}%` } as CSSProperties}
+              aria-label="Post repair voice comparison"
+            >
+              <div>
+                <span>post-repair delta</span>
+                <strong>
+                  {repairComparison.followUpRisk === null
+                    ? "--"
+                    : `${repairComparison.delta > 0 ? "-" : "+"}${Math.abs(repairComparison.delta)}%`}
+                </strong>
+                <em>{repairComparison.label}</em>
+              </div>
+              <div>
+                <span>baseline</span>
+                <strong>{repairComparison.baselineRisk}%</strong>
+              </div>
+              <div>
+                <span>follow-up</span>
+                <strong>{repairComparison.followUpRisk === null ? "--" : `${repairComparison.followUpRisk}%`}</strong>
+              </div>
+              <p>{repairComparison.detail}</p>
+              <i aria-hidden="true" />
             </div>
 
             <div className="zh-mission-footer">

@@ -36,13 +36,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added adaptive repair missions: Daily Mission Uplink now converts the weakest spoken tone and missed hanzi into a next-day repair injection with compact drills and one-command loading.
 - 2026-05-15 - Added repair mission completion tracking: adaptive drills can now be checked off, scored as a repair lock percentage, persisted into Memory Core, and rewarded with XP/combo feedback.
 - 2026-05-15 - Added a compact repair history strip: locked repair missions now persist tone, day, and hanzi targets, then show the last 7 repaired weaknesses directly under Daily Mission Uplink.
+- 2026-05-15 - Added post-repair comparison: the mission panel now compares the latest locked repair baseline against the next matching spoken attempt and reports whether tone/hanzi risk dropped or stayed hot.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add a small post-repair comparison readout that shows whether the same tone/hanzi risk dropped after the next spoken attempt.
+- Add a compact HSK mini-placement check that periodically samples known characters, tones, and sentence assembly to recalibrate daily mission difficulty.
 
 ## Design Rules For Future Passes
 
