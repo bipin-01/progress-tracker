@@ -6384,12 +6384,6 @@ function NotesView({
                   <div className="notes-ribbon-meter" aria-label={`Study signal ${activeNoteSignal.score}%`}>
                     <span style={{ width: `${activeNoteSignal.score}%` }} />
                   </div>
-                  <div className="notes-ribbon-metrics">
-                    <div><strong>{activeNoteSignal.score}%</strong><span>signal</span></div>
-                    <div><strong>{activeNoteSignal.readingMins}</strong><span>min read</span></div>
-                    <div><strong>{activeNoteSignal.cards}</strong><span>cards</span></div>
-                    <div><strong>{activeNoteSignal.folderPath}</strong><span>directory</span></div>
-                  </div>
                 </section>
               )}
 

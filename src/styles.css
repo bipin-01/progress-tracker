@@ -5664,17 +5664,16 @@ button.load-forecast-day:hover {
 
 .notes-command-ribbon {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.18fr) minmax(360px, 0.5fr);
-  gap: 12px;
-  align-items: stretch;
-  margin: 0 0 14px;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 10px;
   border: 1px solid rgba(53, 215, 255, 0.2);
   background:
-    radial-gradient(circle at 8% 0%, rgba(53, 215, 255, 0.16), transparent 34%),
-    linear-gradient(100deg, rgba(53, 215, 255, 0.07), rgba(159, 107, 255, 0.06) 52%, transparent),
+    linear-gradient(100deg, rgba(53, 215, 255, 0.055), rgba(159, 107, 255, 0.04) 52%, transparent),
     rgba(2, 7, 15, 0.42);
-  box-shadow: inset 0 0 26px rgba(53, 215, 255, 0.045);
-  padding: 13px;
+  box-shadow: inset 0 0 12px rgba(53, 215, 255, 0.03);
+  padding: 8px 10px;
 }
 
 .notes-command-ribbon.prime {
@@ -5687,12 +5686,11 @@ button.load-forecast-day:hover {
 
 .notes-ribbon-main {
   display: grid;
-  gap: 7px;
+  gap: 4px;
   min-width: 0;
 }
 
-.notes-ribbon-main span,
-.notes-ribbon-metrics span {
+.notes-ribbon-main span {
   color: var(--muted);
   font-family: "Orbitron", sans-serif;
   font-size: 9px;
@@ -5704,7 +5702,7 @@ button.load-forecast-day:hover {
   overflow: hidden;
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
-  font-size: clamp(16px, 1.7vw, 24px);
+  font-size: clamp(13px, 1.2vw, 16px);
   letter-spacing: 0.1em;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -5727,53 +5725,24 @@ button.load-forecast-day:hover {
   max-width: 860px;
   margin: 0;
   color: var(--ink-2);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .notes-ribbon-meter {
-  display: grid;
   overflow: hidden;
-  min-height: 100%;
-  align-items: end;
+  height: 5px;
   border: 1px solid var(--hair-soft);
   background:
-    linear-gradient(180deg, rgba(53, 215, 255, 0.06), transparent),
+    linear-gradient(90deg, rgba(53, 215, 255, 0.06), transparent),
     rgba(5, 9, 18, 0.44);
 }
 
 .notes-ribbon-meter span {
   display: block;
   height: 100%;
-  min-height: 8px;
-  align-self: end;
-  background: linear-gradient(180deg, var(--lime), var(--cyan), var(--violet));
-  box-shadow: 0 0 20px rgba(53, 215, 255, 0.35);
-}
-
-.notes-ribbon-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.notes-ribbon-metrics div {
-  min-width: 0;
-  border: 1px solid var(--hair-soft);
-  background: rgba(5, 9, 18, 0.44);
-  padding: 10px;
-}
-
-.notes-ribbon-metrics strong {
-  display: block;
-  overflow: hidden;
-  color: var(--ink);
-  font-family: "Orbitron", sans-serif;
-  font-size: 17px;
-  line-height: 1.1;
-  margin-bottom: 7px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: linear-gradient(90deg, var(--lime), var(--cyan), var(--violet));
+  box-shadow: 0 0 10px rgba(53, 215, 255, 0.28);
 }
 
 .note-title-input {
@@ -11263,7 +11232,6 @@ button.load-forecast-day:hover {
   .notes-workspace,
   .notes-library-telemetry,
   .notes-command-ribbon,
-  .notes-ribbon-metrics,
   .notes-nexus-body,
   .notes-nexus-tags,
   .notes-orbit-body,
