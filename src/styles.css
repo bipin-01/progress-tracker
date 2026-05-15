@@ -6311,6 +6311,179 @@ button.load-forecast-day:hover {
   gap: 8px;
 }
 
+.notes-nexus-panel {
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background:
+    radial-gradient(circle at 14% 12%, rgba(53, 215, 255, 0.14), transparent 30%),
+    radial-gradient(circle at 86% 0%, rgba(159, 107, 255, 0.13), transparent 34%),
+    linear-gradient(135deg, rgba(53, 215, 255, 0.05), rgba(146, 255, 87, 0.035) 48%, transparent),
+    rgba(5, 9, 18, 0.46);
+  box-shadow: inset 0 0 30px rgba(53, 215, 255, 0.04);
+  padding: 16px;
+}
+
+.notes-nexus-head,
+.notes-nexus-head > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notes-nexus-head > div:first-child {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.notes-nexus-head span,
+.notes-nexus-head em,
+.notes-nexus-core span,
+.notes-nexus-folders em,
+.notes-nexus-tags span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.notes-nexus-head strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(16px, 2vw, 28px);
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 16px rgba(53, 215, 255, 0.34);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.notes-nexus-head em {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.38);
+  color: var(--ink-2);
+  padding: 6px 8px;
+}
+
+.notes-nexus-body {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.32fr) minmax(260px, 0.7fr) minmax(220px, 0.42fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.notes-nexus-core {
+  display: grid;
+  align-content: center;
+  gap: 9px;
+  min-height: 188px;
+  border: 1px solid rgba(53, 215, 255, 0.24);
+  background:
+    radial-gradient(circle at 50% 36%, rgba(53, 215, 255, 0.18), transparent 44%),
+    rgba(2, 7, 15, 0.42);
+  padding: 18px;
+  text-align: center;
+}
+
+.notes-nexus-core strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 0.95;
+  text-shadow: 0 0 22px rgba(53, 215, 255, 0.42);
+}
+
+.notes-nexus-core p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.notes-nexus-folders {
+  display: grid;
+  gap: 8px;
+}
+
+.notes-nexus-folders button {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.34);
+  padding: 10px;
+  text-align: left;
+}
+
+.notes-nexus-folders button:hover,
+.notes-nexus-tags button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.07);
+}
+
+.notes-nexus-folders button > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.notes-nexus-folders strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-nexus-folders i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.notes-nexus-folders b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--violet), var(--lime));
+}
+
+.notes-nexus-tags {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+
+.notes-nexus-tags button {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.3);
+  padding: 10px;
+  text-align: left;
+}
+
+.notes-nexus-tags strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .certification-mode {
   display: grid;
   gap: 14px;
@@ -8779,6 +8952,8 @@ button.load-forecast-day:hover {
   .notes-library-telemetry,
   .notes-command-ribbon,
   .notes-ribbon-metrics,
+  .notes-nexus-body,
+  .notes-nexus-tags,
   .notes-home-hero,
   .notes-home-grid,
   .notes-health-grid,

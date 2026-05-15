@@ -5254,6 +5254,7 @@ function NotesView({
   const folderIndex = useMemo(() => buildStudyFolderIndex(liveFolders, liveNotes), [liveFolders, liveNotes]);
   const allFolderIndex = useMemo(() => buildStudyFolderIndex(folders, notes), [folders, notes]);
   const folderTree = folderIndex.tree;
+  const knowledgeNexus = useMemo(() => getNotesKnowledgeNexus(liveNotes, folderIndex), [folderIndex, liveNotes]);
   const folderStructureKey = useMemo(
     () => folderTree.map((folder) => `${folder.id}:${folder.depth}:${folder.childCount}:${folder.parentId ?? STUDY_FOLDER_ROOT_ID}`).join("|"),
     [folderTree],
@@ -6394,6 +6395,61 @@ function NotesView({
                       <button type="button" onClick={() => setMode("queue")}>start queue</button>
                       <button type="button" onClick={() => void createNote("note")}>quick note</button>
                       <button type="button" onClick={() => setMode("reading")}>continue reading</button>
+                    </div>
+                  </section>
+
+                  <section className="notes-nexus-panel">
+                    <div className="notes-nexus-head">
+                      <div>
+                        <span>Knowledge Nexus</span>
+                        <strong>{knowledgeNexus.averageSignal}% library coherence</strong>
+                      </div>
+                      <div>
+                        <em>{knowledgeNexus.primeCount} prime</em>
+                        <em>{knowledgeNexus.thinCount} thin</em>
+                        <em>{knowledgeNexus.tagSignals.length} clusters</em>
+                      </div>
+                    </div>
+                    <div className="notes-nexus-body">
+                      <div className="notes-nexus-core">
+                        <span>signal core</span>
+                        <strong>{knowledgeNexus.averageSignal}%</strong>
+                        <p>{libraryTelemetry.dueCount > 0 ? `${libraryTelemetry.dueCount} cards need review before new capture.` : "No urgent recall load. Expand a weak node or continue reading."}</p>
+                      </div>
+                      <div className="notes-nexus-folders">
+                        {knowledgeNexus.folderSignals.length === 0 ? (
+                          <div className="kanban-empty">// directory map waiting for notes</div>
+                        ) : (
+                          knowledgeNexus.folderSignals.map((folder) => (
+                            <button type="button" onClick={() => {
+                              setActiveFolderId(folder.id);
+                              expandFolderPath(folder.id);
+                            }} key={folder.id}>
+                              <span className={`folder-dot ${folder.color}`} />
+                              <div>
+                                <strong>{folder.name}</strong>
+                                <em>{folder.noteCount} notes / {folder.documentCount} docs / {folder.weakCount} weak</em>
+                                <i><b style={{ width: `${folder.averageSignal}%` }} /></i>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      <div className="notes-nexus-tags">
+                        {knowledgeNexus.tagSignals.length === 0 ? (
+                          <div className="kanban-empty">// tag clusters appear after tagging notes</div>
+                        ) : (
+                          knowledgeNexus.tagSignals.map((tag) => (
+                            <button type="button" onClick={() => {
+                              setActiveTag(tag.name);
+                              setActiveFolderId("all");
+                            }} key={tag.name}>
+                              <strong>{tag.name}</strong>
+                              <span>{tag.count} / {tag.averageSignal}%</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </section>
 
@@ -7598,6 +7654,60 @@ function getNoteStudySignal(note: StudyNote, folder?: Pick<StudyFolderTreeItem, 
     bullets: bulletCount,
     cards,
     askCount,
+  };
+}
+
+function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {
+  const noteSignals = notes.map((note) => {
+    const folder = note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null;
+    return { note, signal: getNoteStudySignal(note, folder) };
+  });
+  const averageSignal = noteSignals.length
+    ? Math.round(noteSignals.reduce((total, item) => total + item.signal.score, 0) / noteSignals.length)
+    : 0;
+  const folderSignals = folderIndex.tree
+    .map((folder) => {
+      const branchIds = new Set(folderIndex.descendantIdsById.get(folder.id) ?? [folder.id]);
+      const branchSignals = noteSignals.filter((item) => item.note.folderId && branchIds.has(item.note.folderId));
+      const averageFolderSignal = branchSignals.length
+        ? Math.round(branchSignals.reduce((total, item) => total + item.signal.score, 0) / branchSignals.length)
+        : 0;
+      return {
+        id: folder.id,
+        name: folder.name,
+        path: folder.path,
+        color: folder.color,
+        noteCount: branchSignals.length,
+        documentCount: branchSignals.filter((item) => item.note.kind === "document").length,
+        weakCount: branchSignals.filter((item) => item.signal.tier === "thin").length,
+        averageSignal: averageFolderSignal,
+      };
+    })
+    .filter((folder) => folder.noteCount > 0)
+    .sort((a, b) => b.averageSignal - a.averageSignal || b.noteCount - a.noteCount || a.name.localeCompare(b.name))
+    .slice(0, 4);
+
+  const tagMap = new Map<string, { name: string; count: number; totalSignal: number }>();
+  noteSignals.forEach(({ note, signal }) => {
+    note.tags.forEach((tag) => {
+      const current = tagMap.get(tag) ?? { name: tag, count: 0, totalSignal: 0 };
+      current.count += 1;
+      current.totalSignal += signal.score;
+      tagMap.set(tag, current);
+    });
+  });
+
+  const tagSignals = Array.from(tagMap.values())
+    .map((tag) => ({ ...tag, averageSignal: Math.round(tag.totalSignal / Math.max(tag.count, 1)) }))
+    .sort((a, b) => b.count - a.count || b.averageSignal - a.averageSignal || a.name.localeCompare(b.name))
+    .slice(0, 8);
+
+  return {
+    averageSignal,
+    primeCount: noteSignals.filter((item) => item.signal.tier === "prime").length,
+    thinCount: noteSignals.filter((item) => item.signal.tier === "thin").length,
+    folderSignals,
+    tagSignals,
   };
 }
 
