@@ -11918,6 +11918,9 @@ button.load-forecast-day:hover {
 .zh-focus-speech span,
 .zh-focus-speech em,
 .zh-focus-speech p,
+.zh-voice-trace span,
+.zh-voice-trace em,
+.zh-voice-trace p,
 .zh-focus-metrics span {
   overflow: hidden;
   color: var(--muted);
@@ -12117,6 +12120,69 @@ button.load-forecast-day:hover {
 .zh-speech-score strong {
   color: var(--ink);
   font-size: 11px;
+}
+
+.zh-voice-trace {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.24);
+  padding: 10px 12px;
+}
+
+.zh-voice-trace > div:first-child {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zh-voice-trace > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+
+.zh-voice-trace strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-voice-trace > div:first-child strong {
+  color: var(--lime);
+}
+
+.zh-voice-trace button {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 8px;
+  text-align: left;
+}
+
+.zh-voice-trace button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.075);
+}
+
+.zh-voice-trace p {
+  grid-column: 1 / -1;
+  margin: 0;
+  align-self: center;
+  color: var(--ink-2);
+  text-transform: none;
 }
 
 .zh-focus-stepbar {
@@ -13514,6 +13580,8 @@ button.load-forecast-day:hover {
   .zh-circuit-actions,
   .zh-focus-grid,
   .zh-focus-speech,
+  .zh-voice-trace,
+  .zh-voice-trace > div:last-child,
   .zh-focus-stepbar,
   .zh-lesson-strip,
   .zh-writing-grid,

@@ -477,6 +477,19 @@ type ChineseReviewState = {
   rating?: ChineseReviewRating;
 };
 
+type ChineseSpeechAttempt = {
+  id: string;
+  cardId: string;
+  phrase: string;
+  transcript: string;
+  score: number;
+  confidence: number;
+  matched: number;
+  total: number;
+  createdAt: string;
+  rating?: ChineseReviewRating;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -486,6 +499,7 @@ type ChineseMemorySnapshot = {
   reviewRatings: Record<string, ChineseReviewState>;
   completedDrills: string[];
   strokeMatrixDone: string[];
+  speechAttempts: ChineseSpeechAttempt[];
 };
 
 type ChineseMemoryStatus = "standby" | "restored" | "synced" | "offline";
@@ -532,6 +546,7 @@ const CHINESE_DAILY_REVIEW_TARGET = 50;
 const CHINESE_KNOWN_CHARACTER_BASE = 1247;
 const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
 const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
+const CHINESE_SPEECH_HISTORY_LIMIT = 80;
 
 const chineseLessons: ChineseLesson[] = [
   {
@@ -1382,6 +1397,10 @@ function getChineseNumber(value: unknown, fallback: number) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function getChineseClampedNumber(value: unknown, fallback: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, getChineseNumber(value, fallback)));
+}
+
 function getChineseStoredDay(value: unknown) {
   return Math.min(Math.max(Math.trunc(getChineseNumber(value, CHINESE_TODAY_INDEX)), 1), CHINESE_PRACTICE_TOTAL_DAYS);
 }
@@ -1413,6 +1432,26 @@ function getChineseStoredStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function getChineseStoredSpeechAttempt(value: unknown): ChineseSpeechAttempt | null {
+  if (!isChineseRecord(value)) return null;
+  const cardId = typeof value.cardId === "string" ? value.cardId : "";
+  const phrase = typeof value.phrase === "string" ? value.phrase : "";
+  if (!cardId || !phrase) return null;
+  const rating = isChineseReviewRating(value.rating) ? value.rating : undefined;
+  return {
+    id: typeof value.id === "string" ? value.id : `${cardId}-${typeof value.createdAt === "string" ? value.createdAt : "voice"}`,
+    cardId,
+    phrase,
+    transcript: typeof value.transcript === "string" ? value.transcript : "",
+    score: getChineseClampedNumber(value.score, 0, 0, 100),
+    confidence: getChineseClampedNumber(value.confidence, 0, 0, 100),
+    matched: getChineseClampedNumber(value.matched, 0, 0, 99),
+    total: Math.max(1, Math.trunc(getChineseNumber(value.total, 1))),
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+    rating,
+  };
+}
+
 function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(CHINESE_MEMORY_STORAGE_KEY);
@@ -1436,6 +1475,10 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
       reviewRatings,
       completedDrills: getChineseStoredStringArray(parsed.completedDrills),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
+      speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
+        .map(getChineseStoredSpeechAttempt)
+        .filter((attempt): attempt is ChineseSpeechAttempt => Boolean(attempt))
+        .slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     };
   } catch {
     return null;
@@ -12344,6 +12387,7 @@ function ChineseView() {
   const [speechTranscript, setSpeechTranscript] = useState("");
   const [speechScore, setSpeechScore] = useState(0);
   const [speechConfidence, setSpeechConfidence] = useState(0);
+  const [speechAttempts, setSpeechAttempts] = useState<ChineseSpeechAttempt[]>([]);
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -12364,7 +12408,7 @@ function ChineseView() {
   const practiceMissionLoad = selectedPracticeRecord.wordsPerDay + practiceAnchorLoad;
   const missionRailWords = selectedPracticeRecord.words.slice(0, Math.min(12, selectedPracticeRecord.words.length));
   const memoryCardCount = Object.keys(reviewRatings).length;
-  const memoryStrokeCount = strokeMatrixDone.size;
+  const memoryVoiceCount = speechAttempts.length;
   const memoryCoreLabel =
     memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
@@ -12552,6 +12596,10 @@ function ChineseView() {
             : speechScore >= 55
               ? "partial lock"
               : "standby";
+  const activeSpeechAttempts = speechAttempts.filter((attempt) => attempt.cardId === activePhraseReviewId).slice(0, 4);
+  const activeSpeechAverage = activeSpeechAttempts.length
+    ? Math.round(activeSpeechAttempts.reduce((total, attempt) => total + attempt.score, 0) / activeSpeechAttempts.length)
+    : 0;
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12580,6 +12628,7 @@ function ChineseView() {
       setReviewRatings(snapshot.reviewRatings);
       setCompletedDrills(new Set(["listen", ...snapshot.completedDrills]));
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
+      setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
     }
     setMemoryHydrated(true);
@@ -12596,9 +12645,10 @@ function ChineseView() {
       reviewRatings,
       completedDrills: Array.from(completedDrills).sort(),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
+      speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
     setMemoryStatus(saved ? "synced" : "offline");
-  }, [completedDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, strokeMatrixDone]);
+  }, [completedDrills, memoryHydrated, reviewCombo, reviewRatings, selectedPracticeDay, sessionXp, speechAttempts, strokeMatrixDone]);
 
   useEffect(() => {
     if (!lessonFocusActive) return;
@@ -12812,11 +12862,24 @@ function ChineseView() {
       const confidence = Math.round((result?.confidence ?? 0) * 100);
       const scored = scoreChineseSpeech(activePhrase.hanzi, transcript);
       const rating: ChineseReviewRating | null = scored.score >= 88 ? "easy" : scored.score >= 70 ? "ok" : scored.score >= 45 ? "hard" : null;
+      const attempt: ChineseSpeechAttempt = {
+        id: `${activePhraseReviewId}-${Date.now()}`,
+        cardId: activePhraseReviewId,
+        phrase: activePhrase.hanzi,
+        transcript: transcript || "No Mandarin phrase captured.",
+        score: scored.score,
+        confidence,
+        matched: scored.matched,
+        total: scored.total,
+        createdAt: new Date().toISOString(),
+        rating: rating ?? undefined,
+      };
 
       setSpeechTranscript(transcript || "No Mandarin phrase captured.");
       setSpeechScore(scored.score);
       setSpeechConfidence(confidence);
       setSpeechStatus("scored");
+      setSpeechAttempts((current) => [attempt, ...current].slice(0, CHINESE_SPEECH_HISTORY_LIMIT));
 
       if (rating) {
         rateReview(rating, activePhraseReviewId);
@@ -13007,7 +13070,7 @@ function ChineseView() {
               <div className={`zh-memory-core ${memoryStatus === "offline" ? "offline" : ""}`}>
                 <span>memory core</span>
                 <strong>{memoryCoreLabel}</strong>
-                <em>{memoryCardCount} cards · {memoryStrokeCount} strokes</em>
+                <em>{memoryCardCount} cards · {memoryVoiceCount} voice</em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
                 <span>phase signal</span>
@@ -13734,6 +13797,29 @@ function ChineseView() {
               <button type="button" onClick={startSpeechGate}>
                 {speechStatus === "listening" ? "listening" : "capture speech"}
               </button>
+            </div>
+
+            <div className="zh-voice-trace">
+              <div>
+                <span>voice trace</span>
+                <strong>{activeSpeechAverage}% avg</strong>
+                <em>{activeSpeechAttempts.length} attempts on this card</em>
+              </div>
+              <div>
+                {activeSpeechAttempts.length ? (
+                  activeSpeechAttempts.map((attempt) => (
+                    <button key={attempt.id} type="button">
+                      <span>{attempt.score}%</span>
+                      <strong>{attempt.transcript}</strong>
+                      <em>
+                        {attempt.matched}/{attempt.total} hanzi · {attempt.rating ?? "repeat"}
+                      </em>
+                    </button>
+                  ))
+                ) : (
+                  <p>No spoken attempts stored for this card yet.</p>
+                )}
+              </div>
             </div>
 
             <div className="zh-focus-stepbar" aria-label="Focus mode lesson steps">
