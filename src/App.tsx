@@ -12472,8 +12472,11 @@ function ChineseView() {
   });
   const nextCircuitStep = lessonStepStatus.find((step) => !step.done) ?? lessonStepStatus[lessonStepStatus.length - 1];
   const activeCircuitCopy = chineseGuidedCircuitCopy[nextCircuitStep.id];
+  const focusCircuitStep = lessonStepStatus.find((step) => step.id === activeLessonStep) ?? nextCircuitStep;
+  const focusCircuitCopy = chineseGuidedCircuitCopy[focusCircuitStep.id];
   const circuitProgress = Math.round((lessonStepStatus.filter((step) => step.done).length / lessonStepStatus.length) * 100);
   const circuitCursor = Math.max(1, lessonStepStatus.findIndex((step) => step.id === nextCircuitStep.id) + 1);
+  const focusCircuitCursor = Math.max(1, lessonStepStatus.findIndex((step) => step.id === focusCircuitStep.id) + 1);
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -12518,11 +12521,47 @@ function ChineseView() {
   useEffect(() => {
     if (!lessonFocusActive) return;
     function closeFocusOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setLessonFocusActive(false);
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select") || target?.isContentEditable) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setLessonFocusActive(false);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runGuidedCircuitStep(activeLessonStep);
+        return;
+      }
+
+      if (event.key === " " || event.code === "Space") {
+        event.preventDefault();
+        speakMandarin(activePhrase.hanzi);
+        return;
+      }
+
+      const stepIndex = Number(event.key) - 1;
+      if (stepIndex >= 0 && stepIndex < chineseLessonSteps.length) {
+        event.preventDefault();
+        setActiveLessonStep(chineseLessonSteps[stepIndex].id);
+      }
     }
     window.addEventListener("keydown", closeFocusOnEscape);
     return () => window.removeEventListener("keydown", closeFocusOnEscape);
-  }, [lessonFocusActive]);
+  }, [
+    activeDictionaryEntry.hanzi,
+    activeLessonStep,
+    activePhrase.hanzi,
+    activePhraseReviewId,
+    activeStrokePrefix,
+    assemblyAttemptUnits.length,
+    assemblyTileIds,
+    lessonFocusActive,
+    nextCircuitStep.id,
+    strokeMatrixDone,
+  ]);
 
   function selectLesson(id: string) {
     setActiveLessonId(id);
@@ -12607,24 +12646,25 @@ function ChineseView() {
     });
   }
 
-  function runGuidedCircuitStep() {
-    setActiveLessonStep(nextCircuitStep.id);
+  function runGuidedCircuitStep(stepId = nextCircuitStep.id) {
+    const circuitStep = lessonStepStatus.find((step) => step.id === stepId) ?? nextCircuitStep;
+    setActiveLessonStep(circuitStep.id);
 
-    if (nextCircuitStep.id === "listen") {
+    if (circuitStep.id === "listen") {
       speakMandarin(activePhrase.hanzi);
       setCompletedDrills((current) => new Set(current).add("listen"));
       setRewardMessage("listen gate locked · tone shadow started");
       return;
     }
 
-    if (nextCircuitStep.id === "meaning") {
+    if (circuitStep.id === "meaning") {
       setCardRevealed(true);
       openDictionary(activeDictionaryEntry.hanzi);
       setRewardMessage("meaning gate open · dictionary focused");
       return;
     }
 
-    if (nextCircuitStep.id === "build") {
+    if (circuitStep.id === "build") {
       const nextTile = assemblyTiles.find((tile) => tile.index === assemblyAttemptUnits.length && !assemblyTileIds.includes(tile.id));
       if (nextTile) {
         selectAssemblyTile(nextTile.id);
@@ -12635,7 +12675,7 @@ function ChineseView() {
       return;
     }
 
-    if (nextCircuitStep.id === "write") {
+    if (circuitStep.id === "write") {
       const nextStrokeStep = chineseStrokeMatrixSteps.find((step) => !strokeMatrixDone.has(`${activeStrokePrefix}-${step.id}`));
       if (nextStrokeStep) {
         toggleStrokeStep(nextStrokeStep.id);
@@ -12879,7 +12919,7 @@ function ChineseView() {
                   {circuitCursor}/{lessonStepStatus.length} · {activeCircuitCopy.telemetry}
                 </span>
                 <div className="zh-circuit-actions">
-                  <button type="button" onClick={runGuidedCircuitStep}>
+                  <button type="button" onClick={() => runGuidedCircuitStep()}>
                     {activeCircuitCopy.command}
                   </button>
                   <button type="button" className="zh-focus-launch" onClick={() => setLessonFocusActive(true)}>
@@ -13473,7 +13513,13 @@ function ChineseView() {
       </div>
 
       {lessonFocusActive ? (
-        <section className="zh-focus-overlay" role="dialog" aria-modal="true" aria-label="Chinese guided focus mode">
+        <section
+          className="zh-focus-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chinese guided focus mode"
+          aria-keyshortcuts="Escape Enter Space 1 2 3 4 5"
+        >
           <div className="zh-focus-shell">
             <span className="zh-brackets" aria-hidden="true" />
             <div className="zh-focus-topline">
@@ -13487,10 +13533,10 @@ function ChineseView() {
 
             <div className="zh-focus-grid">
               <div className="zh-focus-glyph">
-                <span>{activeCircuitCopy.signal} gate</span>
+                <span>{focusCircuitCopy.signal} gate</span>
                 <strong className="zh-cn">{activeDictionaryEntry.hanzi}</strong>
                 <em className={getChineseToneClass(activeDictionaryEntry.pinyin)}>{activeDictionaryEntry.pinyin}</em>
-                <p>{cardRevealed ? activeDictionaryEntry.meaning : activeCircuitCopy.objective}</p>
+                <p>{cardRevealed ? activeDictionaryEntry.meaning : focusCircuitCopy.objective}</p>
               </div>
 
               <div className="zh-focus-phrase">
@@ -13511,12 +13557,12 @@ function ChineseView() {
 
               <div className="zh-focus-directive" style={{ "--circuit-progress": `${circuitProgress}%` } as CSSProperties}>
                 <span>
-                  {circuitCursor}/{lessonStepStatus.length} next command
+                  {focusCircuitCursor}/{lessonStepStatus.length} active gate
                 </span>
-                <strong>{activeCircuitCopy.title}</strong>
-                <p>{activeCircuitCopy.objective}</p>
-                <button type="button" onClick={runGuidedCircuitStep}>
-                  {activeCircuitCopy.command}
+                <strong>{focusCircuitCopy.title}</strong>
+                <p>{focusCircuitCopy.objective}</p>
+                <button type="button" onClick={() => runGuidedCircuitStep(focusCircuitStep.id)}>
+                  {focusCircuitCopy.command}
                 </button>
                 <i />
               </div>
@@ -13527,7 +13573,7 @@ function ChineseView() {
                 <button
                   key={step.id}
                   type="button"
-                  className={`${step.id === nextCircuitStep.id ? "active" : ""} ${step.done ? "done" : ""}`}
+                  className={`${step.id === focusCircuitStep.id ? "active" : ""} ${step.done ? "done" : ""}`}
                   onClick={() => setActiveLessonStep(step.id)}
                 >
                   <span>{String(index + 1).padStart(2, "0")}</span>
