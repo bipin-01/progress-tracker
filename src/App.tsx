@@ -5296,6 +5296,7 @@ function NotesView({
   const activeNoteCockpit = activeNote && activeNoteSignal ? getNoteCockpitMetrics(activeNote, activeNoteSignal) : [];
   const activeNoteRadar = activeNoteCockpit.length ? getNoteCockpitRadar(activeNoteCockpit) : null;
   const activeNoteProtocols = activeNoteSignal ? getNoteProtocolStack(activeNoteSignal) : [];
+  const activeNotePhases = activeNoteSignal ? getNotePhaseRail(activeNoteSignal) : [];
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -6430,6 +6431,22 @@ function NotesView({
                         </div>
                         <em>{activeNote.kind} / {activeNoteSignal.folderPath}</em>
                       </div>
+                      <div className="notes-phase-rail">
+                        <div className="notes-phase-head">
+                          <span>Phase Rail</span>
+                          <strong>{activeNotePhases.find((phase) => phase.status === "active")?.command ?? "mission complete"}</strong>
+                        </div>
+                        <div className="notes-phase-track">
+                          {activeNotePhases.map((phase, index) => (
+                            <button className={`${phase.status} ${phase.tone}`} type="button" onClick={() => setMode(phase.mode)} key={phase.id}>
+                              <span>{String(index + 1).padStart(2, "0")}</span>
+                              <strong>{phase.title}</strong>
+                              <em>{phase.command}</em>
+                              <i aria-hidden="true"><b style={{ width: `${phase.progress}%` }} /></i>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <div className="notes-cockpit-body">
                         {activeNoteRadar && (
                           <div className="notes-cockpit-radar" aria-label={`Active note readiness ${activeNoteRadar.score}%`}>
@@ -7284,6 +7301,16 @@ type NoteProtocolCard = {
   command: string;
   directive: string;
   progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  mode: NotesMode;
+};
+
+type NotePhaseStep = {
+  id: "capture" | "structure" | "recall" | "mastery";
+  title: string;
+  command: string;
+  progress: number;
+  status: "complete" | "active" | "locked";
   tone: "cyan" | "violet" | "lime" | "amber";
   mode: NotesMode;
 };
@@ -8171,6 +8198,55 @@ function getNoteProtocolStack(signal: ReturnType<typeof getNoteStudySignal>): No
       mode: signal.progress >= 100 ? "queue" : "reading",
     },
   ];
+}
+
+function getNotePhaseRail(signal: ReturnType<typeof getNoteStudySignal>): NotePhaseStep[] {
+  const captureProgress = Math.round(clamp(signal.wordCount / 4 + signal.progress * 0.35, 0, 100));
+  const structureProgress = Math.round(clamp(signal.headings * 20 + signal.bullets * 7, 0, 100));
+  const recallProgress = Math.round(clamp(signal.cards * 16 + signal.askCount * 11, 0, 100));
+  const masteryProgress = Math.round(clamp(signal.score * 0.72 + signal.progress * 0.28, 0, 100));
+  const stages: NotePhaseStep[] = [
+    {
+      id: "capture",
+      title: "Capture",
+      command: signal.wordCount > 0 ? "signal acquired" : "capture source",
+      progress: captureProgress,
+      status: captureProgress >= 25 ? "complete" : "active",
+      tone: "cyan",
+      mode: "writing",
+    },
+    {
+      id: "structure",
+      title: "Structure",
+      command: structureProgress >= 70 ? "map stable" : "shape note",
+      progress: structureProgress,
+      status: structureProgress >= 70 ? "complete" : captureProgress >= 25 ? "active" : "locked",
+      tone: structureProgress >= 70 ? "lime" : "amber",
+      mode: "writing",
+    },
+    {
+      id: "recall",
+      title: "Recall",
+      command: recallProgress >= 55 ? "recall loop" : "forge memory",
+      progress: recallProgress,
+      status: recallProgress >= 55 ? "complete" : structureProgress >= 36 ? "active" : "locked",
+      tone: recallProgress >= 55 ? "lime" : "violet",
+      mode: signal.cards > 0 ? "queue" : "review",
+    },
+    {
+      id: "mastery",
+      title: "Mastery",
+      command: signal.tier === "prime" || signal.progress >= 100 ? "packet sealed" : "raise signal",
+      progress: masteryProgress,
+      status: signal.tier === "prime" || signal.progress >= 100 ? "complete" : recallProgress >= 30 || signal.score >= 52 ? "active" : "locked",
+      tone: signal.tier === "prime" || signal.progress >= 100 ? "lime" : "cyan",
+      mode: "queue",
+    },
+  ];
+
+  const firstActive = stages.findIndex((stage) => stage.status === "active");
+  if (firstActive === -1) return stages;
+  return stages.map((stage, index) => (index > firstActive && stage.status !== "complete" ? { ...stage, status: "locked" } : stage));
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {
