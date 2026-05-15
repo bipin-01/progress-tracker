@@ -9758,7 +9758,8 @@ button.load-forecast-day:hover {
 .chinese-lesson-card,
 .chinese-tone-card,
 .chinese-character-card,
-.chinese-quiz-card {
+.chinese-quiz-card,
+.chinese-review-card {
   padding: 18px 20px;
 }
 
@@ -9797,6 +9798,14 @@ button.load-forecast-day:hover {
 .chinese-decoder-tokens em,
 .chinese-radar-head span,
 .chinese-radar-density span,
+.chinese-review-meter span,
+.chinese-review-focus span,
+.chinese-review-focus em,
+.chinese-review-stats span,
+.chinese-review-actions span,
+.chinese-review-actions em,
+.chinese-review-queue span,
+.chinese-review-queue em,
 .chinese-stroke-head span,
 .chinese-stroke-cells span,
 .chinese-stroke-cells em,
@@ -9867,6 +9876,11 @@ button.load-forecast-day:hover {
 .chinese-character-list button.active,
 .chinese-assembly-target button.filled:hover,
 .chinese-assembly-bank button:hover,
+.chinese-review-focus:hover,
+.chinese-review-actions button:hover,
+.chinese-review-actions button.active,
+.chinese-review-queue button:hover,
+.chinese-review-queue button.active,
 .chinese-stroke-cells button:hover,
 .chinese-stroke-cells button.done,
 .chinese-quiz-options button:hover {
@@ -10830,6 +10844,159 @@ button.load-forecast-day:hover {
   background: rgba(255, 85, 114, 0.08);
 }
 
+.chinese-review-card {
+  grid-column: 1 / -1;
+}
+
+.chinese-review-console {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.chinese-review-meter,
+.chinese-review-focus,
+.chinese-review-stats,
+.chinese-review-actions,
+.chinese-review-queue {
+  border: 1px solid var(--hair-soft);
+  background: rgba(6, 15, 28, 0.52);
+}
+
+.chinese-review-meter {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.chinese-review-meter div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-review-meter strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.chinese-review-focus {
+  display: grid;
+  gap: 6px;
+  min-height: 154px;
+  border-left: 2px solid var(--violet);
+  padding: 14px;
+  text-align: left;
+}
+
+.chinese-review-focus strong {
+  color: var(--ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1.05;
+}
+
+.chinese-review-focus em {
+  color: var(--cyan);
+  text-transform: none;
+}
+
+.chinese-review-focus p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chinese-review-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+}
+
+.chinese-review-stats div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  background: rgba(2, 7, 15, 0.34);
+  padding: 10px;
+}
+
+.chinese-review-stats strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 15px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chinese-review-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 10px;
+}
+
+.chinese-review-actions button {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.44);
+  padding: 10px;
+  text-align: left;
+}
+
+.chinese-review-actions span {
+  color: var(--cyan);
+}
+
+.chinese-review-actions em {
+  color: var(--ink-2);
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.chinese-review-queue {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  padding: 10px;
+}
+
+.chinese-review-queue button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.44);
+  padding: 10px;
+  text-align: left;
+}
+
+.chinese-review-queue strong {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 22px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chinese-review-queue em {
+  color: var(--cyan);
+  text-align: right;
+}
+
 .sysline {
   display: flex;
   align-items: center;
@@ -11032,6 +11199,10 @@ button.load-forecast-day:hover {
   .chinese-main-grid,
   .chinese-practice-grid,
   .chinese-hero,
+  .chinese-review-console,
+  .chinese-review-stats,
+  .chinese-review-actions,
+  .chinese-review-queue,
   .writing-layout,
   .reading-layout,
   .review-card-grid,

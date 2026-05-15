@@ -454,6 +454,15 @@ type ChineseLesson = {
   };
 };
 
+type ChineseReviewRating = "hard" | "ok" | "easy";
+
+type ChineseReviewState = {
+  ease: number;
+  interval: number;
+  repetitions: number;
+  rating?: ChineseReviewRating;
+};
+
 const chineseLessons: ChineseLesson[] = [
   {
     id: "sound-boot",
@@ -611,6 +620,12 @@ const chineseStrokeMatrixSteps = [
   { id: "output", label: "output", detail: "say + write" },
 ];
 
+const chineseReviewGrades: Array<{ id: ChineseReviewRating; label: string; detail: string }> = [
+  { id: "hard", label: "hard", detail: "D+1 repair" },
+  { id: "ok", label: "ok", detail: "grow interval" },
+  { id: "easy", label: "easy", detail: "fast track" },
+];
+
 const chineseToneProfiles = {
   0: { name: "light", contour: "neutral", pitch: [46, 46, 44, 44] },
   1: { name: "flat", contour: "55", pitch: [82, 82, 82, 82] },
@@ -692,6 +707,29 @@ function getChinesePinyinUnits(value: string) {
 
 function getChineseMeaningUnits(value: string) {
   return value.replace(/[.,?]/g, " ").split(/\s+/).filter(Boolean).slice(0, 8);
+}
+
+function getDefaultChineseReviewState(): ChineseReviewState {
+  return { ease: 2.5, interval: 0, repetitions: 0 };
+}
+
+function scheduleChineseReview(previous: ChineseReviewState | undefined, rating: ChineseReviewRating): ChineseReviewState {
+  const current = previous ?? getDefaultChineseReviewState();
+  const easeAdjustment = rating === "hard" ? -0.2 : rating === "easy" ? 0.15 : 0.05;
+  const ease = Math.max(1.3, Number((current.ease + easeAdjustment).toFixed(2)));
+  const repetitions = rating === "hard" ? 0 : current.repetitions + 1;
+  const interval =
+    rating === "hard"
+      ? 1
+      : rating === "ok"
+        ? current.repetitions === 0
+          ? 2
+          : Math.max(3, Math.round(Math.max(current.interval, 1) * ease))
+        : current.repetitions === 0
+          ? 4
+          : Math.max(5, Math.round(Math.max(current.interval, 1) * (ease + 0.8)));
+
+  return { ease, interval, repetitions, rating };
 }
 
 function normalizeChinesePinyinToken(token: string) {
@@ -11467,11 +11505,14 @@ function ChineseView() {
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const [pinyinDecoderInput, setPinyinDecoderInput] = useState("");
   const [assemblyTileIds, setAssemblyTileIds] = useState<string[]>([]);
+  const [activeReviewId, setActiveReviewId] = useState("");
+  const [reviewRatings, setReviewRatings] = useState<Record<string, ChineseReviewState>>({});
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
+  const activePhraseReviewId = `${activeLesson.id}-${selectedPhraseIndex}-${activePhrase.hanzi}`;
   const activeStrokePrefix = `${activeLesson.id}-${activeCharacter.hanzi}`;
   const activeToneSignal = useMemo(() => getChineseToneSignal(activeLesson), [activeLesson]);
   const activePhraseUnits = useMemo(() => getChinesePhraseUnits(activePhrase.hanzi), [activePhrase]);
@@ -11527,6 +11568,30 @@ function ChineseView() {
       path: points.map((point) => `${point.x},${point.y}`).join(" "),
     };
   }, [activeToneSignal]);
+  const reviewCards = useMemo(
+    () =>
+      chineseLessons.flatMap((lesson) =>
+        lesson.examples.map((example, index) => ({
+          id: `${lesson.id}-${index}-${example.hanzi}`,
+          lessonId: lesson.id,
+          lessonCode: lesson.code,
+          lessonTitle: lesson.title,
+          ...example,
+        })),
+      ),
+    [],
+  );
+  const reviewQueue = reviewCards
+    .map((card) => ({ card, state: reviewRatings[card.id] ?? getDefaultChineseReviewState() }))
+    .sort((a, b) => a.state.interval - b.state.interval || a.card.lessonCode.localeCompare(b.card.lessonCode));
+  const activeReviewCard = reviewCards.find((card) => card.id === (activeReviewId || activePhraseReviewId)) ?? reviewCards[0];
+  const activeReviewState = reviewRatings[activeReviewCard.id] ?? getDefaultChineseReviewState();
+  const reviewedCount = Object.keys(reviewRatings).length;
+  const dueReviewCount = reviewQueue.filter(({ state }) => state.interval <= 1).length;
+  const reviewMastery = Math.round(
+    (reviewQueue.reduce((total, item) => total + Math.min(item.state.interval, 14) / 14, 0) / Math.max(reviewQueue.length, 1)) *
+      100,
+  );
   const decoderResults = useMemo(
     () =>
       activePinyinUnits.map((target, index) => {
@@ -11565,6 +11630,10 @@ function ChineseView() {
     setAssemblyTileIds([]);
   }, [activeLesson.id, activePhrase.hanzi]);
 
+  useEffect(() => {
+    setActiveReviewId(activePhraseReviewId);
+  }, [activePhraseReviewId]);
+
   function selectLesson(id: string) {
     setActiveLessonId(id);
     setSelectedCharacterIndex(0);
@@ -11591,6 +11660,13 @@ function ChineseView() {
 
   function removeAssemblyTile(id: string) {
     setAssemblyTileIds((current) => current.filter((tileId) => tileId !== id));
+  }
+
+  function rateReview(rating: ChineseReviewRating) {
+    setReviewRatings((current) => ({
+      ...current,
+      [activeReviewCard.id]: scheduleChineseReview(current[activeReviewCard.id], rating),
+    }));
   }
 
   function toggleStrokeStep(id: string) {
@@ -11967,6 +12043,65 @@ function ChineseView() {
               ))}
             </div>
             {quizAnswered && <p>{activeLesson.quiz.explanation}</p>}
+          </div>
+        </HudCard>
+
+        <HudCard className="chinese-review-card">
+          <CardHeader title="Memory Queue" meta={`${dueReviewCount} due`} />
+          <div className="chinese-review-console">
+            <div className="chinese-review-meter">
+              <div>
+                <span>review stability</span>
+                <strong>{reviewMastery}%</strong>
+              </div>
+              <ProgressBar value={reviewMastery} />
+            </div>
+            <button className="chinese-review-focus" type="button" onClick={() => speakMandarin(activeReviewCard.hanzi)}>
+              <span>{activeReviewCard.lessonCode} · {activeReviewCard.lessonTitle}</span>
+              <strong>{activeReviewCard.hanzi}</strong>
+              <em>{activeReviewCard.pinyin}</em>
+              <p>{activeReviewCard.meaning}</p>
+            </button>
+            <div className="chinese-review-stats">
+              <div>
+                <span>interval</span>
+                <strong>{activeReviewState.interval ? `D+${activeReviewState.interval}` : "now"}</strong>
+              </div>
+              <div>
+                <span>ease</span>
+                <strong>{activeReviewState.ease.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>reps</span>
+                <strong>{activeReviewState.repetitions}</strong>
+              </div>
+              <div>
+                <span>rated</span>
+                <strong>{reviewedCount}/{reviewCards.length}</strong>
+              </div>
+            </div>
+            <div className="chinese-review-actions">
+              {chineseReviewGrades.map((grade) => (
+                <button className={activeReviewState.rating === grade.id ? "active" : ""} type="button" onClick={() => rateReview(grade.id)} key={grade.id}>
+                  <span>{grade.label}</span>
+                  <em>{grade.detail}</em>
+                </button>
+              ))}
+            </div>
+            <div className="chinese-review-queue">
+              {reviewQueue.slice(0, 5).map(({ card, state }) => (
+                <button
+                  className={card.id === activeReviewCard.id ? "active" : ""}
+                  type="button"
+                  onClick={() => setActiveReviewId(card.id)}
+                  key={card.id}
+                >
+                  <span>{card.lessonCode}</span>
+                  <strong>{card.hanzi}</strong>
+                  <em>{state.interval ? `D+${state.interval}` : "new"}</em>
+                </button>
+              ))}
+            </div>
           </div>
         </HudCard>
       </section>
