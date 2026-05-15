@@ -6258,7 +6258,7 @@ function NotesView({
                   <div className="kanban-empty">// no notes match current filter</div>
                 ) : (
                   filteredNotes.map((note) => {
-                    const noteSignal = getNoteStudySignal(note, note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null);
+                    const noteWordCount = getWordCount(`${note.body}\n\n${note.extractedText ?? ""}`);
                     return (
                       <button
                         className={`note-list-item ${activeNote?.id === note.id ? "active" : ""} ${draggingNoteId === note.id ? "dragging" : ""}`}
@@ -6281,9 +6281,7 @@ function NotesView({
                       >
                         <span>{note.kind === "document" ? "document" : "note"}{note.pinned ? " / pinned" : ""}</span>
                         <strong>{note.title || "Untitled"}</strong>
-                        <em>{noteSignal.wordCount} words · {formatActivityTime(note.updatedAt)}</em>
-                        <i className="note-signal-bar" aria-hidden="true"><b style={{ width: `${noteSignal.score}%` }} /></i>
-                        <span className="note-list-tags">{note.tags.slice(0, 3).join(" / ") || noteSignal.folderPath}</span>
+                        <em>{noteWordCount} words · {formatActivityTime(note.updatedAt)}</em>
                       </button>
                     );
                   })
