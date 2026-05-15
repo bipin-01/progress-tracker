@@ -9789,6 +9789,10 @@ button.load-forecast-day:hover {
 .chinese-reactor-grid > div > span,
 .chinese-reactor-output span,
 .chinese-reactor-output em,
+.chinese-assembler-head span,
+.chinese-assembly-target em,
+.chinese-assembly-bank em,
+.chinese-assembly-actions span,
 .chinese-decoder-head span,
 .chinese-decoder-tokens em,
 .chinese-radar-head span,
@@ -9861,6 +9865,8 @@ button.load-forecast-day:hover {
 .chinese-example-grid button.active,
 .chinese-character-list button:hover,
 .chinese-character-list button.active,
+.chinese-assembly-target button.filled:hover,
+.chinese-assembly-bank button:hover,
 .chinese-stroke-cells button:hover,
 .chinese-stroke-cells button.done,
 .chinese-quiz-options button:hover {
@@ -10243,6 +10249,122 @@ button.load-forecast-day:hover {
 
 .chinese-reactor-cells.meaning i {
   color: var(--ink-2);
+}
+
+.chinese-sentence-assembler {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.05), rgba(170, 114, 255, 0.04)),
+    rgba(2, 7, 15, 0.46);
+  padding: 11px;
+}
+
+.chinese-assembler-head,
+.chinese-assembly-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-assembler-head strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chinese-assembly-target {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  gap: 7px;
+}
+
+.chinese-assembly-target button {
+  display: grid;
+  min-height: 58px;
+  place-items: center;
+  gap: 4px;
+  border: 1px dashed rgba(53, 215, 255, 0.22);
+  background: rgba(6, 15, 28, 0.5);
+  color: rgba(139, 158, 187, 0.62);
+  text-align: center;
+}
+
+.chinese-assembly-target button.filled {
+  border-style: solid;
+  border-color: var(--cyan-dim);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.1), rgba(53, 215, 255, 0.03)),
+    rgba(6, 15, 28, 0.68);
+  color: var(--ink);
+}
+
+.chinese-assembly-target button:disabled {
+  cursor: default;
+}
+
+.chinese-assembly-target strong,
+.chinese-assembly-bank strong {
+  color: inherit;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.chinese-assembly-target em,
+.chinese-assembly-bank em {
+  color: var(--ink-2);
+  line-height: 1.25;
+  text-transform: none;
+}
+
+.chinese-assembly-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 41px;
+}
+
+.chinese-assembly-bank button {
+  display: inline-grid;
+  min-width: 54px;
+  min-height: 41px;
+  place-items: center;
+  gap: 3px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(6, 15, 28, 0.62);
+  padding: 6px 10px;
+}
+
+.chinese-assembly-bank strong {
+  font-size: 21px;
+}
+
+.chinese-assembly-actions span {
+  overflow: hidden;
+  color: var(--cyan);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chinese-assembly-actions button {
+  min-height: 28px;
+  border: 1px solid var(--hair);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  padding: 0 9px;
+  text-transform: uppercase;
+}
+
+.chinese-assembly-actions button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.08);
 }
 
 .chinese-pinyin-decoder {

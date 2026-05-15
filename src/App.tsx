@@ -11466,6 +11466,7 @@ function ChineseView() {
   const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
   const [pinyinDecoderInput, setPinyinDecoderInput] = useState("");
+  const [assemblyTileIds, setAssemblyTileIds] = useState<string[]>([]);
   const [strokeMatrixDone, setStrokeMatrixDone] = useState<Set<string>>(() => new Set());
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
@@ -11477,6 +11478,27 @@ function ChineseView() {
   const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
   const activeMeaningUnits = useMemo(() => getChineseMeaningUnits(activePhrase.meaning), [activePhrase]);
   const decoderInputUnits = useMemo(() => getChinesePinyinUnits(pinyinDecoderInput), [pinyinDecoderInput]);
+  const assemblyTiles = useMemo(() => {
+    const tiles = activePhraseUnits.map((unit, index) => ({
+      id: `${activeLesson.id}-${activePhrase.hanzi}-${index}`,
+      unit,
+      index,
+      pinyin: activePinyinUnits[index] ?? "",
+    }));
+    if (tiles.length < 2) return tiles;
+    return [tiles[tiles.length - 1], ...tiles.slice(0, -1)];
+  }, [activeLesson.id, activePhrase.hanzi, activePhraseUnits, activePinyinUnits]);
+  const assemblyAttemptUnits = assemblyTileIds
+    .map((id) => assemblyTiles.find((tile) => tile.id === id))
+    .filter((tile): tile is (typeof assemblyTiles)[number] => Boolean(tile));
+  const assemblyAnswer = activePhraseUnits.join("");
+  const assemblyAttempt = assemblyAttemptUnits.map((tile) => tile.unit).join("");
+  const assemblyLocked = assemblyAttempt.length === assemblyAnswer.length && assemblyAttempt === assemblyAnswer;
+  const assemblyCorrectSlots = assemblyAttemptUnits.reduce((total, tile, index) => total + (tile.index === index ? 1 : 0), 0);
+  const assemblyProgress = assemblyLocked
+    ? 100
+    : Math.round((assemblyCorrectSlots / Math.max(activePhraseUnits.length, 1)) * 100);
+  const availableAssemblyTiles = assemblyTiles.filter((tile) => !assemblyTileIds.includes(tile.id));
   const toneRadar = useMemo(() => {
     const total = Math.max(activeToneSignal.length, 1);
     const density = chineseToneRails.map((rail) => {
@@ -11539,6 +11561,10 @@ function ChineseView() {
   const quizAnswered = Boolean(selectedOption);
   const quizCorrect = selectedOption === activeLesson.quiz.answer;
 
+  useEffect(() => {
+    setAssemblyTileIds([]);
+  }, [activeLesson.id, activePhrase.hanzi]);
+
   function selectLesson(id: string) {
     setActiveLessonId(id);
     setSelectedCharacterIndex(0);
@@ -11557,6 +11583,14 @@ function ChineseView() {
       }
       return next;
     });
+  }
+
+  function selectAssemblyTile(id: string) {
+    setAssemblyTileIds((current) => (current.includes(id) ? current : [...current, id]));
+  }
+
+  function removeAssemblyTile(id: string) {
+    setAssemblyTileIds((current) => current.filter((tileId) => tileId !== id));
   }
 
   function toggleStrokeStep(id: string) {
@@ -11741,6 +11775,42 @@ function ChineseView() {
                 <div className="chinese-reactor-cells meaning">
                   {activeMeaningUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
                 </div>
+              </div>
+            </div>
+            <div className="chinese-sentence-assembler">
+              <div className="chinese-assembler-head">
+                <span>sentence assembler</span>
+                <strong>{assemblyLocked ? "locked" : `${assemblyProgress}% aligned`}</strong>
+              </div>
+              <div className="chinese-assembly-target" aria-label={`Build ${activePhrase.hanzi}`}>
+                {activePhraseUnits.map((unit, index) => {
+                  const tile = assemblyAttemptUnits[index];
+                  return (
+                    <button
+                      className={tile ? "filled" : ""}
+                      type="button"
+                      disabled={!tile}
+                      onClick={() => tile && removeAssemblyTile(tile.id)}
+                      key={`${unit}-${index}`}
+                    >
+                      <strong>{tile?.unit ?? "·"}</strong>
+                      <em>{activePinyinUnits[index] ?? "slot"}</em>
+                    </button>
+                  );
+                })}
+              </div>
+              <ProgressBar value={assemblyProgress} />
+              <div className="chinese-assembly-bank">
+                {availableAssemblyTiles.map((tile) => (
+                  <button type="button" onClick={() => selectAssemblyTile(tile.id)} key={tile.id}>
+                    <strong>{tile.unit}</strong>
+                    <em>{tile.pinyin}</em>
+                  </button>
+                ))}
+              </div>
+              <div className="chinese-assembly-actions">
+                <span>{assemblyAttempt || "tap tiles to rebuild phrase"}</span>
+                <button type="button" onClick={() => setAssemblyTileIds([])}>reset</button>
               </div>
             </div>
             <div className="chinese-pinyin-decoder">
