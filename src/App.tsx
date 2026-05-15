@@ -5294,6 +5294,7 @@ function NotesView({
   const activeReadingProgress = Math.round(clamp(activeNote?.readingProgress ?? 0, 0, 100));
   const activeNoteOutline = useMemo(() => getStudyOutline(draftBody), [draftBody]);
   const activeNoteCockpit = activeNote && activeNoteSignal ? getNoteCockpitMetrics(activeNote, activeNoteSignal) : [];
+  const activeNoteRadar = activeNoteCockpit.length ? getNoteCockpitRadar(activeNoteCockpit) : null;
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -6428,15 +6429,33 @@ function NotesView({
                         </div>
                         <em>{activeNote.kind} / {activeNoteSignal.folderPath}</em>
                       </div>
-                      <div className="notes-cockpit-grid">
-                        {activeNoteCockpit.map((metric) => (
-                          <button className={metric.tone} type="button" onClick={() => setMode(metric.mode)} key={metric.id}>
-                            <span>{metric.title}</span>
-                            <strong>{metric.value}</strong>
-                            <em>{metric.detail}</em>
-                            <i aria-label={`${metric.title} ${metric.score}%`}><b style={{ width: `${metric.score}%` }} /></i>
-                          </button>
-                        ))}
+                      <div className="notes-cockpit-body">
+                        {activeNoteRadar && (
+                          <div className="notes-cockpit-radar" aria-label={`Active note readiness ${activeNoteRadar.score}%`}>
+                            <i className="radar-ring outer" aria-hidden="true" />
+                            <i className="radar-ring middle" aria-hidden="true" />
+                            <i className="radar-ring inner" aria-hidden="true" />
+                            <span className="radar-axis top">structure</span>
+                            <span className="radar-axis right">recall</span>
+                            <span className="radar-axis bottom">depth</span>
+                            <span className="radar-axis left">sync</span>
+                            <div className="radar-field" style={activeNoteRadar.style} />
+                            <div className="radar-core">
+                              <strong>{activeNoteRadar.score}%</strong>
+                              <span>readiness</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="notes-cockpit-grid">
+                          {activeNoteCockpit.map((metric) => (
+                            <button className={metric.tone} type="button" onClick={() => setMode(metric.mode)} key={metric.id}>
+                              <span>{metric.title}</span>
+                              <strong>{metric.value}</strong>
+                              <em>{metric.detail}</em>
+                              <i aria-label={`${metric.title} ${metric.score}%`}><b style={{ width: `${metric.score}%` }} /></i>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </section>
                   )}
@@ -7235,6 +7254,11 @@ type NoteCockpitMetric = {
   score: number;
   tone: "cyan" | "violet" | "lime" | "amber";
   mode: NotesMode;
+};
+
+type NoteCockpitRadar = {
+  score: number;
+  style: CSSProperties;
 };
 
 function StudyOutlinePanel({
@@ -8051,6 +8075,26 @@ function getNoteCockpitMetrics(note: StudyNote, signal: ReturnType<typeof getNot
       mode: "reading",
     },
   ];
+}
+
+function getNoteCockpitRadar(metrics: NoteCockpitMetric[]): NoteCockpitRadar {
+  const scoreById = new Map(metrics.map((metric) => [metric.id, metric.score]));
+  const radius = 0.42;
+  const structure = scoreById.get("structure") ?? 0;
+  const recall = scoreById.get("recall") ?? 0;
+  const depth = scoreById.get("depth") ?? 0;
+  const sync = scoreById.get("sync") ?? 0;
+  const points = [
+    `50% ${50 - structure * radius}%`,
+    `${50 + recall * radius}% 50%`,
+    `50% ${50 + depth * radius}%`,
+    `${50 - sync * radius}% 50%`,
+  ].join(", ");
+
+  return {
+    score: Math.round(metrics.reduce((total, metric) => total + metric.score, 0) / Math.max(metrics.length, 1)),
+    style: { clipPath: `polygon(${points})` },
+  };
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {

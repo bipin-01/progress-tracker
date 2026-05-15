@@ -5927,6 +5927,119 @@ button.load-forecast-day:hover {
   white-space: nowrap;
 }
 
+.notes-cockpit-body {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.notes-cockpit-radar {
+  position: relative;
+  min-height: 188px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(53, 215, 255, 0.1), transparent 52%),
+    linear-gradient(90deg, rgba(53, 215, 255, 0.035) 1px, transparent 1px) 0 0 / 34px 34px,
+    linear-gradient(rgba(53, 215, 255, 0.028) 1px, transparent 1px) 0 0 / 34px 34px,
+    rgba(2, 7, 15, 0.42);
+}
+
+.notes-cockpit-radar .radar-ring {
+  position: absolute;
+  border: 1px dashed rgba(53, 215, 255, 0.16);
+  pointer-events: none;
+  transform: rotate(45deg);
+}
+
+.notes-cockpit-radar .radar-ring.outer {
+  inset: 18px 28px;
+}
+
+.notes-cockpit-radar .radar-ring.middle {
+  inset: 45px 58px;
+  border-color: rgba(159, 107, 255, 0.18);
+}
+
+.notes-cockpit-radar .radar-ring.inner {
+  inset: 72px 88px;
+  border-color: rgba(146, 255, 87, 0.16);
+}
+
+.notes-cockpit-radar .radar-axis {
+  position: absolute;
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.notes-cockpit-radar .radar-axis.top {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.notes-cockpit-radar .radar-axis.right {
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.notes-cockpit-radar .radar-axis.bottom {
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.notes-cockpit-radar .radar-axis.left {
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+}
+
+.radar-field {
+  position: absolute;
+  inset: 22px 32px;
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.62), rgba(159, 107, 255, 0.32) 58%, rgba(146, 255, 87, 0.24));
+  box-shadow: 0 0 28px rgba(53, 215, 255, 0.16);
+  opacity: 0.72;
+}
+
+.radar-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  min-width: 86px;
+  min-height: 58px;
+  place-items: center;
+  border: 1px solid rgba(53, 215, 255, 0.28);
+  background: rgba(2, 7, 15, 0.72);
+  box-shadow: 0 0 22px rgba(53, 215, 255, 0.12), inset 0 0 18px rgba(53, 215, 255, 0.05);
+  padding: 9px;
+  transform: translate(-50%, -50%);
+}
+
+.radar-core strong {
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 22px;
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(53, 215, 255, 0.36);
+}
+
+.radar-core span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .notes-cockpit-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -9888,6 +10001,7 @@ button.load-forecast-day:hover {
   .notes-nexus-tags,
   .notes-orbit-body,
   .notes-flow-lanes,
+  .notes-cockpit-body,
   .notes-cockpit-grid,
   .notes-session-strip,
   .notes-session-pulse,
