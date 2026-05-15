@@ -5256,6 +5256,7 @@ function NotesView({
   const folderTree = folderIndex.tree;
   const knowledgeNexus = useMemo(() => getNotesKnowledgeNexus(liveNotes, folderIndex), [folderIndex, liveNotes]);
   const notesOrbitItems = useMemo(() => getNotesOrbitItems(liveNotes, folderIndex), [folderIndex, liveNotes]);
+  const notesFlowMatrix = useMemo(() => getNotesFlowMatrix(liveNotes, folderIndex), [folderIndex, liveNotes]);
   const folderStructureKey = useMemo(
     () => folderTree.map((folder) => `${folder.id}:${folder.depth}:${folder.childCount}:${folder.parentId ?? STUDY_FOLDER_ROOT_ID}`).join("|"),
     [folderTree],
@@ -6596,6 +6597,48 @@ function NotesView({
                     </div>
                   </section>
 
+                  <section className="notes-flow-matrix">
+                    <div className="notes-flow-matrix-head">
+                      <div>
+                        <span>Study Flow Matrix</span>
+                        <strong>{notesFlowMatrix.reduce((total, lane) => total + lane.items.length, 0)} notes routed</strong>
+                      </div>
+                      <em>{notesFlowMatrix.filter((lane) => lane.items.length > 0).length} active lanes</em>
+                    </div>
+                    <div className="notes-flow-lanes">
+                      {notesFlowMatrix.map((lane) => (
+                        <article className={`notes-flow-lane ${lane.id}`} key={lane.id}>
+                          <div className="notes-flow-lane-top">
+                            <span>{lane.title}</span>
+                            <strong>{lane.items.length}</strong>
+                            <em>{lane.score}% avg</em>
+                          </div>
+                          <i aria-hidden="true"><b style={{ width: `${lane.score}%` }} /></i>
+                          <p>{lane.directive}</p>
+                          <div className="notes-flow-list">
+                            {lane.items.length === 0 ? (
+                              <div className="kanban-empty">// lane clear</div>
+                            ) : (
+                              lane.items.slice(0, 3).map(({ note, signal }) => (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveNoteId(note.id);
+                                    setMode(lane.mode);
+                                  }}
+                                  key={note.id}
+                                >
+                                  <strong>{note.title || "Untitled note"}</strong>
+                                  <span>{signal.score}% / {signal.cards} cards / {signal.progress}% read</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+
                   <div className="notes-home-grid">
                     <section className="notes-home-panel continue-panel">
                       <div className="ask-note-head">
@@ -7150,6 +7193,15 @@ type NotesOrbitItem = {
   y: number;
   size: number;
   delay: number;
+};
+
+type NotesFlowLane = {
+  id: "capture" | "structure" | "recall" | "mastery";
+  title: string;
+  directive: string;
+  mode: NotesMode;
+  score: number;
+  items: Array<{ note: StudyNote; signal: ReturnType<typeof getNoteStudySignal> }>;
 };
 
 function StudyOutlinePanel({
@@ -8003,6 +8055,40 @@ function getNotesOrbitItems(notes: StudyNote[], folderIndex: StudyFolderIndex): 
       size: Math.round(clamp(46 + item.signal.score * 0.28, 50, 76)),
       delay: index * 80,
     }));
+}
+
+function getNotesFlowMatrix(notes: StudyNote[], folderIndex: StudyFolderIndex): NotesFlowLane[] {
+  const laneMeta: Omit<NotesFlowLane, "score" | "items">[] = [
+    { id: "capture", title: "Capture", directive: "Raw notes and uploads that need their first structure pass.", mode: "writing" },
+    { id: "structure", title: "Structure", directive: "Notes with shape but not enough recall material yet.", mode: "writing" },
+    { id: "recall", title: "Recall", directive: "Material ready to become cards, questions, and review loops.", mode: "review" },
+    { id: "mastery", title: "Mastery", directive: "Prime packets and sealed sessions ready for queue work.", mode: "queue" },
+  ];
+  const lanes = new Map<NotesFlowLane["id"], Array<{ note: StudyNote; signal: ReturnType<typeof getNoteStudySignal> }>>(
+    laneMeta.map((lane) => [lane.id, []]),
+  );
+
+  notes.forEach((note) => {
+    const signal = getNoteStudySignal(note, note.folderId ? folderIndex.itemById.get(note.folderId) ?? null : null);
+    const laneId = getNoteFlowLaneId(signal);
+    lanes.get(laneId)?.push({ note, signal });
+  });
+
+  return laneMeta.map((lane) => {
+    const items = (lanes.get(lane.id) ?? []).sort((a, b) => a.signal.score - b.signal.score || b.note.updatedAt.localeCompare(a.note.updatedAt));
+    return {
+      ...lane,
+      items,
+      score: items.length ? Math.round(items.reduce((total, item) => total + item.signal.score, 0) / items.length) : 0,
+    };
+  });
+}
+
+function getNoteFlowLaneId(signal: ReturnType<typeof getNoteStudySignal>): NotesFlowLane["id"] {
+  if (signal.tier === "prime" || signal.progress >= 100) return "mastery";
+  if (signal.cards > 0 || signal.askCount > 0) return "recall";
+  if (signal.headings > 0 || signal.bullets >= 2 || signal.score >= 42) return "structure";
+  return "capture";
 }
 
 function isRecentNote(note: StudyNote) {

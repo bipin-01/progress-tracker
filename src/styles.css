@@ -7056,6 +7056,170 @@ button.load-forecast-day:hover {
   text-align: right;
 }
 
+.notes-flow-matrix {
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(53, 215, 255, 0.1), transparent 30%),
+    linear-gradient(120deg, rgba(53, 215, 255, 0.055), rgba(159, 107, 255, 0.045) 48%, rgba(146, 255, 87, 0.025)),
+    rgba(5, 9, 18, 0.44);
+  box-shadow: inset 0 0 32px rgba(53, 215, 255, 0.04);
+  padding: 16px;
+}
+
+.notes-flow-matrix-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notes-flow-matrix-head div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.notes-flow-matrix-head span,
+.notes-flow-matrix-head em,
+.notes-flow-lane-top span,
+.notes-flow-lane-top em,
+.notes-flow-list span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.notes-flow-matrix-head strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(16px, 2vw, 28px);
+  letter-spacing: 0.12em;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 18px rgba(53, 215, 255, 0.32);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.notes-flow-matrix-head em {
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.34);
+  color: var(--ink-2);
+  padding: 7px 9px;
+}
+
+.notes-flow-lanes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.notes-flow-lane {
+  --lane-color: var(--cyan);
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  border-top: 2px solid color-mix(in srgb, var(--lane-color) 70%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--lane-color) 8%, transparent), transparent 48%),
+    rgba(2, 7, 15, 0.42);
+  padding: 12px;
+}
+
+.notes-flow-lane.capture {
+  --lane-color: var(--amber);
+}
+
+.notes-flow-lane.structure {
+  --lane-color: var(--cyan);
+}
+
+.notes-flow-lane.recall {
+  --lane-color: var(--violet);
+}
+
+.notes-flow-lane.mastery {
+  --lane-color: var(--lime);
+}
+
+.notes-flow-lane-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  align-items: end;
+}
+
+.notes-flow-lane-top strong {
+  grid-row: span 2;
+  color: var(--lane-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 30px;
+  line-height: 0.9;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--lane-color) 34%, transparent);
+}
+
+.notes-flow-lane > i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.notes-flow-lane > i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--lane-color), var(--cyan));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lane-color) 34%, transparent);
+}
+
+.notes-flow-lane p {
+  min-height: 48px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.notes-flow-list {
+  display: grid;
+  gap: 7px;
+}
+
+.notes-flow-list button {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--lane-color) 9%, transparent), transparent 58%),
+    rgba(2, 7, 15, 0.42);
+  padding: 9px;
+  text-align: left;
+}
+
+.notes-flow-list button:hover {
+  border-color: color-mix(in srgb, var(--lane-color) 70%, transparent);
+  background: rgba(53, 215, 255, 0.07);
+}
+
+.notes-flow-list strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .certification-mode {
   display: grid;
   gap: 14px;
@@ -9593,6 +9757,7 @@ button.load-forecast-day:hover {
   .notes-nexus-body,
   .notes-nexus-tags,
   .notes-orbit-body,
+  .notes-flow-lanes,
   .notes-session-strip,
   .notes-session-pulse,
   .pdf-viewer-toolbar,
