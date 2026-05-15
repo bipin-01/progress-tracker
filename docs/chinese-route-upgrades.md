@@ -39,13 +39,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added post-repair comparison: the mission panel now compares the latest locked repair baseline against the next matching spoken attempt and reports whether tone/hanzi risk dropped or stayed hot.
 - 2026-05-15 - Added the HSK Placement Matrix: the HSK panel now samples retention, accuracy, tone output, pinyin input, sentence assembly, and stroke work to recommend a bounded daily-plan recalibration or ask for a focused sample first.
 - 2026-05-15 - Added persistent placement history: calibration actions now save into Memory Core with source day, target day, HSK band, readiness, confidence, and decision status, then render as a compact audit strip under the Placement Matrix.
+- 2026-05-15 - Added placement outcome analysis: the Placement Matrix now compares the seven days before a calibration against the seven days after it using the 500-day practice database, exposing average load, new-word delta, review delta, and whether the decision made the next week heavier, lighter, or stable.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add placement outcome analysis that compares the week after each recalibration against the week before it.
+- Add a compact lesson review export so placement, repair, voice, and SRS events can be handed to a future AI coach as structured evidence.
 
 ## Design Rules For Future Passes
 

@@ -593,6 +593,28 @@ type ChinesePlacementHistoryEntry = {
   summary: string;
 };
 
+type ChinesePlacementOutcomeWindow = {
+  startDay: number;
+  endDay: number;
+  days: number;
+  newWords: number;
+  reviewWords: number;
+  totalLoad: number;
+  averageLoad: number;
+};
+
+type ChinesePlacementOutcome = {
+  status: "empty" | "steady" | "heavier" | "lighter";
+  label: string;
+  detail: string;
+  before: ChinesePlacementOutcomeWindow;
+  after: ChinesePlacementOutcomeWindow;
+  deltaAverage: number;
+  deltaNewWords: number;
+  deltaReviewWords: number;
+  entry?: ChinesePlacementHistoryEntry;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -2145,6 +2167,81 @@ function getChinesePlacementProfile({
             : "placement and daily load are aligned",
     action: status === "sample" ? "run sample" : deltaDays === 0 ? "hold day" : `apply D${String(recommendedDay).padStart(3, "0")}`,
     signals,
+  };
+}
+
+function getChinesePlacementWindowStats(startDay: number, dayCount = 7): ChinesePlacementOutcomeWindow {
+  const start = Math.min(Math.max(Math.trunc(startDay), 1), CHINESE_PRACTICE_TOTAL_DAYS);
+  const end = Math.min(Math.max(start + dayCount - 1, start), CHINESE_PRACTICE_TOTAL_DAYS);
+  const days = Array.from({ length: end - start + 1 }, (_, index) => getChinesePracticeDay(start + index));
+  const newWords = days.reduce((total, day) => total + day.wordsPerDay, 0);
+  const reviewWords = days.reduce(
+    (total, day) =>
+      total + day.reviewAnchors.reduce((anchorTotal, anchor) => anchorTotal + getChinesePracticeDay(anchor.day).wordsPerDay, 0),
+    0,
+  );
+  const totalLoad = newWords + reviewWords;
+
+  return {
+    startDay: start,
+    endDay: end,
+    days: days.length,
+    newWords,
+    reviewWords,
+    totalLoad,
+    averageLoad: Math.round(totalLoad / Math.max(days.length, 1)),
+  };
+}
+
+function getChinesePlacementOutcome(history: ChinesePlacementHistoryEntry[]): ChinesePlacementOutcome {
+  const entry = history[0];
+  const emptyWindow = getChinesePlacementWindowStats(CHINESE_TODAY_INDEX, 1);
+  if (!entry) {
+    return {
+      status: "empty",
+      label: "no outcome baseline",
+      detail: "run a placement calibration to compare weekly load",
+      before: emptyWindow,
+      after: emptyWindow,
+      deltaAverage: 0,
+      deltaNewWords: 0,
+      deltaReviewWords: 0,
+    };
+  }
+
+  const before = getChinesePlacementWindowStats(Math.max(1, entry.fromDay - 7), 7);
+  const after = getChinesePlacementWindowStats(entry.toDay, 7);
+  const deltaAverage = after.averageLoad - before.averageLoad;
+  const deltaNewWords = after.newWords - before.newWords;
+  const deltaReviewWords = after.reviewWords - before.reviewWords;
+  const status = deltaAverage >= 8 ? "heavier" : deltaAverage <= -8 ? "lighter" : "steady";
+  const label =
+    status === "heavier"
+      ? "load increased"
+      : status === "lighter"
+        ? "load eased"
+        : entry.status === "sample"
+          ? "sample captured"
+          : "load stable";
+  const detail =
+    status === "heavier" && entry.readiness < 60
+      ? "watch overload before advancing again"
+      : status === "heavier"
+        ? "advance is bounded by current readiness"
+        : status === "lighter"
+          ? "repair window creates recovery space"
+          : "weekly pressure stayed aligned";
+
+  return {
+    status,
+    label,
+    detail,
+    before,
+    after,
+    deltaAverage,
+    deltaNewWords,
+    deltaReviewWords,
+    entry,
   };
 }
 
@@ -12975,7 +13072,8 @@ function ChineseView() {
   const memoryRepairCount = completedRepairDrills.size;
   const memoryPlacementCount = placementHistory.length;
   const repairHistoryStrip = repairHistory.slice(0, 7);
-  const placementHistoryStrip = placementHistory.slice(0, 5);
+  const placementHistoryStrip = placementHistory.slice(0, 3);
+  const placementOutcome = getChinesePlacementOutcome(placementHistory);
   const repairComparison = getChineseRepairComparison(repairHistory, speechAttempts);
   const memoryCoreLabel =
     memoryStatus === "offline" ? "offline" : memoryStatus === "restored" ? "restored" : memoryStatus === "synced" ? "synced" : "standby";
@@ -14195,7 +14293,7 @@ function ChineseView() {
                 <div className="zh-placement-history" aria-label="Placement calibration history">
                   <div>
                     <span>placement log</span>
-                    <strong>{placementHistoryStrip.length}/5</strong>
+                    <strong>{placementHistoryStrip.length}/3</strong>
                   </div>
                   <div>
                     {placementHistoryStrip.length ? (
@@ -14212,6 +14310,44 @@ function ChineseView() {
                       <p>calibration decisions will appear here</p>
                     )}
                   </div>
+                </div>
+                <div
+                  className={`zh-placement-outcome status-${placementOutcome.status}`}
+                  style={
+                    {
+                      "--placement-outcome": `${Math.min(Math.abs(placementOutcome.deltaAverage), 100)}%`,
+                    } as CSSProperties
+                  }
+                  aria-label="Placement weekly outcome analysis"
+                >
+                  <div>
+                    <span>7-day outcome</span>
+                    <strong>{placementOutcome.label}</strong>
+                    <em>{placementOutcome.detail}</em>
+                  </div>
+                  <div>
+                    <span>before</span>
+                    <strong>{placementOutcome.before.averageLoad}</strong>
+                    <em>D{String(placementOutcome.before.startDay).padStart(3, "0")}-D{String(placementOutcome.before.endDay).padStart(3, "0")}</em>
+                  </div>
+                  <div>
+                    <span>after</span>
+                    <strong>{placementOutcome.after.averageLoad}</strong>
+                    <em>D{String(placementOutcome.after.startDay).padStart(3, "0")}-D{String(placementOutcome.after.endDay).padStart(3, "0")}</em>
+                  </div>
+                  <div>
+                    <span>delta</span>
+                    <strong>
+                      {placementOutcome.deltaAverage > 0 ? "+" : ""}
+                      {placementOutcome.deltaAverage}
+                    </strong>
+                    <em>
+                      {placementOutcome.deltaNewWords > 0 ? "+" : ""}
+                      {placementOutcome.deltaNewWords} new · {placementOutcome.deltaReviewWords > 0 ? "+" : ""}
+                      {placementOutcome.deltaReviewWords} rev
+                    </em>
+                  </div>
+                  <i aria-hidden="true" />
                 </div>
               </div>
             </div>
