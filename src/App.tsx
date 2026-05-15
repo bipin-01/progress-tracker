@@ -5289,6 +5289,7 @@ function NotesView({
   );
   const activeNoteFolder = activeNote?.folderId ? folderIndex.itemById.get(activeNote.folderId) ?? null : null;
   const activeNoteSignal = activeNote ? getNoteStudySignal(activeNote, activeNoteFolder) : null;
+  const activeReadingProgress = Math.round(clamp(activeNote?.readingProgress ?? 0, 0, 100));
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -5730,6 +5731,20 @@ function NotesView({
   function updateActive(patch: Partial<Omit<StudyNote, "id" | "createdAt">>) {
     if (!activeNote) return;
     void studyNoteCrud.update(activeNote.id, patch);
+  }
+
+  function updateActiveReadingProgress(value: number) {
+    if (!activeNote) return;
+    const readingProgress = Math.round(clamp(value, 0, 100));
+    updateActive({ readingProgress, updatedAt: new Date().toISOString() });
+    logActivityEvent({
+      domain: "notes",
+      action: readingProgress >= 100 ? "reviewed" : "updated",
+      entityId: activeNote.id,
+      entityTitle: activeNote.title || "Untitled note",
+      source: "Study session progress",
+      metadata: { readingProgress, kind: activeNote.kind, folderId: activeNote.folderId },
+    });
   }
 
   function scheduleTextSave(noteId: string, patch: Partial<Pick<StudyNote, "title" | "body">>) {
@@ -6380,6 +6395,31 @@ function NotesView({
                       }
                     }} placeholder="add tag" />
                   </div>
+
+                  {activeNoteSignal && (
+                    <section className={`notes-session-strip ${activeReadingProgress >= 100 ? "complete" : activeReadingProgress >= 50 ? "active" : ""}`}>
+                      <div className="notes-session-copy">
+                        <span>Session Progress</span>
+                        <strong>{activeReadingProgress}% synced</strong>
+                        <p>{getStudySessionDirective(activeReadingProgress, activeNoteSignal)}</p>
+                      </div>
+                      <div className="notes-session-rail" aria-label={`Study session progress ${activeReadingProgress}%`}>
+                        <i><b style={{ width: `${activeReadingProgress}%` }} /></i>
+                        <div>
+                          {[0, 25, 50, 75, 100].map((mark) => (
+                            <button className={activeReadingProgress === mark ? "active" : ""} type="button" onClick={() => updateActiveReadingProgress(mark)} key={mark}>
+                              {mark}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="notes-session-pulse">
+                        <span><strong>{activeNoteSignal.headings}</strong> heads</span>
+                        <span><strong>{activeNoteSignal.bullets}</strong> bullets</span>
+                        <span><strong>{activeNoteSignal.askCount}</strong> asks</span>
+                      </div>
+                    </section>
+                  )}
                 </>
               )}
 
@@ -7642,13 +7682,15 @@ function getNoteStudySignal(note: StudyNote, folder?: Pick<StudyFolderTreeItem, 
   const bulletCount = getChecklistCount(note.body);
   const cards = note.flashcards?.length ?? 0;
   const askCount = note.askHistory?.length ?? 0;
+  const progress = Math.round(clamp(note.readingProgress ?? 0, 0, 100));
   const readingMins = getReadingMinutes(corpus);
   const structureScore = Math.min(24, headingCount * 7 + bulletCount * 1.35);
   const recallScore = Math.min(30, cards * 5 + askCount * 3);
   const depthScore = Math.min(24, wordCount / 55);
   const documentScore = note.kind === "document" ? 10 : 5;
   const freshnessScore = isRecentNote(note) ? 12 : 4;
-  const score = Math.round(clamp(structureScore + recallScore + depthScore + documentScore + freshnessScore, 6, 100));
+  const progressScore = Math.min(10, progress / 10);
+  const score = Math.round(clamp(structureScore + recallScore + depthScore + documentScore + freshnessScore + progressScore, 6, 100));
   const tier = score >= 78 ? "prime" : score >= 52 ? "building" : "thin";
   const headline =
     tier === "prime"
@@ -7675,11 +7717,20 @@ function getNoteStudySignal(note: StudyNote, folder?: Pick<StudyFolderTreeItem, 
     folderPath: folder?.path ?? "Uncategorized",
     wordCount,
     readingMins,
+    progress,
     headings: headingCount,
     bullets: bulletCount,
     cards,
     askCount,
   };
+}
+
+function getStudySessionDirective(progress: number, signal: ReturnType<typeof getNoteStudySignal>) {
+  if (progress >= 100) return "Study pass sealed. This note is ready to feed review, recall, or a certification sprint.";
+  if (progress >= 75) return signal.cards === 0 ? "Almost sealed. Add recall cards before closing the session." : "Final pass is active. Capture the last weak point before closing.";
+  if (progress >= 50) return "Deep read is underway. Convert unclear sections into questions or definitions.";
+  if (progress >= 25) return "First scan captured. Mark core headings, examples, and unknown terms.";
+  return signal.tier === "thin" ? "Start with structure: summary, key ideas, and one question." : "Start the pass by scanning the document map and capture targets.";
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {
