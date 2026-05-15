@@ -15,7 +15,6 @@ import {
   ListTodo,
   Music,
   NotebookText,
-  Eye,
   FileText,
   PersonStanding,
   Search,
@@ -6293,25 +6292,25 @@ function NotesView({
               <div className="notes-editor-head">
                 <div className="notes-mode-toggle" role="tablist" aria-label="Notes mode">
                   <button className={mode === "home" ? "active" : ""} type="button" onClick={() => setMode("home")}>
-                    <Home /> home
+                    home
                   </button>
                   <button className={mode === "writing" ? "active" : ""} type="button" onClick={() => setMode("writing")}>
-                    <NotebookText /> write
+                    write
                   </button>
                   <button className={mode === "reading" ? "active" : ""} type="button" onClick={() => setMode("reading")}>
-                    <Eye /> read
+                    read
                   </button>
                   <button className={mode === "review" ? "active" : ""} type="button" onClick={() => setMode("review")}>
-                    <Sparkles /> review
+                    review
                   </button>
                   <button className={mode === "queue" ? "active" : ""} type="button" onClick={() => setMode("queue")}>
-                    <ListTodo /> queue
+                    queue
                   </button>
                   <button className={mode === "certifications" ? "active" : ""} type="button" onClick={() => setMode("certifications")}>
-                    <Target /> certs
+                    certs
                   </button>
                   <button className={mode === "ai" ? "active" : ""} type="button" onClick={() => setMode("ai")}>
-                    <Bot /> ai
+                    ai
                   </button>
                 </div>
                 <div className="notes-actions">
