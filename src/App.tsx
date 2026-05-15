@@ -12156,6 +12156,15 @@ function ChineseView() {
   const practicePhaseProgress = Math.round(
     ((selectedPracticeRecord.day - (selectedPracticeRecord.phase - 1) * 50) / 50) * 100,
   );
+  const activePracticeWord =
+    selectedPracticeRecord.words.find((word) => word.hanzi === activeDictionaryEntry.hanzi || word.hanzi === dictionaryToken) ??
+    selectedPracticeRecord.words[0];
+  const practiceAnchorLoad = selectedPracticeRecord.reviewAnchors.reduce(
+    (total, anchor) => total + getChinesePracticeDay(anchor.day).wordsPerDay,
+    0,
+  );
+  const practiceMissionLoad = selectedPracticeRecord.wordsPerDay + practiceAnchorLoad;
+  const missionRailWords = selectedPracticeRecord.words.slice(0, Math.min(12, selectedPracticeRecord.words.length));
   const activePhrase = activeLesson.examples[selectedPhraseIndex] ?? activeLesson.examples[0];
   const activePhraseReviewId = `${activeLesson.id}-${selectedPhraseIndex}-${activePhrase.hanzi}`;
   const activeStrokePrefix = `${activeLesson.id}-${activeDictionaryEntry.hanzi}`;
@@ -12382,6 +12391,13 @@ function ChineseView() {
     setSelectedPracticeDay(Math.min(Math.max(Math.trunc(day), 1), CHINESE_PRACTICE_TOTAL_DAYS));
   }
 
+  function loadPracticeWord(word: { hanzi: string; pinyin: string; practiceId: string }) {
+    openDictionary(word.hanzi);
+    setCardRevealed(true);
+    setActiveLessonStep("meaning");
+    setRewardMessage(`${word.practiceId} loaded · ${word.pinyin}`);
+  }
+
   function rateReview(rating: ChineseReviewRating, cardId = activeReviewCard.id) {
     const xp = rating === "again" ? 3 : rating === "hard" ? 6 : rating === "ok" ? 10 : 15;
     setReviewRatings((current) => ({
@@ -12511,6 +12527,79 @@ function ChineseView() {
               <span>%</span>
             </strong>
             <em>{dailyProgress}% daily circuit · {reviewMastery}% retention</em>
+          </div>
+        </div>
+      </section>
+
+      <section className="zh-mission-control" aria-label="Chinese daily mission control">
+        <div className="zh-hud-wrap active">
+          <div className="zh-hud zh-mission-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>daily mission uplink</span>
+              <em>
+                D{String(selectedPracticeRecord.day).padStart(3, "0")} · {selectedPracticeRecord.phaseTitle}
+              </em>
+            </div>
+            <div className="zh-mission-primary">
+              <div className="zh-mission-core">
+                <span>mission load</span>
+                <strong>D{String(selectedPracticeRecord.day).padStart(3, "0")}</strong>
+                <em>{selectedPracticeRecord.focus}</em>
+                <div className="zh-mission-load">
+                  <i>{selectedPracticeRecord.wordsPerDay} new</i>
+                  <i>{practiceAnchorLoad} review</i>
+                  <i>{practiceMissionLoad} total</i>
+                </div>
+              </div>
+
+              <div className="zh-mission-active-word">
+                <div>
+                  <span>active word</span>
+                  <strong className="zh-cn">{activePracticeWord.hanzi}</strong>
+                  <em className={getChineseToneClass(activePracticeWord.pinyin)}>{activePracticeWord.pinyin}</em>
+                  <p>{activePracticeWord.meaning}</p>
+                </div>
+                <button type="button" onClick={() => loadPracticeWord(activePracticeWord)}>
+                  load word
+                </button>
+              </div>
+
+              <div className="zh-mission-word-rail" aria-label="Daily practice quick rail">
+                {missionRailWords.map((word) => (
+                  <button
+                    key={word.practiceId}
+                    type="button"
+                    className={word.practiceId === activePracticeWord.practiceId ? "active" : ""}
+                    onClick={() => loadPracticeWord(word)}
+                  >
+                    <span>{String(word.slot).padStart(2, "0")}</span>
+                    <strong className="zh-cn">{word.hanzi}</strong>
+                    <em className={getChineseToneClass(word.pinyin)}>{word.pinyin}</em>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="zh-mission-footer">
+              <div className="zh-mission-anchor-strip">
+                <span>review anchors</span>
+                {selectedPracticeRecord.reviewAnchors.length ? (
+                  selectedPracticeRecord.reviewAnchors.map((anchor) => (
+                    <button key={anchor.offset} type="button" onClick={() => selectPracticeDay(anchor.day)}>
+                      {anchor.label} / D{String(anchor.day).padStart(3, "0")}
+                    </button>
+                  ))
+                ) : (
+                  <em>first intake day</em>
+                )}
+              </div>
+              <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
+                <span>phase signal</span>
+                <i />
+                <strong>{practicePhaseProgress}%</strong>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -13095,10 +13184,8 @@ function ChineseView() {
                   <button
                     key={word.practiceId}
                     type="button"
-                    onClick={() => {
-                      openDictionary(word.hanzi);
-                      setCardRevealed(true);
-                    }}
+                    className={word.practiceId === activePracticeWord.practiceId ? "active" : ""}
+                    onClick={() => loadPracticeWord(word)}
                   >
                     <span>{String(word.slot).padStart(2, "0")}</span>
                     <strong className="zh-cn">{word.hanzi}</strong>
