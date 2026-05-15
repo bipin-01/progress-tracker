@@ -11921,6 +11921,10 @@ button.load-forecast-day:hover {
 .zh-voice-trace span,
 .zh-voice-trace em,
 .zh-voice-trace p,
+.zh-voice-analytics span,
+.zh-voice-analytics em,
+.zh-voice-analytics i,
+.zh-voice-analytics p,
 .zh-focus-metrics span {
   overflow: hidden;
   color: var(--muted);
@@ -12178,6 +12182,81 @@ button.load-forecast-day:hover {
 }
 
 .zh-voice-trace p {
+  grid-column: 1 / -1;
+  margin: 0;
+  align-self: center;
+  color: var(--ink-2);
+  text-transform: none;
+}
+
+.zh-voice-analytics {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid rgba(170, 114, 255, 0.16);
+  background:
+    linear-gradient(90deg, rgba(170, 114, 255, 0.06), transparent 52%),
+    rgba(2, 7, 15, 0.22);
+  padding: 10px 12px;
+}
+
+.zh-voice-analytics > div:first-child {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zh-voice-analytics > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+
+.zh-voice-analytics strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-voice-analytics > div:first-child strong {
+  color: var(--zh-magenta);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.zh-voice-analytics button {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(170, 114, 255, 0.035);
+  padding: 8px;
+  text-align: left;
+}
+
+.zh-voice-analytics button:hover {
+  border-color: rgba(170, 114, 255, 0.55);
+  background: rgba(170, 114, 255, 0.075);
+}
+
+.zh-voice-analytics button strong.zh-cn {
+  color: var(--ink);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: 24px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.zh-voice-analytics p {
   grid-column: 1 / -1;
   margin: 0;
   align-self: center;
@@ -13582,6 +13661,8 @@ button.load-forecast-day:hover {
   .zh-focus-speech,
   .zh-voice-trace,
   .zh-voice-trace > div:last-child,
+  .zh-voice-analytics,
+  .zh-voice-analytics > div:last-child,
   .zh-focus-stepbar,
   .zh-lesson-strip,
   .zh-writing-grid,

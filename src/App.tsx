@@ -490,6 +490,16 @@ type ChineseSpeechAttempt = {
   rating?: ChineseReviewRating;
 };
 
+type ChineseVoiceWeakness = {
+  id: string;
+  hanzi: string;
+  pinyin: string;
+  pattern: string;
+  attempts: number;
+  averageScore: number;
+  repair: string;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -1586,6 +1596,54 @@ function scoreChineseSpeech(expected: string, transcript: string) {
     matched: lcsMatches,
     total,
   };
+}
+
+function getChineseSentencePattern(phrase: string) {
+  if (phrase.includes("在")) return "progressive 在 pattern";
+  if (phrase.includes("吗")) return "question-final 吗";
+  if (/[一二三四五六七八九十零两]/.test(phrase)) return "number phrase";
+  if (getChineseSpeechUnits(phrase).length <= 2) return "single-word recall";
+  return "core sentence";
+}
+
+function getChineseVoiceWeaknesses(attempts: ChineseSpeechAttempt[]) {
+  const grouped = attempts.reduce<Record<string, { hanzi: string; pattern: string; attempts: number; scoreTotal: number }>>((weaknesses, attempt) => {
+    if (attempt.score >= 82) return weaknesses;
+    const expectedUnits = getChineseSpeechUnits(attempt.phrase);
+    const transcriptUnits = getChineseSpeechUnits(attempt.transcript);
+    const weakUnits = expectedUnits.filter((unit, index) => transcriptUnits[index] !== unit || !transcriptUnits.includes(unit));
+    const units = weakUnits.length ? weakUnits : expectedUnits;
+    const pattern = getChineseSentencePattern(attempt.phrase);
+
+    units.forEach((hanzi) => {
+      const id = `${hanzi}-${pattern}`;
+      const existing = weaknesses[id] ?? { hanzi, pattern, attempts: 0, scoreTotal: 0 };
+      weaknesses[id] = {
+        ...existing,
+        attempts: existing.attempts + 1,
+        scoreTotal: existing.scoreTotal + attempt.score,
+      };
+    });
+
+    return weaknesses;
+  }, {});
+
+  return Object.entries(grouped)
+    .map<ChineseVoiceWeakness>(([id, weakness]) => {
+      const entry = getChineseDictionaryEntry(weakness.hanzi);
+      const averageScore = Math.round(weakness.scoreTotal / Math.max(weakness.attempts, 1));
+      return {
+        id,
+        hanzi: weakness.hanzi,
+        pinyin: entry.pinyin,
+        pattern: weakness.pattern,
+        attempts: weakness.attempts,
+        averageScore,
+        repair: `${weakness.hanzi} x5 · shadow full phrase`,
+      };
+    })
+    .sort((a, b) => a.averageScore - b.averageScore || b.attempts - a.attempts)
+    .slice(0, 3);
 }
 
 function getChineseHskProgress(level: (typeof chineseHskLevels)[number], masteredCharacters: number) {
@@ -12600,6 +12658,8 @@ function ChineseView() {
   const activeSpeechAverage = activeSpeechAttempts.length
     ? Math.round(activeSpeechAttempts.reduce((total, attempt) => total + attempt.score, 0) / activeSpeechAttempts.length)
     : 0;
+  const voiceWeaknesses = getChineseVoiceWeaknesses(speechAttempts);
+  const activeVoiceWeakness = voiceWeaknesses[0];
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -13818,6 +13878,30 @@ function ChineseView() {
                   ))
                 ) : (
                   <p>No spoken attempts stored for this card yet.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="zh-voice-analytics">
+              <div>
+                <span>weakness scan</span>
+                <strong>{activeVoiceWeakness ? activeVoiceWeakness.hanzi : "clear"}</strong>
+                <em>{activeVoiceWeakness ? activeVoiceWeakness.pattern : "no weak pattern detected"}</em>
+              </div>
+              <div>
+                {voiceWeaknesses.length ? (
+                  voiceWeaknesses.map((weakness) => (
+                    <button key={weakness.id} type="button" onClick={() => openDictionary(weakness.hanzi)}>
+                      <strong className="zh-cn">{weakness.hanzi}</strong>
+                      <span className={getChineseToneClass(weakness.pinyin)}>{weakness.pinyin}</span>
+                      <em>
+                        {weakness.averageScore}% avg · {weakness.attempts} misses
+                      </em>
+                      <i>{weakness.repair}</i>
+                    </button>
+                  ))
+                ) : (
+                  <p>Record voice attempts below 82% to generate targeted repair drills.</p>
                 )}
               </div>
             </div>

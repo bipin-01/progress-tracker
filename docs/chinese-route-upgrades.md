@@ -31,13 +31,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added Focus Tunnel keyboard control: Escape exits, Enter runs the active gate command, Space replays Mandarin audio, and number keys 1-5 jump between listen, meaning, build, write, and recall gates without adding visible shortcut clutter.
 - 2026-05-15 - Added Focus Tunnel speech gate: browser Mandarin recognition can capture spoken output, align recognized hanzi against the active sentence, show mic confidence and phrase match, and feed strong spoken recall into the SRS rating loop.
 - 2026-05-15 - Added persistent voice trace history: spoken attempts now save into Memory Core with transcript, score, confidence, matched hanzi, rating, and timestamp, then surface recent attempts per card inside Focus Tunnel for future coach-agent behavior analysis.
+- 2026-05-15 - Added voice weakness analytics: saved speech attempts now group low-score misses by hanzi and sentence pattern, rank weak spots, and generate compact repair drills inside Focus Tunnel.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add voice weakness analytics: group repeated misses by hanzi, tone, and sentence pattern, then generate targeted repair drills.
+- Add voice weakness heatmap: show which tones and hanzi fail most often across the last 30 spoken attempts.
 
 ## Design Rules For Future Passes
 
