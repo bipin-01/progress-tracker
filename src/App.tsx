@@ -500,6 +500,25 @@ type ChineseVoiceWeakness = {
   repair: string;
 };
 
+type ChineseVoiceToneWeakness = {
+  tone: number;
+  name: string;
+  sample: string;
+  exposure: number;
+  misses: number;
+  risk: number;
+  intensity: number;
+  averageScore: number;
+};
+
+type ChineseVoiceHanziHotspot = {
+  hanzi: string;
+  pinyin: string;
+  exposure: number;
+  misses: number;
+  risk: number;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -1644,6 +1663,95 @@ function getChineseVoiceWeaknesses(attempts: ChineseSpeechAttempt[]) {
     })
     .sort((a, b) => a.averageScore - b.averageScore || b.attempts - a.attempts)
     .slice(0, 3);
+}
+
+function getChinesePhrasePinyinForSpeech(phrase: string) {
+  const lessonExample = chineseLessons
+    .flatMap((lesson) => lesson.examples)
+    .find((example) => example.hanzi === phrase);
+  if (lessonExample) return getChinesePinyinUnits(lessonExample.pinyin);
+  return getChineseSpeechUnits(phrase).map((unit) => getChineseDictionaryEntry(unit).pinyin);
+}
+
+function getChineseVoiceHeatmap(attempts: ChineseSpeechAttempt[]) {
+  const recentAttempts = attempts.slice(0, 30);
+  const toneOrder = [1, 2, 3, 4, 0];
+  const toneStats = toneOrder.reduce<
+    Record<number, { tone: number; exposure: number; misses: number; scoreTotal: number; sample: string; name: string }>
+  >((stats, tone) => {
+    const rail = chineseToneRails.find((item) => Number(item.label) === tone);
+    const profile = chineseToneProfiles[tone as keyof typeof chineseToneProfiles] ?? chineseToneProfiles[0];
+    stats[tone] = {
+      tone,
+      exposure: 0,
+      misses: 0,
+      scoreTotal: 0,
+      sample: rail?.sample ?? (tone === 0 ? "ma" : "mā"),
+      name: profile.name,
+    };
+    return stats;
+  }, {});
+  const hanziStats: Record<string, { hanzi: string; pinyin: string; exposure: number; misses: number }> = {};
+
+  recentAttempts.forEach((attempt) => {
+    const expectedUnits = getChineseSpeechUnits(attempt.phrase);
+    const transcriptUnits = getChineseSpeechUnits(attempt.transcript);
+    const pinyinUnits = getChinesePhrasePinyinForSpeech(attempt.phrase);
+
+    expectedUnits.forEach((hanzi, index) => {
+      const pinyin = pinyinUnits[index] ?? getChineseDictionaryEntry(hanzi).pinyin;
+      const tone = getChineseToneNumber(pinyin);
+      const toneStat = toneStats[tone] ?? toneStats[0];
+      const missed = attempt.score < 82 && (transcriptUnits[index] !== hanzi || !transcriptUnits.includes(hanzi));
+      toneStat.exposure += 1;
+      toneStat.scoreTotal += attempt.score;
+      if (missed) toneStat.misses += 1;
+
+      const existing = hanziStats[hanzi] ?? {
+        hanzi,
+        pinyin,
+        exposure: 0,
+        misses: 0,
+      };
+      hanziStats[hanzi] = {
+        ...existing,
+        exposure: existing.exposure + 1,
+        misses: existing.misses + (missed ? 1 : 0),
+      };
+    });
+  });
+
+  const toneWeaknesses = toneOrder.map<ChineseVoiceToneWeakness>((tone) => {
+    const stat = toneStats[tone];
+    const averageScore = stat.exposure ? Math.round(stat.scoreTotal / stat.exposure) : 100;
+    const risk = stat.exposure ? Math.round((stat.misses / stat.exposure) * 100) : 0;
+    const intensity = stat.exposure ? Math.max(risk, Math.round((100 - averageScore) * 0.72)) : 0;
+    return {
+      tone,
+      name: stat.name,
+      sample: stat.sample,
+      exposure: stat.exposure,
+      misses: stat.misses,
+      risk,
+      intensity,
+      averageScore,
+    };
+  });
+
+  const hanziHotspots = Object.values(hanziStats)
+    .map<ChineseVoiceHanziHotspot>((item) => ({
+      ...item,
+      risk: item.exposure ? Math.round((item.misses / item.exposure) * 100) : 0,
+    }))
+    .filter((item) => item.misses > 0)
+    .sort((a, b) => b.risk - a.risk || b.misses - a.misses || a.hanzi.localeCompare(b.hanzi))
+    .slice(0, 8);
+
+  return {
+    attemptsAnalyzed: recentAttempts.length,
+    toneWeaknesses,
+    hanziHotspots,
+  };
 }
 
 function getChineseHskProgress(level: (typeof chineseHskLevels)[number], masteredCharacters: number) {
@@ -12660,6 +12768,11 @@ function ChineseView() {
     : 0;
   const voiceWeaknesses = getChineseVoiceWeaknesses(speechAttempts);
   const activeVoiceWeakness = voiceWeaknesses[0];
+  const voiceHeatmap = useMemo(() => getChineseVoiceHeatmap(speechAttempts), [speechAttempts]);
+  const activeVoiceToneWeakness = voiceHeatmap.toneWeaknesses.reduce(
+    (winner, tone) => (tone.risk > winner.risk || (tone.risk === winner.risk && tone.misses > winner.misses) ? tone : winner),
+    voiceHeatmap.toneWeaknesses[0],
+  );
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -13903,6 +14016,46 @@ function ChineseView() {
                 ) : (
                   <p>Record voice attempts below 82% to generate targeted repair drills.</p>
                 )}
+              </div>
+              <div className="zh-voice-map">
+                <div className="zh-voice-map-head">
+                  <span>tone heatmap</span>
+                  <em>
+                    {voiceHeatmap.attemptsAnalyzed
+                      ? `${voiceHeatmap.attemptsAnalyzed} attempts scanned · highest risk T${activeVoiceToneWeakness.tone}`
+                      : "waiting for voice data"}
+                  </em>
+                </div>
+                <div className="zh-tone-weakness-grid">
+                  {voiceHeatmap.toneWeaknesses.map((tone) => (
+                    <button
+                      key={tone.tone}
+                      type="button"
+                      onClick={() => speakMandarin(tone.sample)}
+                      style={{ "--tone-risk": `${tone.intensity}%` } as CSSProperties}
+                    >
+                      <span>T{tone.tone}</span>
+                      <strong>{tone.risk}%</strong>
+                      <i />
+                      <em>
+                        {tone.misses}/{tone.exposure} misses · {tone.name} · {tone.averageScore}% avg
+                      </em>
+                    </button>
+                  ))}
+                </div>
+                {voiceHeatmap.hanziHotspots.length ? (
+                  <div className="zh-voice-symbols" aria-label="Voice hanzi hotspots">
+                    {voiceHeatmap.hanziHotspots.map((hotspot) => (
+                      <button key={hotspot.hanzi} type="button" onClick={() => openDictionary(hotspot.hanzi)}>
+                        <strong className="zh-cn">{hotspot.hanzi}</strong>
+                        <span className={getChineseToneClass(hotspot.pinyin)}>{hotspot.pinyin}</span>
+                        <em>
+                          {hotspot.risk}% risk · {hotspot.misses}/{hotspot.exposure}
+                        </em>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
