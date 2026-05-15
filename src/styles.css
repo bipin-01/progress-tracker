@@ -9789,6 +9789,8 @@ button.load-forecast-day:hover {
 .chinese-reactor-grid > div > span,
 .chinese-reactor-output span,
 .chinese-reactor-output em,
+.chinese-decoder-head span,
+.chinese-decoder-tokens em,
 .chinese-tone-stack em,
 .chinese-character-list span,
 .chinese-character-list em,
@@ -10234,6 +10236,98 @@ button.load-forecast-day:hover {
 
 .chinese-reactor-cells.meaning i {
   color: var(--ink-2);
+}
+
+.chinese-pinyin-decoder {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(5, 9, 18, 0.5);
+  padding: 11px;
+}
+
+.chinese-decoder-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-decoder-head strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chinese-pinyin-decoder input {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--hair);
+  background: rgba(2, 7, 15, 0.72);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  padding: 0 10px;
+}
+
+.chinese-pinyin-decoder input:focus {
+  border-color: var(--cyan-dim);
+  box-shadow: 0 0 14px rgba(53, 215, 255, 0.12);
+}
+
+.chinese-decoder-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.chinese-decoder-tokens span {
+  display: grid;
+  gap: 4px;
+  min-width: 72px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(6, 15, 28, 0.58);
+  padding: 8px;
+}
+
+.chinese-decoder-tokens strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chinese-decoder-tokens em {
+  color: var(--muted);
+  text-transform: none;
+}
+
+.chinese-decoder-tokens span.exact {
+  border-color: rgba(158, 255, 102, 0.55);
+  background: rgba(158, 255, 102, 0.07);
+}
+
+.chinese-decoder-tokens span.exact em {
+  color: var(--lime);
+}
+
+.chinese-decoder-tokens span.tone {
+  border-color: rgba(255, 183, 71, 0.58);
+  background: rgba(255, 183, 71, 0.07);
+}
+
+.chinese-decoder-tokens span.tone em {
+  color: var(--amber);
+}
+
+.chinese-decoder-tokens span.miss {
+  border-color: rgba(255, 85, 114, 0.52);
+  background: rgba(255, 85, 114, 0.07);
+}
+
+.chinese-decoder-tokens span.miss em {
+  color: var(--red);
 }
 
 .chinese-tone-stack button {

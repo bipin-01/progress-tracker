@@ -619,6 +619,34 @@ const chineseToneMarkGroups = [
   { tone: 4, marks: "àèìòùǜÀÈÌÒÙǛ" },
 ];
 
+const chinesePinyinToneMap: Record<string, { base: string; tone: number }> = {
+  ā: { base: "a", tone: 1 },
+  ē: { base: "e", tone: 1 },
+  ī: { base: "i", tone: 1 },
+  ō: { base: "o", tone: 1 },
+  ū: { base: "u", tone: 1 },
+  ǖ: { base: "v", tone: 1 },
+  á: { base: "a", tone: 2 },
+  é: { base: "e", tone: 2 },
+  í: { base: "i", tone: 2 },
+  ó: { base: "o", tone: 2 },
+  ú: { base: "u", tone: 2 },
+  ǘ: { base: "v", tone: 2 },
+  ǎ: { base: "a", tone: 3 },
+  ě: { base: "e", tone: 3 },
+  ǐ: { base: "i", tone: 3 },
+  ǒ: { base: "o", tone: 3 },
+  ǔ: { base: "u", tone: 3 },
+  ǚ: { base: "v", tone: 3 },
+  à: { base: "a", tone: 4 },
+  è: { base: "e", tone: 4 },
+  ì: { base: "i", tone: 4 },
+  ò: { base: "o", tone: 4 },
+  ù: { base: "u", tone: 4 },
+  ǜ: { base: "v", tone: 4 },
+  ü: { base: "v", tone: 0 },
+};
+
 function getChineseToneNumber(token: string) {
   for (const group of chineseToneMarkGroups) {
     if ([...token].some((mark) => group.marks.includes(mark))) return group.tone;
@@ -657,6 +685,28 @@ function getChinesePinyinUnits(value: string) {
 
 function getChineseMeaningUnits(value: string) {
   return value.replace(/[.,?]/g, " ").split(/\s+/).filter(Boolean).slice(0, 8);
+}
+
+function normalizeChinesePinyinToken(token: string) {
+  const lowered = token.trim().toLowerCase().replace(/[.,?。？！]/g, "");
+  const numberedTone = lowered.match(/[1-5]$/)?.[0];
+  let tone = numberedTone ? Number(numberedTone) : 0;
+  const withoutNumber = numberedTone ? lowered.slice(0, -1) : lowered;
+  let base = "";
+  for (const character of withoutNumber) {
+    const mapped = chinesePinyinToneMap[character];
+    if (mapped) {
+      base += mapped.base;
+      if (mapped.tone) tone = mapped.tone;
+    } else if (/[a-z]/.test(character)) {
+      base += character;
+    }
+  }
+  return {
+    base,
+    tone: tone === 5 ? 0 : tone,
+    exact: `${base}:${tone === 5 ? 0 : tone}`,
+  };
 }
 
 const navItems = [
@@ -11408,6 +11458,7 @@ function ChineseView() {
   const [selectedOption, setSelectedOption] = useState("");
   const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
   const [selectedPhraseIndex, setSelectedPhraseIndex] = useState(0);
+  const [pinyinDecoderInput, setPinyinDecoderInput] = useState("");
   const [completedDrills, setCompletedDrills] = useState<Set<string>>(() => new Set(["listen"]));
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -11416,6 +11467,30 @@ function ChineseView() {
   const activePhraseUnits = useMemo(() => getChinesePhraseUnits(activePhrase.hanzi), [activePhrase]);
   const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
   const activeMeaningUnits = useMemo(() => getChineseMeaningUnits(activePhrase.meaning), [activePhrase]);
+  const decoderInputUnits = useMemo(() => getChinesePinyinUnits(pinyinDecoderInput), [pinyinDecoderInput]);
+  const decoderResults = useMemo(
+    () =>
+      activePinyinUnits.map((target, index) => {
+        const typed = decoderInputUnits[index] ?? "";
+        const targetToken = normalizeChinesePinyinToken(target);
+        const typedToken = normalizeChinesePinyinToken(typed);
+        const state =
+          !typed
+            ? "pending"
+            : typedToken.exact === targetToken.exact
+              ? "exact"
+              : typedToken.base === targetToken.base
+                ? "tone"
+                : "miss";
+        return { target, typed, state };
+      }),
+    [activePinyinUnits, decoderInputUnits],
+  );
+  const decoderScore = Math.round(
+    (decoderResults.reduce((total, item) => total + (item.state === "exact" ? 1 : item.state === "tone" ? 0.5 : 0), 0) /
+      Math.max(decoderResults.length, 1)) *
+      100,
+  );
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const completedCount = completedDrills.size;
   const dailyProgress = Math.round((completedCount / chineseDailyDrills.length) * 100);
@@ -11426,6 +11501,7 @@ function ChineseView() {
     setActiveLessonId(id);
     setSelectedCharacterIndex(0);
     setSelectedPhraseIndex(0);
+    setPinyinDecoderInput("");
     setSelectedOption("");
   }
 
@@ -11569,6 +11645,7 @@ function ChineseView() {
                 type="button"
                 onClick={() => {
                   setSelectedPhraseIndex(index);
+                  setPinyinDecoderInput("");
                   speakMandarin(example.hanzi);
                 }}
                 key={`${activeLesson.id}-${example.hanzi}`}
@@ -11609,6 +11686,29 @@ function ChineseView() {
                 <div className="chinese-reactor-cells meaning">
                   {activeMeaningUnits.map((unit, index) => <i key={`${unit}-${index}`}>{unit}</i>)}
                 </div>
+              </div>
+            </div>
+            <div className="chinese-pinyin-decoder">
+              <div className="chinese-decoder-head">
+                <span>pinyin decoder</span>
+                <strong>{decoderScore}% sync</strong>
+              </div>
+              <input
+                aria-label="Pinyin decoder input"
+                autoComplete="off"
+                spellCheck={false}
+                value={pinyinDecoderInput}
+                onChange={(event) => setPinyinDecoderInput(event.target.value)}
+                placeholder={`type: ${activePhrase.pinyin}`}
+              />
+              <ProgressBar value={decoderScore} />
+              <div className="chinese-decoder-tokens">
+                {decoderResults.map((result, index) => (
+                  <span className={result.state} key={`${result.target}-${index}`}>
+                    <strong>{result.target}</strong>
+                    <em>{result.typed || "..."}</em>
+                  </span>
+                ))}
               </div>
             </div>
           </div>
