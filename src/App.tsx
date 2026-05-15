@@ -5290,6 +5290,7 @@ function NotesView({
   const activeNoteFolder = activeNote?.folderId ? folderIndex.itemById.get(activeNote.folderId) ?? null : null;
   const activeNoteSignal = activeNote ? getNoteStudySignal(activeNote, activeNoteFolder) : null;
   const activeReadingProgress = Math.round(clamp(activeNote?.readingProgress ?? 0, 0, 100));
+  const activeNoteOutline = useMemo(() => getStudyOutline(draftBody), [draftBody]);
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -5745,6 +5746,25 @@ function NotesView({
       source: "Study session progress",
       metadata: { readingProgress, kind: activeNote.kind, folderId: activeNote.folderId },
     });
+  }
+
+  function jumpToOutlineItem(item: StudyOutlineItem) {
+    setMode("writing");
+    requestAnimationFrame(() => {
+      const element = editorRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(item.offset, item.offset);
+      element.scrollTop = Math.max(0, item.line * 26 - element.clientHeight * 0.2);
+    });
+  }
+
+  function addOutlineSection(title: string) {
+    const heading = title.trim() || "New Study Section";
+    const prefix = draftBody.trim() ? "\n\n" : "";
+    updateDraftBody(`${draftBody}${prefix}## ${heading}\n\n- `);
+    setMode("writing");
+    requestAnimationFrame(() => editorRef.current?.focus());
   }
 
   function scheduleTextSave(noteId: string, patch: Partial<Pick<StudyNote, "title" | "body">>) {
@@ -6594,6 +6614,7 @@ function NotesView({
                         <div><strong>{getHeadingCount(draftBody)}</strong><span>headings</span></div>
                         <div><strong>{getChecklistCount(draftBody)}</strong><span>bullets</span></div>
                       </div>
+                      <StudyOutlinePanel outline={activeNoteOutline} onJump={jumpToOutlineItem} onAddSection={addOutlineSection} />
                       <div className="study-prompts">
                         <strong>Study Prompts</strong>
                         {["What is the main idea?", "What confused me?", "What would I test myself on?", "How does this connect to my goals?"].map((prompt) => (
@@ -6629,6 +6650,7 @@ function NotesView({
                         <strong>Capture Notes</strong>
                         <span>{getWordCount(draftBody)} words</span>
                       </div>
+                      <StudyOutlinePanel outline={activeNoteOutline} compact onJump={jumpToOutlineItem} onAddSection={addOutlineSection} />
                       <textarea value={draftBody} onChange={(event) => updateDraftBody(event.target.value)} placeholder="Capture summaries, questions, formulas, examples, or follow-up tasks while reading..." />
                       <div className="capture-actions">
                         {["Key idea", "Question", "Definition", "Action item"].map((label) => (
@@ -7022,6 +7044,74 @@ function NotesView({
       </section>
       <SystemTrace label="Study notes online" />
     </>
+  );
+}
+
+type StudyOutlineItem = {
+  id: string;
+  title: string;
+  level: number;
+  line: number;
+  offset: number;
+  words: number;
+  bullets: number;
+  preview: string;
+  signal: number;
+};
+
+function StudyOutlinePanel({
+  outline,
+  compact = false,
+  onJump,
+  onAddSection,
+}: {
+  outline: StudyOutlineItem[];
+  compact?: boolean;
+  onJump: (item: StudyOutlineItem) => void;
+  onAddSection: (title: string) => void;
+}) {
+  const templates = compact ? ["Summary", "Questions"] : ["Summary", "Key Ideas", "Practice Questions", "Weak Areas"];
+  const averageSignal = outline.length ? Math.round(outline.reduce((total, item) => total + item.signal, 0) / outline.length) : 0;
+
+  return (
+    <section className={`study-outline-panel ${compact ? "compact" : ""}`}>
+      <div className="study-outline-head">
+        <div>
+          <span>Neural Outline</span>
+          <strong>{outline.length ? `${outline.length} nodes mapped` : "Waiting for structure"}</strong>
+        </div>
+        <em>{averageSignal}%</em>
+      </div>
+      {outline.length === 0 ? (
+        <div className="study-outline-empty">// add headings to generate jump nodes</div>
+      ) : (
+        <div className="study-outline-list">
+          {outline.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => onJump(item)}
+              style={{ "--depth": Math.min(Math.max(item.level - 1, 0), 3) } as CSSProperties}
+            >
+              <span>D{String(item.line + 1).padStart(2, "0")}</span>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.preview}</p>
+                <small>{item.words} words · {item.bullets} bullets</small>
+              </div>
+              <i aria-hidden="true">
+                <b style={{ width: `${item.signal}%` }} />
+              </i>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="study-outline-actions">
+        {templates.map((template) => (
+          <button type="button" onClick={() => onAddSection(template)} key={template}>+ {template}</button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -7805,6 +7895,57 @@ function getHeadingCount(value: string) {
 
 function getChecklistCount(value: string) {
   return value.split("\n").filter((line) => /^[-*]\s/.test(line.trim())).length;
+}
+
+function getStudyOutline(value: string): StudyOutlineItem[] {
+  const lines = value.split("\n");
+  const headings: Array<{ title: string; level: number; line: number; offset: number }> = [];
+  let offset = 0;
+
+  lines.forEach((line, index) => {
+    const match = /^(#{1,6})\s+(.+)$/.exec(line.trim());
+    if (match) {
+      headings.push({
+        title: match[2].trim(),
+        level: match[1].length,
+        line: index,
+        offset,
+      });
+    }
+    offset += line.length + 1;
+  });
+
+  if (!headings.length) {
+    const words = getWordCount(value);
+    if (!words) return [];
+    const bullets = getChecklistCount(value);
+    return [{
+      id: "outline-unstructured-capture",
+      title: "Unstructured capture",
+      level: 2,
+      line: 0,
+      offset: 0,
+      words,
+      bullets,
+      preview: truncateText(stripMarkdown(value), 110) || "No preview yet",
+      signal: Math.round(clamp(words / 4 + bullets * 10, 0, 100)),
+    }];
+  }
+
+  return headings.map((heading, index) => {
+    const next = headings[index + 1];
+    const sectionText = lines.slice(heading.line + 1, next?.line ?? lines.length).join("\n");
+    const words = getWordCount(sectionText);
+    const bullets = getChecklistCount(sectionText);
+    return {
+      id: `outline-${heading.line}-${slugify(heading.title)}`,
+      ...heading,
+      words,
+      bullets,
+      preview: truncateText(stripMarkdown(sectionText), 110) || "Section waiting for notes",
+      signal: Math.round(clamp(words / 3 + bullets * 12 + (heading.level <= 2 ? 8 : 0), 0, 100)),
+    };
+  }).slice(0, 12);
 }
 
 function buildStudyReviewCards(note?: StudyNote) {
