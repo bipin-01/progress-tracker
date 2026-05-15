@@ -559,6 +559,27 @@ type ChineseRepairComparison = {
   entry?: ChineseRepairHistoryEntry;
 };
 
+type ChinesePlacementSignal = {
+  id: string;
+  label: string;
+  score: number;
+  detail: string;
+  active: boolean;
+};
+
+type ChinesePlacementProfile = {
+  status: "sample" | "steady" | "advance" | "repair";
+  hskLabel: string;
+  readiness: number;
+  confidence: number;
+  recommendedDay: number;
+  recommendedWords: number;
+  deltaDays: number;
+  summary: string;
+  action: string;
+  signals: ChinesePlacementSignal[];
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -619,6 +640,15 @@ const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
 const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
 const CHINESE_SPEECH_HISTORY_LIMIT = 80;
 const CHINESE_REPAIR_DRILL_XP = 4;
+
+const chineseHskPlacementBands = [
+  { label: "HSK 1", floor: 0, ceiling: 150, startDay: 1, endDay: 50 },
+  { label: "HSK 2", floor: 150, ceiling: 450, startDay: 51, endDay: 100 },
+  { label: "HSK 3", floor: 450, ceiling: 1050, startDay: 101, endDay: 200 },
+  { label: "HSK 4", floor: 1050, ceiling: 2250, startDay: 201, endDay: 350 },
+  { label: "HSK 5", floor: 2250, ceiling: 3750, startDay: 351, endDay: 450 },
+  { label: "HSK 6", floor: 3750, ceiling: 5000, startDay: 451, endDay: 500 },
+];
 
 const chineseLessons: ChineseLesson[] = [
   {
@@ -1941,6 +1971,139 @@ function getChineseRepairComparison(
     delta,
     attempt: followUp,
     entry,
+  };
+}
+
+function clampChinesePercent(value: number) {
+  return Math.min(100, Math.max(0, Math.round(Number.isFinite(value) ? value : 0)));
+}
+
+function getChinesePlacementBand(knownCharacters: number) {
+  return (
+    chineseHskPlacementBands.find((band) => knownCharacters <= band.ceiling) ??
+    chineseHskPlacementBands[chineseHskPlacementBands.length - 1]
+  );
+}
+
+function getChinesePlacementProfile({
+  knownCharacters,
+  reviewMastery,
+  accuracy,
+  reviewedCount,
+  activeSpeechAverage,
+  speechAttemptCount,
+  decoderScore,
+  hasDecoderInput,
+  assemblyProgress,
+  assemblyTileCount,
+  strokeProgress,
+  strokeCompletedCount,
+  selectedPracticeDay,
+}: {
+  knownCharacters: number;
+  reviewMastery: number;
+  accuracy: number;
+  reviewedCount: number;
+  activeSpeechAverage: number;
+  speechAttemptCount: number;
+  decoderScore: number;
+  hasDecoderInput: boolean;
+  assemblyProgress: number;
+  assemblyTileCount: number;
+  strokeProgress: number;
+  strokeCompletedCount: number;
+  selectedPracticeDay: number;
+}): ChinesePlacementProfile {
+  const band = getChinesePlacementBand(knownCharacters);
+  const bandSpan = Math.max(1, band.ceiling - band.floor);
+  const bandProgress = clampChinesePercent(((knownCharacters - band.floor) / bandSpan) * 100);
+  const signals: ChinesePlacementSignal[] = [
+    {
+      id: "retention",
+      label: "retention",
+      score: reviewedCount ? clampChinesePercent(reviewMastery) : 50,
+      detail: reviewedCount ? `${reviewedCount} reviews` : "needs reviews",
+      active: reviewedCount > 0,
+    },
+    {
+      id: "accuracy",
+      label: "accuracy",
+      score: reviewedCount ? clampChinesePercent(accuracy) : 50,
+      detail: reviewedCount ? "good/easy ratio" : "needs grades",
+      active: reviewedCount > 0,
+    },
+    {
+      id: "tone",
+      label: "tone",
+      score: speechAttemptCount ? clampChinesePercent(activeSpeechAverage) : 50,
+      detail: speechAttemptCount ? `${speechAttemptCount} voice traces` : "needs speech",
+      active: speechAttemptCount > 0,
+    },
+    {
+      id: "pinyin",
+      label: "pinyin",
+      score: hasDecoderInput ? clampChinesePercent(decoderScore) : 50,
+      detail: hasDecoderInput ? "decoder sample" : "needs input",
+      active: hasDecoderInput,
+    },
+    {
+      id: "syntax",
+      label: "syntax",
+      score: assemblyTileCount ? clampChinesePercent(assemblyProgress) : 50,
+      detail: assemblyTileCount ? `${assemblyTileCount} slots` : "needs assembly",
+      active: assemblyTileCount > 0,
+    },
+    {
+      id: "stroke",
+      label: "stroke",
+      score: strokeCompletedCount ? clampChinesePercent(strokeProgress) : 50,
+      detail: strokeCompletedCount ? `${strokeCompletedCount}/4 passes` : "needs trace",
+      active: strokeCompletedCount > 0,
+    },
+  ];
+  const evidenceCount = signals.filter((signal) => signal.active).length;
+  const readiness = clampChinesePercent(
+    signals.reduce((total, signal) => total + signal.score, 0) / Math.max(signals.length, 1),
+  );
+  const confidence = clampChinesePercent((evidenceCount / signals.length) * 100);
+  const rawDay =
+    band.startDay + Math.round(((band.endDay - band.startDay) * bandProgress) / 100) + (readiness >= 78 ? 10 : readiness < 48 ? -10 : 0);
+  const boundedDay =
+    evidenceCount < 3
+      ? selectedPracticeDay
+      : Math.min(
+          Math.max(rawDay, Math.max(1, selectedPracticeDay - 30)),
+          Math.min(CHINESE_PRACTICE_TOTAL_DAYS, selectedPracticeDay + 30),
+        );
+  const recommendedDay = Math.min(Math.max(Math.round(boundedDay), 1), CHINESE_PRACTICE_TOTAL_DAYS);
+  const deltaDays = recommendedDay - selectedPracticeDay;
+  const status =
+    confidence < 50
+      ? "sample"
+      : readiness < 55
+        ? "repair"
+        : deltaDays > 3
+          ? "advance"
+          : "steady";
+
+  return {
+    status,
+    hskLabel: `${band.label} · ${bandProgress}% band`,
+    readiness,
+    confidence,
+    recommendedDay,
+    recommendedWords: getChinesePracticeDay(recommendedDay).wordsPerDay,
+    deltaDays,
+    summary:
+      status === "sample"
+        ? "run one listen-build-write-recall sample before moving the schedule"
+        : status === "repair"
+          ? "hold placement and repair weak recall before increasing load"
+          : status === "advance"
+            ? `advance ${deltaDays} days with current evidence`
+            : "placement and daily load are aligned",
+    action: status === "sample" ? "run sample" : deltaDays === 0 ? "hold day" : `apply D${String(recommendedDay).padStart(3, "0")}`,
+    signals,
   };
 }
 
@@ -12970,6 +13133,21 @@ function ChineseView() {
   const repairMissionScore = Math.round((repairDrillDoneCount / Math.max(adaptiveRepairMission.drills.length, 1)) * 100);
   const repairMissionLocked = adaptiveRepairMission.hasSignal && repairMissionScore === 100;
   const currentRepairHistoryEntry = repairHistory.find((entry) => entry.missionKey === adaptiveRepairMission.key);
+  const placementProfile = getChinesePlacementProfile({
+    knownCharacters,
+    reviewMastery,
+    accuracy,
+    reviewedCount,
+    activeSpeechAverage,
+    speechAttemptCount: speechAttempts.length,
+    decoderScore,
+    hasDecoderInput: Boolean(pinyinDecoderInput.trim()),
+    assemblyProgress,
+    assemblyTileCount: assemblyTileIds.length,
+    strokeProgress,
+    strokeCompletedCount,
+    selectedPracticeDay,
+  });
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -13161,6 +13339,19 @@ function ChineseView() {
     const primarySymbol = entry.symbols[0];
     if (primarySymbol) openDictionary(primarySymbol);
     setRewardMessage(`repair history loaded · T${entry.tone} ${entry.toneName}`);
+  }
+
+  function runPlacementCalibration() {
+    if (placementProfile.status === "sample") {
+      setLessonFocusActive(true);
+      setRewardMessage("placement sample armed · run listen/build/write/recall");
+      return;
+    }
+
+    selectPracticeDay(placementProfile.recommendedDay);
+    setRewardMessage(
+      `placement calibrated · ${placementProfile.hskLabel} · D${String(placementProfile.recommendedDay).padStart(3, "0")}`,
+    );
   }
 
   function toggleRepairDrill(drill: ChineseAdaptiveRepairDrill) {
@@ -13894,6 +14085,41 @@ function ChineseView() {
                     </button>
                   );
                 })}
+              </div>
+              <div
+                className={`zh-placement-matrix status-${placementProfile.status}`}
+                style={
+                  {
+                    "--placement-readiness": `${placementProfile.readiness}%`,
+                  } as CSSProperties
+                }
+                aria-label="HSK placement calibration"
+              >
+                <div className="zh-placement-core">
+                  <span>placement matrix</span>
+                  <strong>{placementProfile.hskLabel}</strong>
+                  <em>{placementProfile.summary}</em>
+                  <i aria-hidden="true" />
+                </div>
+                <div className="zh-placement-target">
+                  <span>recommended load</span>
+                  <strong>D{String(placementProfile.recommendedDay).padStart(3, "0")}</strong>
+                  <em>
+                    {placementProfile.recommendedWords} words · {placementProfile.confidence}% conf · {placementProfile.deltaDays > 0 ? "+" : ""}
+                    {placementProfile.deltaDays}d
+                  </em>
+                  <button type="button" onClick={runPlacementCalibration}>
+                    {placementProfile.action}
+                  </button>
+                </div>
+                <div className="zh-placement-signals">
+                  {placementProfile.signals.map((signal) => (
+                    <span key={signal.id} className={signal.active ? "active" : ""} title={signal.detail}>
+                      <b>{signal.label}</b>
+                      <i>{signal.score}</i>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

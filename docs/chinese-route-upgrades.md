@@ -37,13 +37,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added repair mission completion tracking: adaptive drills can now be checked off, scored as a repair lock percentage, persisted into Memory Core, and rewarded with XP/combo feedback.
 - 2026-05-15 - Added a compact repair history strip: locked repair missions now persist tone, day, and hanzi targets, then show the last 7 repaired weaknesses directly under Daily Mission Uplink.
 - 2026-05-15 - Added post-repair comparison: the mission panel now compares the latest locked repair baseline against the next matching spoken attempt and reports whether tone/hanzi risk dropped or stayed hot.
+- 2026-05-15 - Added the HSK Placement Matrix: the HSK panel now samples retention, accuracy, tone output, pinyin input, sentence assembly, and stroke work to recommend a bounded daily-plan recalibration or ask for a focused sample first.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add a compact HSK mini-placement check that periodically samples known characters, tones, and sentence assembly to recalibrate daily mission difficulty.
+- Add a placement history strip so recalibrations become auditable training decisions instead of one-off UI state.
 
 ## Design Rules For Future Passes
 
