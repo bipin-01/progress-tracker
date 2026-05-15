@@ -5293,6 +5293,7 @@ function NotesView({
   const activeNoteSignal = activeNote ? getNoteStudySignal(activeNote, activeNoteFolder) : null;
   const activeReadingProgress = Math.round(clamp(activeNote?.readingProgress ?? 0, 0, 100));
   const activeNoteOutline = useMemo(() => getStudyOutline(draftBody), [draftBody]);
+  const activeNoteCockpit = activeNote && activeNoteSignal ? getNoteCockpitMetrics(activeNote, activeNoteSignal) : [];
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -6419,6 +6420,28 @@ function NotesView({
                   </div>
 
                   {activeNoteSignal && (
+                    <section className={`notes-active-cockpit ${activeNoteSignal.tier}`}>
+                      <div className="notes-cockpit-head">
+                        <div>
+                          <span>Active Note Cockpit</span>
+                          <strong>{getNoteCockpitProtocol(activeNoteSignal)}</strong>
+                        </div>
+                        <em>{activeNote.kind} / {activeNoteSignal.folderPath}</em>
+                      </div>
+                      <div className="notes-cockpit-grid">
+                        {activeNoteCockpit.map((metric) => (
+                          <button className={metric.tone} type="button" onClick={() => setMode(metric.mode)} key={metric.id}>
+                            <span>{metric.title}</span>
+                            <strong>{metric.value}</strong>
+                            <em>{metric.detail}</em>
+                            <i aria-label={`${metric.title} ${metric.score}%`}><b style={{ width: `${metric.score}%` }} /></i>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {activeNoteSignal && (
                     <section className={`notes-session-strip ${activeReadingProgress >= 100 ? "complete" : activeReadingProgress >= 50 ? "active" : ""}`}>
                       <div className="notes-session-copy">
                         <span>Session Progress</span>
@@ -7204,6 +7227,16 @@ type NotesFlowLane = {
   items: Array<{ note: StudyNote; signal: ReturnType<typeof getNoteStudySignal> }>;
 };
 
+type NoteCockpitMetric = {
+  id: "structure" | "recall" | "depth" | "sync";
+  title: string;
+  value: string;
+  detail: string;
+  score: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  mode: NotesMode;
+};
+
 function StudyOutlinePanel({
   outline,
   compact = false,
@@ -7966,6 +7999,58 @@ function getStudySessionDirective(progress: number, signal: ReturnType<typeof ge
   if (progress >= 50) return "Deep read is underway. Convert unclear sections into questions or definitions.";
   if (progress >= 25) return "First scan captured. Mark core headings, examples, and unknown terms.";
   return signal.tier === "thin" ? "Start with structure: summary, key ideas, and one question." : "Start the pass by scanning the document map and capture targets.";
+}
+
+function getNoteCockpitProtocol(signal: ReturnType<typeof getNoteStudySignal>) {
+  if (signal.tier === "prime") return "Review-ready protocol";
+  if (signal.cards === 0) return "Recall construction needed";
+  if (signal.headings === 0) return "Structure pass required";
+  if (signal.progress < 50) return "Deep-read sync open";
+  return "Strengthen weak concepts";
+}
+
+function getNoteCockpitMetrics(note: StudyNote, signal: ReturnType<typeof getNoteStudySignal>): NoteCockpitMetric[] {
+  const structureScore = Math.round(clamp(signal.headings * 18 + signal.bullets * 4, 0, 100));
+  const recallScore = Math.round(clamp(signal.cards * 14 + signal.askCount * 9, 0, 100));
+  const depthScore = Math.round(clamp(signal.wordCount / 9 + (note.kind === "document" ? 12 : 0), 0, 100));
+  return [
+    {
+      id: "structure",
+      title: "Structure",
+      value: `${signal.headings}/${signal.bullets}`,
+      detail: "heads / bullets",
+      score: structureScore,
+      tone: structureScore >= 70 ? "lime" : structureScore >= 36 ? "cyan" : "amber",
+      mode: "writing",
+    },
+    {
+      id: "recall",
+      title: "Recall",
+      value: `${signal.cards}`,
+      detail: `${signal.askCount} asks logged`,
+      score: recallScore,
+      tone: recallScore >= 70 ? "lime" : recallScore >= 32 ? "violet" : "amber",
+      mode: signal.cards > 0 ? "queue" : "review",
+    },
+    {
+      id: "depth",
+      title: "Depth",
+      value: `${signal.readingMins}m`,
+      detail: `${signal.wordCount} words`,
+      score: depthScore,
+      tone: depthScore >= 70 ? "lime" : "cyan",
+      mode: note.kind === "document" ? "reading" : "writing",
+    },
+    {
+      id: "sync",
+      title: "Session",
+      value: `${signal.progress}%`,
+      detail: signal.progress >= 100 ? "sealed pass" : "sync progress",
+      score: signal.progress,
+      tone: signal.progress >= 75 ? "lime" : signal.progress >= 35 ? "violet" : "cyan",
+      mode: "reading",
+    },
+  ];
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {

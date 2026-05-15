@@ -5856,6 +5856,136 @@ button.load-forecast-day:hover {
   padding: 0;
 }
 
+.notes-active-cockpit {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 14px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(53, 215, 255, 0.12), transparent 30%),
+    linear-gradient(110deg, rgba(53, 215, 255, 0.06), rgba(159, 107, 255, 0.045) 48%, transparent),
+    rgba(5, 9, 18, 0.38);
+  box-shadow: inset 0 0 28px rgba(53, 215, 255, 0.04);
+  padding: 12px;
+}
+
+.notes-active-cockpit.prime {
+  border-color: rgba(146, 255, 87, 0.32);
+}
+
+.notes-active-cockpit.thin {
+  border-color: rgba(255, 184, 76, 0.32);
+}
+
+.notes-cockpit-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notes-cockpit-head div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.notes-cockpit-head span,
+.notes-cockpit-head em,
+.notes-cockpit-grid button span,
+.notes-cockpit-grid button em {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.notes-cockpit-head strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(15px, 1.6vw, 22px);
+  letter-spacing: 0.12em;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 16px rgba(53, 215, 255, 0.3);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.notes-cockpit-head em {
+  max-width: 42%;
+  overflow: hidden;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.36);
+  color: var(--ink-2);
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-cockpit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.notes-cockpit-grid button {
+  --metric-color: var(--cyan);
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  border-left: 2px solid var(--metric-color);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--metric-color) 10%, transparent), transparent 58%),
+    rgba(2, 7, 15, 0.42);
+  padding: 10px;
+  text-align: left;
+}
+
+.notes-cockpit-grid button.violet {
+  --metric-color: var(--violet);
+}
+
+.notes-cockpit-grid button.lime {
+  --metric-color: var(--lime);
+}
+
+.notes-cockpit-grid button.amber {
+  --metric-color: var(--amber);
+}
+
+.notes-cockpit-grid button:hover {
+  border-color: color-mix(in srgb, var(--metric-color) 70%, transparent);
+  background: rgba(53, 215, 255, 0.07);
+}
+
+.notes-cockpit-grid button strong {
+  color: var(--metric-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 24px;
+  line-height: 1;
+  text-shadow: 0 0 13px color-mix(in srgb, var(--metric-color) 32%, transparent);
+}
+
+.notes-cockpit-grid button i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.notes-cockpit-grid button i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--metric-color), var(--cyan));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--metric-color) 34%, transparent);
+}
+
 .notes-session-strip {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1fr) minmax(220px, 0.38fr);
@@ -9758,6 +9888,7 @@ button.load-forecast-day:hover {
   .notes-nexus-tags,
   .notes-orbit-body,
   .notes-flow-lanes,
+  .notes-cockpit-grid,
   .notes-session-strip,
   .notes-session-pulse,
   .pdf-viewer-toolbar,
