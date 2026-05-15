@@ -5246,6 +5246,7 @@ function NotesView({
   const dueFlashcards = useMemo(() => getDueFlashcards(allSavedFlashcards), [allSavedFlashcards]);
   const nextScheduledCard = useMemo(() => getNextScheduledFlashcard(allSavedFlashcards), [allSavedFlashcards]);
   const activeQueueItem = dueFlashcards[0] ?? nextScheduledCard;
+  const memoryQueue = useMemo(() => getMemoryQueueTelemetry(allSavedFlashcards), [allSavedFlashcards]);
   const continueReadingNote = useMemo(() => sortedNotes.find((note) => note.kind === "document") ?? sortedNotes[0], [sortedNotes]);
   const weakNotes = useMemo(() => getWeakStudyNotes(liveNotes), [liveNotes]);
   const reviewedToday = useMemo(() => allSavedFlashcards.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length, [allSavedFlashcards]);
@@ -7000,6 +7001,41 @@ function NotesView({
                 </div>
               ) : mode === "queue" ? (
                 <div className="review-queue-mode">
+                  <section className={`memory-queue-console ${memoryQueue.state}`}>
+                    <div className="memory-queue-core">
+                      <span>Memory Queue</span>
+                      <strong>{memoryQueue.command}</strong>
+                      <p>{memoryQueue.directive}</p>
+                      <div>
+                        <button type="button" onClick={() => setQueueRevealed(false)} disabled={!activeQueueItem}>reset card</button>
+                        <button type="button" onClick={jumpToQueueSource} disabled={!activeQueueItem}>open source</button>
+                      </div>
+                    </div>
+                    <div className="memory-queue-orb" aria-label={`Memory queue load ${memoryQueue.load}%`}>
+                      <i style={{ "--queue-load": `${memoryQueue.load}%` } as CSSProperties} />
+                      <strong>{memoryQueue.load}%</strong>
+                      <span>load</span>
+                    </div>
+                    <div className="memory-queue-grid">
+                      {memoryQueue.bands.map((band) => (
+                        <div className={band.tone} key={band.id}>
+                          <span>{band.title}</span>
+                          <strong>{band.value}</strong>
+                          <em>{band.detail}</em>
+                          <i aria-label={`${band.title} ${band.progress}%`}><b style={{ width: `${band.progress}%` }} /></i>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="memory-queue-timeline" aria-label="Seven day memory load">
+                      {memoryQueue.timeline.map((day) => (
+                        <div className={day.tone} key={day.id}>
+                          <span>{day.label}</span>
+                          <i><b style={{ height: `${day.intensity}%` }} /></i>
+                          <strong>{day.count}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                   <div className="queue-stats">
                     <div>
                       <span>Due Now</span>
@@ -7464,6 +7500,30 @@ type ReviewForgeStats = {
     question: string;
     source: string;
     saved: boolean;
+  }>;
+};
+
+type MemoryQueueBand = {
+  id: "due" | "learning" | "new" | "known";
+  title: string;
+  value: string;
+  detail: string;
+  progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+};
+
+type MemoryQueueTelemetry = {
+  state: "offline" | "clear" | "pressure" | "learning";
+  load: number;
+  command: string;
+  directive: string;
+  bands: MemoryQueueBand[];
+  timeline: Array<{
+    id: string;
+    label: string;
+    count: number;
+    intensity: number;
+    tone: "cyan" | "violet" | "lime" | "amber";
   }>;
 };
 
@@ -8063,6 +8123,100 @@ function getDueFlashcards(items: ReturnType<typeof getAllSavedFlashcards>) {
 function getNextScheduledFlashcard(items: ReturnType<typeof getAllSavedFlashcards>) {
   const now = Date.now();
   return items.find((item) => new Date(item.card.dueAt).getTime() > now);
+}
+
+function getMemoryQueueTelemetry(items: ReturnType<typeof getAllSavedFlashcards>): MemoryQueueTelemetry {
+  const now = Date.now();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const dayMs = 86400000;
+  const total = items.length;
+  const dueNow = items.filter((item) => new Date(item.card.dueAt).getTime() <= now && item.card.difficulty !== "known").length;
+  const learningCount = items.filter((item) => item.card.difficulty === "learning").length;
+  const newCount = items.filter((item) => item.card.difficulty === "new").length;
+  const knownCount = items.filter((item) => item.card.difficulty === "known").length;
+  const reviewedTodayCount = items.filter((item) => item.card.lastReviewedAt && isToday(item.card.lastReviewedAt)).length;
+  const next24Count = items.filter((item) => {
+    const dueAt = new Date(item.card.dueAt).getTime();
+    return dueAt > now && dueAt <= now + dayMs && item.card.difficulty !== "known";
+  }).length;
+  const activeCount = Math.max(total - knownCount, 0);
+  const load = Math.round(clamp(dueNow * 15 + learningCount * 7 + newCount * 4 + next24Count * 4 - reviewedTodayCount * 3, 0, 100));
+  const state: MemoryQueueTelemetry["state"] =
+    total === 0 ? "offline" : dueNow > 0 ? "pressure" : learningCount > 0 ? "learning" : "clear";
+  const command =
+    state === "offline"
+      ? "memory deck offline"
+      : state === "pressure"
+        ? "recall pressure active"
+        : state === "learning"
+          ? "learning loop stabilizing"
+          : "memory field clear";
+  const directive =
+    state === "offline"
+      ? "Save generated cards from Review or AI mode to bring the spaced recall system online."
+      : dueNow > 0
+        ? `${dueNow} card${dueNow === 1 ? "" : "s"} need recall now. Clear pressure before adding more capture.`
+        : learningCount > 0
+          ? "No due cards right now. Keep learning cards warm and return when the next wave unlocks."
+          : "Queue is calm. Use this window to forge new cards from weak notes or continue reading.";
+  const timeline = Array.from({ length: 7 }, (_, index) => {
+    const start = startOfToday.getTime() + index * dayMs;
+    const end = start + dayMs;
+    const count = items.filter((item) => {
+      const dueAt = new Date(item.card.dueAt).getTime();
+      return dueAt >= start && dueAt < end && item.card.difficulty !== "known";
+    }).length;
+    return {
+      id: `queue-day-${index}`,
+      label: index === 0 ? "Today" : `D+${index}`,
+      count,
+      intensity: Math.round(clamp(count * 18 + (index === 0 ? dueNow * 7 : 0), 8, 100)),
+      tone: count >= 5 ? "amber" : count >= 2 ? "violet" : count === 1 ? "cyan" : "lime",
+    } as MemoryQueueTelemetry["timeline"][number];
+  });
+
+  return {
+    state,
+    load,
+    command,
+    directive,
+    bands: [
+      {
+        id: "due",
+        title: "Due Now",
+        value: `${dueNow}`,
+        detail: `${next24Count} next 24h`,
+        progress: Math.round(clamp(dueNow * 18, 0, 100)),
+        tone: dueNow > 3 ? "amber" : dueNow > 0 ? "violet" : "lime",
+      },
+      {
+        id: "learning",
+        title: "Learning",
+        value: `${learningCount}`,
+        detail: `${reviewedTodayCount} reviewed today`,
+        progress: Math.round(clamp(learningCount * 14 + reviewedTodayCount * 8, 0, 100)),
+        tone: learningCount > 4 ? "amber" : learningCount > 0 ? "violet" : "cyan",
+      },
+      {
+        id: "new",
+        title: "New Cards",
+        value: `${newCount}`,
+        detail: `${activeCount} active`,
+        progress: Math.round(clamp(newCount * 12, 0, 100)),
+        tone: newCount > 6 ? "amber" : newCount > 0 ? "cyan" : "lime",
+      },
+      {
+        id: "known",
+        title: "Known",
+        value: `${knownCount}`,
+        detail: total ? `${Math.round((knownCount / total) * 100)}% mastered` : "no deck",
+        progress: total ? Math.round((knownCount / total) * 100) : 0,
+        tone: total && knownCount / total >= 0.7 ? "lime" : "cyan",
+      },
+    ],
+    timeline,
+  };
 }
 
 function getWeakStudyNotes(notes: StudyNote[]) {

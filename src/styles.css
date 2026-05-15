@@ -8571,6 +8571,265 @@ button.load-forecast-day:hover {
   gap: 14px;
 }
 
+.memory-queue-console {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.32fr) minmax(140px, 0.16fr) minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.22);
+  background:
+    radial-gradient(circle at 10% 12%, rgba(53, 215, 255, 0.14), transparent 34%),
+    radial-gradient(circle at 82% 0%, rgba(146, 255, 87, 0.1), transparent 31%),
+    linear-gradient(115deg, rgba(53, 215, 255, 0.07), rgba(159, 107, 255, 0.045) 52%, transparent),
+    rgba(4, 9, 19, 0.5);
+  box-shadow:
+    inset 0 0 30px rgba(53, 215, 255, 0.05),
+    0 20px 38px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+}
+
+.memory-queue-console.pressure {
+  border-color: rgba(255, 184, 76, 0.34);
+}
+
+.memory-queue-console.clear {
+  border-color: rgba(146, 255, 87, 0.32);
+}
+
+.memory-queue-core {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.09), transparent 58%),
+    rgba(2, 7, 15, 0.45);
+  padding: 14px 14px 14px 18px;
+}
+
+.memory-queue-core::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cyan), var(--lime), var(--violet));
+  box-shadow: 0 0 18px rgba(53, 215, 255, 0.45);
+}
+
+.memory-queue-core span,
+.memory-queue-core button,
+.memory-queue-orb span,
+.memory-queue-grid span,
+.memory-queue-grid em,
+.memory-queue-timeline span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.memory-queue-core strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(15px, 1.45vw, 22px);
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.32);
+  text-transform: uppercase;
+}
+
+.memory-queue-console.clear .memory-queue-core strong {
+  color: var(--lime);
+}
+
+.memory-queue-console.pressure .memory-queue-core strong {
+  color: var(--amber);
+}
+
+.memory-queue-core p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.memory-queue-core div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.memory-queue-core button {
+  border: 1px solid var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.07);
+  color: var(--cyan);
+  padding: 8px 10px;
+}
+
+.memory-queue-core button:disabled {
+  border-color: var(--hair-soft);
+  color: rgba(129, 146, 186, 0.48);
+  cursor: not-allowed;
+}
+
+.memory-queue-orb {
+  position: relative;
+  display: grid;
+  min-height: 168px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    radial-gradient(circle at center, rgba(53, 215, 255, 0.08), transparent 62%),
+    rgba(2, 7, 15, 0.45);
+}
+
+.memory-queue-orb i {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  border: 1px solid rgba(53, 215, 255, 0.18);
+  background:
+    radial-gradient(circle at center, rgba(2, 7, 15, 0.94) 54%, transparent 55%),
+    conic-gradient(var(--cyan) var(--queue-load), rgba(53, 215, 255, 0.1) 0);
+  box-shadow: 0 0 22px rgba(53, 215, 255, 0.18);
+}
+
+.memory-queue-console.pressure .memory-queue-orb i {
+  background:
+    radial-gradient(circle at center, rgba(2, 7, 15, 0.94) 54%, transparent 55%),
+    conic-gradient(var(--amber) var(--queue-load), rgba(53, 215, 255, 0.1) 0);
+}
+
+.memory-queue-orb strong {
+  z-index: 1;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.4);
+}
+
+.memory-queue-orb span {
+  z-index: 1;
+  align-self: end;
+  margin-bottom: 18px;
+}
+
+.memory-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.memory-queue-grid div {
+  --queue-node-color: var(--cyan);
+  display: grid;
+  align-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  border-top: 2px solid var(--queue-node-color);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--queue-node-color) 9%, transparent), transparent 64%),
+    rgba(2, 7, 15, 0.44);
+  padding: 11px;
+}
+
+.memory-queue-grid div.violet {
+  --queue-node-color: var(--violet);
+}
+
+.memory-queue-grid div.lime {
+  --queue-node-color: var(--lime);
+}
+
+.memory-queue-grid div.amber {
+  --queue-node-color: var(--amber);
+}
+
+.memory-queue-grid strong {
+  color: var(--queue-node-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 23px;
+  line-height: 1;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--queue-node-color) 34%, transparent);
+}
+
+.memory-queue-grid i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.memory-queue-grid i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--queue-node-color), var(--cyan));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--queue-node-color) 38%, transparent);
+}
+
+.memory-queue-timeline {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(7, minmax(78px, 1fr));
+  gap: 8px;
+  border-top: 1px dashed rgba(53, 215, 255, 0.16);
+  padding-top: 10px;
+}
+
+.memory-queue-timeline div {
+  --queue-day-color: var(--cyan);
+  display: grid;
+  gap: 7px;
+  justify-items: center;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.13);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 9px 8px;
+}
+
+.memory-queue-timeline div.violet {
+  --queue-day-color: var(--violet);
+}
+
+.memory-queue-timeline div.lime {
+  --queue-day-color: var(--lime);
+}
+
+.memory-queue-timeline div.amber {
+  --queue-day-color: var(--amber);
+}
+
+.memory-queue-timeline i {
+  display: grid;
+  width: 8px;
+  height: 74px;
+  align-items: end;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.memory-queue-timeline b {
+  display: block;
+  min-height: 4px;
+  background: linear-gradient(180deg, var(--queue-day-color), var(--cyan));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--queue-day-color) 38%, transparent);
+}
+
+.memory-queue-timeline strong {
+  color: var(--queue-day-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 15px;
+}
+
 .queue-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -10806,6 +11065,9 @@ button.load-forecast-day:hover {
   .review-forge-panel,
   .review-forge-grid,
   .review-forge-lane,
+  .memory-queue-console,
+  .memory-queue-grid,
+  .memory-queue-timeline,
   .writing-layout,
   .reading-layout,
   .review-card-grid,
