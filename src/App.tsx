@@ -5304,6 +5304,7 @@ function NotesView({
   const readerImmersionNodes = activeNote && activeDraftSignal ? getReaderImmersionNodes(activeNote, activeDraftSignal, activeReadingProgress) : [];
   const primaryReaderNode = readerImmersionNodes.find((node) => node.progress < 80) ?? readerImmersionNodes[0];
   const reviewForge = activeDraftSignal ? getReviewForgeStats(reviewCards, savedFlashcards, activeDraftSignal) : null;
+  const aiTutorMatrix = activeNote && activeDraftSignal ? getAiTutorMatrix(activeNote, activeDraftSignal, aiResult, askHistory, savedFlashcards) : null;
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -7265,6 +7266,39 @@ function NotesView({
                       <button type="button" onClick={() => saveGeneratedFlashcards()}>save cards</button>
                     </div>
                   </div>
+                  {aiTutorMatrix && (
+                    <section className={`ai-tutor-matrix ${activeDraftSignal?.tier ?? ""}`}>
+                      <div className="ai-tutor-core">
+                        <span>Tutor Matrix</span>
+                        <strong>{aiTutorMatrix.command}</strong>
+                        <p>{aiTutorMatrix.directive}</p>
+                        <div>
+                          <button type="button" onClick={() => setAiResult(buildLocalAiStudyAnalysis(activeNote))}>run analysis</button>
+                          <button type="button" onClick={() => setAskInput(aiTutorMatrix.primaryPrompt)}>prime ask</button>
+                        </div>
+                      </div>
+                      <div className="ai-tutor-orb" aria-label={`Tutor matrix signal ${aiTutorMatrix.signal}%`}>
+                        <i style={{ "--ai-signal": `${aiTutorMatrix.signal}%` } as CSSProperties} />
+                        <strong>{aiTutorMatrix.signal}%</strong>
+                        <span>signal</span>
+                      </div>
+                      <div className="ai-tutor-grid">
+                        {aiTutorMatrix.nodes.map((node) => (
+                          <button className={node.tone} type="button" onClick={() => setAskInput(node.prompt)} key={node.id}>
+                            <span>{node.title}</span>
+                            <strong>{node.value}</strong>
+                            <em>{node.detail}</em>
+                            <i aria-label={`${node.title} ${node.progress}%`}><b style={{ width: `${node.progress}%` }} /></i>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="ai-tutor-prompts">
+                        {aiTutorMatrix.prompts.map((prompt) => (
+                          <button type="button" onClick={() => setAskInput(prompt)} key={prompt}>{prompt}</button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <section className="ask-note-panel">
                     <div className="ask-note-head">
                       <span>Ask Note</span>
@@ -7525,6 +7559,25 @@ type MemoryQueueTelemetry = {
     intensity: number;
     tone: "cyan" | "violet" | "lime" | "amber";
   }>;
+};
+
+type AiTutorNode = {
+  id: "context" | "questions" | "analysis" | "cards";
+  title: string;
+  value: string;
+  detail: string;
+  progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  prompt: string;
+};
+
+type AiTutorMatrix = {
+  signal: number;
+  command: string;
+  directive: string;
+  primaryPrompt: string;
+  nodes: AiTutorNode[];
+  prompts: string[];
 };
 
 function StudyOutlinePanel({
@@ -9031,6 +9084,106 @@ function buildLocalAiStudyAnalysis(note: StudyNote) {
     ],
     flashcards,
     quiz: flashcards.slice(0, 6).map((card) => card.question),
+  };
+}
+
+function getAiTutorMatrix(
+  note: StudyNote,
+  signal: ReturnType<typeof getNoteStudySignal>,
+  analysis: ReturnType<typeof buildLocalAiStudyAnalysis> | null,
+  askItems: NonNullable<StudyNote["askHistory"]>,
+  savedCards: NonNullable<StudyNote["flashcards"]>,
+): AiTutorMatrix {
+  const contextProgress = Math.round(clamp(signal.wordCount / 9 + signal.headings * 10 + signal.bullets * 4, 0, 100));
+  const questionProgress = Math.round(clamp(askItems.length * 18 + signal.askCount * 4, 0, 100));
+  const analysisProgress = analysis
+    ? Math.round(clamp(analysis.keyTerms.length * 8 + analysis.flashcards.length * 5 + analysis.weakAreas.length * 10, 0, 100))
+    : 0;
+  const cardProgress = Math.round(clamp(savedCards.length * 11 + signal.cards * 4, 0, 100));
+  const signalScore = weightedScore([
+    [signal.score, 0.28],
+    [contextProgress, 0.24],
+    [questionProgress, 0.16],
+    [analysisProgress, 0.18],
+    [cardProgress, 0.14],
+  ]);
+  const sourceLabel = (note.sourceName ?? note.title) || "active note";
+  const primaryPrompt =
+    signal.wordCount < 120
+      ? "What context is missing before this note can become useful for review?"
+      : analysis
+        ? "What should I do next based on this analysis?"
+        : "Analyze this note and identify the highest-value study moves.";
+  const command =
+    signal.wordCount < 80
+      ? "context uplink weak"
+      : !analysis
+        ? "analysis pass pending"
+        : askItems.length === 0
+          ? "interrogation loop idle"
+          : savedCards.length === 0
+            ? "recall export pending"
+            : "tutor matrix online";
+  const directive =
+    signal.wordCount < 80
+      ? "Add more source text or capture notes before asking complex questions."
+      : !analysis
+        ? "Run analysis to extract weak areas, key terms, actions, and flashcards."
+        : askItems.length === 0
+          ? "Prime the ask loop with a targeted question so the note starts answering back."
+          : savedCards.length === 0
+            ? "Save useful AI flashcards into the deck so this insight enters spaced recall."
+            : "AI study loop is active. Keep asking sharper questions and feeding the queue.";
+
+  return {
+    signal: signalScore,
+    command,
+    directive,
+    primaryPrompt,
+    nodes: [
+      {
+        id: "context",
+        title: "Context",
+        value: `${signal.readingMins}m`,
+        detail: `${signal.wordCount} words / ${signal.headings} heads`,
+        progress: contextProgress,
+        tone: contextProgress >= 70 ? "lime" : contextProgress >= 35 ? "cyan" : "amber",
+        prompt: `Summarize the strongest context from ${sourceLabel} in exam-ready language.`,
+      },
+      {
+        id: "questions",
+        title: "Ask Loop",
+        value: `${askItems.length}`,
+        detail: "exchanges",
+        progress: questionProgress,
+        tone: questionProgress >= 70 ? "lime" : questionProgress > 0 ? "violet" : "cyan",
+        prompt: "Ask me one hard question from this note and explain why it matters.",
+      },
+      {
+        id: "analysis",
+        title: "Analysis",
+        value: analysis ? `${analysis.keyTerms.length}` : "off",
+        detail: analysis ? "terms mapped" : "not run",
+        progress: analysisProgress,
+        tone: analysisProgress >= 70 ? "lime" : analysis ? "violet" : "amber",
+        prompt: "What are the weak areas and action items I should focus on next?",
+      },
+      {
+        id: "cards",
+        title: "Card Export",
+        value: `${savedCards.length}`,
+        detail: `${signal.cards} saved`,
+        progress: cardProgress,
+        tone: cardProgress >= 70 ? "lime" : cardProgress > 0 ? "cyan" : "amber",
+        prompt: "Create five high-quality flashcards from this note with concise answers.",
+      },
+    ],
+    prompts: [
+      "Explain this like I will be tested tomorrow.",
+      "Find the weakest concept and drill it.",
+      "Turn this into scenario-based questions.",
+      "Give me a memory hook for the top terms.",
+    ],
   };
 }
 

@@ -9024,6 +9024,230 @@ button.load-forecast-day:hover {
   gap: 14px;
 }
 
+.ai-tutor-matrix {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.34fr) minmax(140px, 0.16fr) minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.22);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(53, 215, 255, 0.15), transparent 34%),
+    radial-gradient(circle at 82% 0%, rgba(159, 107, 255, 0.13), transparent 32%),
+    linear-gradient(115deg, rgba(53, 215, 255, 0.07), rgba(159, 107, 255, 0.055) 54%, transparent),
+    rgba(4, 9, 19, 0.5);
+  box-shadow:
+    inset 0 0 30px rgba(53, 215, 255, 0.05),
+    0 20px 38px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+}
+
+.ai-tutor-matrix.prime {
+  border-color: rgba(146, 255, 87, 0.34);
+}
+
+.ai-tutor-matrix.thin {
+  border-color: rgba(255, 184, 76, 0.34);
+}
+
+.ai-tutor-core {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.09), transparent 58%),
+    rgba(2, 7, 15, 0.45);
+  padding: 14px 14px 14px 18px;
+}
+
+.ai-tutor-core::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cyan), var(--violet), var(--lime));
+  box-shadow: 0 0 18px rgba(53, 215, 255, 0.45);
+}
+
+.ai-tutor-core span,
+.ai-tutor-core button,
+.ai-tutor-orb span,
+.ai-tutor-grid button span,
+.ai-tutor-grid button em,
+.ai-tutor-prompts button {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ai-tutor-core strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(15px, 1.45vw, 22px);
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.32);
+  text-transform: uppercase;
+}
+
+.ai-tutor-matrix.prime .ai-tutor-core strong {
+  color: var(--lime);
+}
+
+.ai-tutor-matrix.thin .ai-tutor-core strong {
+  color: var(--amber);
+}
+
+.ai-tutor-core p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.ai-tutor-core div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-tutor-core button,
+.ai-tutor-prompts button {
+  border: 1px solid var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.07);
+  color: var(--cyan);
+  padding: 8px 10px;
+}
+
+.ai-tutor-core button:hover,
+.ai-tutor-prompts button:hover {
+  border-color: var(--cyan);
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.ai-tutor-orb {
+  position: relative;
+  display: grid;
+  min-height: 168px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    radial-gradient(circle at center, rgba(53, 215, 255, 0.08), transparent 62%),
+    rgba(2, 7, 15, 0.45);
+}
+
+.ai-tutor-orb i {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  border: 1px solid rgba(53, 215, 255, 0.18);
+  background:
+    radial-gradient(circle at center, rgba(2, 7, 15, 0.94) 54%, transparent 55%),
+    conic-gradient(var(--violet) var(--ai-signal), rgba(53, 215, 255, 0.1) 0);
+  box-shadow: 0 0 22px rgba(159, 107, 255, 0.18);
+}
+
+.ai-tutor-orb strong {
+  z-index: 1;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.4);
+}
+
+.ai-tutor-orb span {
+  z-index: 1;
+  align-self: end;
+  margin-bottom: 18px;
+}
+
+.ai-tutor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.ai-tutor-grid button {
+  --ai-node-color: var(--cyan);
+  display: grid;
+  align-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  border-top: 2px solid var(--ai-node-color);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ai-node-color) 9%, transparent), transparent 64%),
+    rgba(2, 7, 15, 0.44);
+  padding: 11px;
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.ai-tutor-grid button.violet {
+  --ai-node-color: var(--violet);
+}
+
+.ai-tutor-grid button.lime {
+  --ai-node-color: var(--lime);
+}
+
+.ai-tutor-grid button.amber {
+  --ai-node-color: var(--amber);
+}
+
+.ai-tutor-grid button:hover {
+  border-color: color-mix(in srgb, var(--ai-node-color) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ai-node-color) 14%, transparent), transparent 64%),
+    rgba(53, 215, 255, 0.055);
+  transform: translateY(-2px);
+}
+
+.ai-tutor-grid button strong {
+  color: var(--ai-node-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 22px;
+  line-height: 1;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--ai-node-color) 34%, transparent);
+}
+
+.ai-tutor-grid button i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.ai-tutor-grid button i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--ai-node-color), var(--cyan));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ai-node-color) 38%, transparent);
+}
+
+.ai-tutor-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 8px;
+  border-top: 1px dashed rgba(53, 215, 255, 0.16);
+  padding-top: 10px;
+}
+
+.ai-tutor-prompts button {
+  flex: 1 1 190px;
+  min-height: 36px;
+}
+
 .ai-study-head {
   display: flex;
   align-items: center;
@@ -11068,6 +11292,9 @@ button.load-forecast-day:hover {
   .memory-queue-console,
   .memory-queue-grid,
   .memory-queue-timeline,
+  .ai-tutor-matrix,
+  .ai-tutor-grid,
+  .ai-tutor-prompts,
   .writing-layout,
   .reading-layout,
   .review-card-grid,
