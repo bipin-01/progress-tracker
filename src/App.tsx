@@ -5295,6 +5295,7 @@ function NotesView({
   const activeNoteOutline = useMemo(() => getStudyOutline(draftBody), [draftBody]);
   const activeNoteCockpit = activeNote && activeNoteSignal ? getNoteCockpitMetrics(activeNote, activeNoteSignal) : [];
   const activeNoteRadar = activeNoteCockpit.length ? getNoteCockpitRadar(activeNoteCockpit) : null;
+  const activeNoteProtocols = activeNoteSignal ? getNoteProtocolStack(activeNoteSignal) : [];
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -6457,6 +6458,22 @@ function NotesView({
                           ))}
                         </div>
                       </div>
+                      <div className="notes-protocol-stack">
+                        <div className="notes-protocol-head">
+                          <span>Protocol Stack</span>
+                          <strong>{activeNoteProtocols[0]?.command ?? "standby"}</strong>
+                        </div>
+                        <div className="notes-protocol-grid">
+                          {activeNoteProtocols.map((protocol) => (
+                            <button className={protocol.tone} type="button" onClick={() => setMode(protocol.mode)} key={protocol.id}>
+                              <span>{protocol.title}</span>
+                              <strong>{protocol.command}</strong>
+                              <p>{protocol.directive}</p>
+                              <i aria-hidden="true"><b style={{ width: `${protocol.progress}%` }} /></i>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </section>
                   )}
 
@@ -7259,6 +7276,16 @@ type NoteCockpitMetric = {
 type NoteCockpitRadar = {
   score: number;
   style: CSSProperties;
+};
+
+type NoteProtocolCard = {
+  id: "structure" | "recall" | "session";
+  title: string;
+  command: string;
+  directive: string;
+  progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  mode: NotesMode;
 };
 
 function StudyOutlinePanel({
@@ -8095,6 +8122,55 @@ function getNoteCockpitRadar(metrics: NoteCockpitMetric[]): NoteCockpitRadar {
     score: Math.round(metrics.reduce((total, metric) => total + metric.score, 0) / Math.max(metrics.length, 1)),
     style: { clipPath: `polygon(${points})` },
   };
+}
+
+function getNoteProtocolStack(signal: ReturnType<typeof getNoteStudySignal>): NoteProtocolCard[] {
+  const structureProgress = Math.round(clamp(signal.headings * 18 + signal.bullets * 4, 0, 100));
+  const recallProgress = Math.round(clamp(signal.cards * 14 + signal.askCount * 9, 0, 100));
+  return [
+    {
+      id: "structure",
+      title: "Structure Protocol",
+      command: signal.headings === 0 ? "map skeleton" : signal.bullets < 3 ? "add anchors" : "tighten map",
+      directive:
+        signal.headings === 0
+          ? "Create clear headings before this note enters serious review."
+          : signal.bullets < 3
+            ? "Add bullet anchors for definitions, examples, and weak terms."
+            : "Structure is usable. Add summaries where sections feel thin.",
+      progress: structureProgress,
+      tone: structureProgress >= 70 ? "lime" : structureProgress >= 36 ? "cyan" : "amber",
+      mode: "writing",
+    },
+    {
+      id: "recall",
+      title: "Recall Protocol",
+      command: signal.cards === 0 ? "forge cards" : signal.askCount === 0 ? "ask note" : "run review",
+      directive:
+        signal.cards === 0
+          ? "Turn the strongest headings and bullets into flashcards."
+          : signal.askCount === 0
+            ? "Ask this note one focused question to expose fuzzy areas."
+            : "Recall loop is online. Push this material through queue mode.",
+      progress: recallProgress,
+      tone: recallProgress >= 70 ? "lime" : recallProgress >= 32 ? "violet" : "amber",
+      mode: signal.cards === 0 ? "review" : signal.askCount === 0 ? "ai" : "queue",
+    },
+    {
+      id: "session",
+      title: "Session Protocol",
+      command: signal.progress >= 100 ? "seal packet" : signal.progress >= 50 ? "close pass" : "sync read",
+      directive:
+        signal.progress >= 100
+          ? "Study pass is sealed. Keep it warm through recall queue."
+          : signal.progress >= 50
+            ? "Capture the last weak concept before marking this session complete."
+            : "Run a focused reading pass and update session progress.",
+      progress: signal.progress,
+      tone: signal.progress >= 75 ? "lime" : signal.progress >= 35 ? "violet" : "cyan",
+      mode: signal.progress >= 100 ? "queue" : "reading",
+    },
+  ];
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {

@@ -6099,6 +6099,110 @@ button.load-forecast-day:hover {
   box-shadow: 0 0 10px color-mix(in srgb, var(--metric-color) 34%, transparent);
 }
 
+.notes-protocol-stack {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.055), rgba(159, 107, 255, 0.035) 58%, transparent),
+    rgba(2, 7, 15, 0.3);
+  padding: 10px;
+}
+
+.notes-protocol-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notes-protocol-head span,
+.notes-protocol-head strong,
+.notes-protocol-grid button span {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.notes-protocol-head strong {
+  overflow: hidden;
+  color: var(--cyan);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-protocol-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.notes-protocol-grid button {
+  --protocol-color: var(--cyan);
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  border-left: 2px solid var(--protocol-color);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--protocol-color) 9%, transparent), transparent 62%),
+    rgba(2, 7, 15, 0.42);
+  padding: 10px;
+  text-align: left;
+}
+
+.notes-protocol-grid button.violet {
+  --protocol-color: var(--violet);
+}
+
+.notes-protocol-grid button.lime {
+  --protocol-color: var(--lime);
+}
+
+.notes-protocol-grid button.amber {
+  --protocol-color: var(--amber);
+}
+
+.notes-protocol-grid button:hover {
+  border-color: color-mix(in srgb, var(--protocol-color) 70%, transparent);
+  background: rgba(53, 215, 255, 0.07);
+}
+
+.notes-protocol-grid button strong {
+  overflow: hidden;
+  color: var(--protocol-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.notes-protocol-grid button p {
+  min-height: 44px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.notes-protocol-grid button i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.notes-protocol-grid button i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--protocol-color), var(--cyan));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--protocol-color) 34%, transparent);
+}
+
 .notes-session-strip {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1fr) minmax(220px, 0.38fr);
@@ -10003,6 +10107,7 @@ button.load-forecast-day:hover {
   .notes-flow-lanes,
   .notes-cockpit-body,
   .notes-cockpit-grid,
+  .notes-protocol-grid,
   .notes-session-strip,
   .notes-session-pulse,
   .pdf-viewer-toolbar,
