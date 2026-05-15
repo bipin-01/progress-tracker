@@ -7163,6 +7163,241 @@ button.load-forecast-day:hover {
   background: rgba(53, 215, 255, 0.08);
 }
 
+.review-forge-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.34fr) minmax(140px, 0.16fr) minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.22);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(159, 107, 255, 0.15), transparent 34%),
+    radial-gradient(circle at 78% 0%, rgba(53, 215, 255, 0.13), transparent 32%),
+    linear-gradient(115deg, rgba(53, 215, 255, 0.07), rgba(159, 107, 255, 0.05) 54%, transparent),
+    rgba(4, 9, 19, 0.5);
+  box-shadow:
+    inset 0 0 30px rgba(53, 215, 255, 0.05),
+    0 20px 38px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+}
+
+.review-forge-panel.prime {
+  border-color: rgba(146, 255, 87, 0.34);
+}
+
+.review-forge-panel.thin {
+  border-color: rgba(255, 184, 76, 0.34);
+}
+
+.review-forge-core {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.09), transparent 58%),
+    rgba(2, 7, 15, 0.45);
+  padding: 14px 14px 14px 18px;
+}
+
+.review-forge-core::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--violet), var(--cyan), var(--lime));
+  box-shadow: 0 0 18px rgba(159, 107, 255, 0.45);
+}
+
+.review-forge-core span,
+.review-forge-core button,
+.review-forge-meter span,
+.review-forge-grid button span,
+.review-forge-grid button em,
+.review-forge-lane span,
+.review-forge-lane em {
+  color: var(--muted);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.review-forge-core strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(15px, 1.45vw, 22px);
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.32);
+  text-transform: uppercase;
+}
+
+.review-forge-core p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.review-forge-core button {
+  justify-self: start;
+  border: 1px solid var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.07);
+  color: var(--cyan);
+  padding: 8px 10px;
+}
+
+.review-forge-core button:disabled {
+  border-color: var(--hair-soft);
+  color: rgba(129, 146, 186, 0.48);
+  cursor: not-allowed;
+}
+
+.review-forge-meter {
+  position: relative;
+  display: grid;
+  min-height: 168px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    radial-gradient(circle at center, rgba(53, 215, 255, 0.08), transparent 62%),
+    rgba(2, 7, 15, 0.45);
+}
+
+.review-forge-meter i {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  border: 1px solid rgba(53, 215, 255, 0.18);
+  background:
+    radial-gradient(circle at center, rgba(2, 7, 15, 0.94) 54%, transparent 55%),
+    conic-gradient(var(--violet) var(--forge-score), rgba(53, 215, 255, 0.1) 0);
+  box-shadow: 0 0 22px rgba(159, 107, 255, 0.18);
+}
+
+.review-forge-meter strong {
+  z-index: 1;
+  color: var(--ink);
+  font-family: "Orbitron", sans-serif;
+  font-size: 28px;
+  line-height: 1;
+  text-shadow: 0 0 15px rgba(53, 215, 255, 0.4);
+}
+
+.review-forge-meter span {
+  z-index: 1;
+  align-self: end;
+  margin-bottom: 18px;
+}
+
+.review-forge-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.review-forge-grid button {
+  --forge-node-color: var(--cyan);
+  display: grid;
+  align-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  border-top: 2px solid var(--forge-node-color);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--forge-node-color) 9%, transparent), transparent 64%),
+    rgba(2, 7, 15, 0.44);
+  padding: 11px;
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.review-forge-grid button.violet {
+  --forge-node-color: var(--violet);
+}
+
+.review-forge-grid button.lime {
+  --forge-node-color: var(--lime);
+}
+
+.review-forge-grid button.amber {
+  --forge-node-color: var(--amber);
+}
+
+.review-forge-grid button:hover {
+  border-color: color-mix(in srgb, var(--forge-node-color) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--forge-node-color) 14%, transparent), transparent 64%),
+    rgba(53, 215, 255, 0.055);
+  transform: translateY(-2px);
+}
+
+.review-forge-grid button strong {
+  color: var(--forge-node-color);
+  font-family: "Orbitron", sans-serif;
+  font-size: 23px;
+  line-height: 1;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--forge-node-color) 34%, transparent);
+}
+
+.review-forge-grid button i {
+  display: block;
+  overflow: hidden;
+  height: 4px;
+  background: rgba(53, 215, 255, 0.09);
+}
+
+.review-forge-grid button i b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--forge-node-color), var(--cyan));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--forge-node-color) 38%, transparent);
+}
+
+.review-forge-lane {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(6, minmax(150px, 1fr));
+  gap: 8px;
+  border-top: 1px dashed rgba(53, 215, 255, 0.16);
+  padding-top: 10px;
+}
+
+.review-forge-lane div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  border-left: 2px solid var(--violet);
+  background: rgba(2, 7, 15, 0.42);
+  padding: 10px;
+}
+
+.review-forge-lane div.saved {
+  border-left-color: var(--lime);
+  opacity: 0.72;
+}
+
+.review-forge-lane strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.review-forge-lane em {
+  color: var(--cyan);
+}
+
 .review-mode {
   display: grid;
   gap: 14px;
@@ -10568,6 +10803,9 @@ button.load-forecast-day:hover {
   .writing-command-grid,
   .reading-immersion-dock,
   .reading-immersion-grid,
+  .review-forge-panel,
+  .review-forge-grid,
+  .review-forge-lane,
   .writing-layout,
   .reading-layout,
   .review-card-grid,

@@ -5302,6 +5302,7 @@ function NotesView({
   const primaryWritingCommand = writingCommandDeck.find((command) => command.progress < 82) ?? writingCommandDeck[0];
   const readerImmersionNodes = activeNote && activeDraftSignal ? getReaderImmersionNodes(activeNote, activeDraftSignal, activeReadingProgress) : [];
   const primaryReaderNode = readerImmersionNodes.find((node) => node.progress < 80) ?? readerImmersionNodes[0];
+  const reviewForge = activeDraftSignal ? getReviewForgeStats(reviewCards, savedFlashcards, activeDraftSignal) : null;
   const activeNoteBreadcrumbs = useMemo(
     () =>
       activeNoteFolder
@@ -6931,6 +6932,46 @@ function NotesView({
                 </div>
               ) : mode === "review" ? (
                 <div className="review-mode">
+                  {reviewForge && (
+                    <section className={`review-forge-panel ${activeDraftSignal?.tier ?? ""}`}>
+                      <div className="review-forge-core">
+                        <span>Recall Forge</span>
+                        <strong>{reviewForge.command}</strong>
+                        <p>{reviewForge.directive}</p>
+                        <button type="button" onClick={() => saveGeneratedFlashcards(reviewCards)} disabled={reviewCards.length === 0 || reviewForge.unsavedCount === 0}>
+                          forge {reviewForge.unsavedCount} cards
+                        </button>
+                      </div>
+                      <div className="review-forge-meter" aria-label={`Recall forge readiness ${reviewForge.readiness}%`}>
+                        <i style={{ "--forge-score": `${reviewForge.readiness}%` } as CSSProperties} />
+                        <strong>{reviewForge.readiness}%</strong>
+                        <span>forge signal</span>
+                      </div>
+                      <div className="review-forge-grid">
+                        {reviewForge.nodes.map((node) => (
+                          <button className={node.tone} type="button" onClick={() => setMode(node.mode)} key={node.id}>
+                            <span>{node.title}</span>
+                            <strong>{node.value}</strong>
+                            <em>{node.detail}</em>
+                            <i aria-label={`${node.title} ${node.progress}%`}><b style={{ width: `${node.progress}%` }} /></i>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="review-forge-lane">
+                        {reviewForge.preview.length === 0 ? (
+                          <div className="kanban-empty">// forge lane waiting for structure</div>
+                        ) : (
+                          reviewForge.preview.map((card, index) => (
+                            <div className={card.saved ? "saved" : ""} key={card.key}>
+                              <span>Q{String(index + 1).padStart(2, "0")} / {card.saved ? "saved" : "new"}</span>
+                              <strong>{card.question}</strong>
+                              <em>{card.source}</em>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </section>
+                  )}
                   <div className="review-brief">
                     <div>
                       <span>Active Recall Deck</span>
@@ -7400,6 +7441,30 @@ type ReaderImmersionNode = {
   progress: number;
   tone: "cyan" | "violet" | "lime" | "amber";
   insert: string;
+};
+
+type ReviewForgeNode = {
+  id: "generated" | "deck" | "pressure" | "mastery";
+  title: string;
+  value: string;
+  detail: string;
+  progress: number;
+  tone: "cyan" | "violet" | "lime" | "amber";
+  mode: NotesMode;
+};
+
+type ReviewForgeStats = {
+  readiness: number;
+  command: string;
+  directive: string;
+  unsavedCount: number;
+  nodes: ReviewForgeNode[];
+  preview: Array<{
+    key: string;
+    question: string;
+    source: string;
+    saved: boolean;
+  }>;
 };
 
 function StudyOutlinePanel({
@@ -8449,6 +8514,103 @@ function getReaderImmersionDirective(progress: number, signal: ReturnType<typeof
   if (node.id === "capture") return "The next upgrade is density: extract terms, examples, and relations while the source is still open.";
   if (node.id === "questions") return "Questions turn reading into pressure. Capture what you would test yourself on later.";
   return "Bridge the reading session into recall now so the material survives beyond today.";
+}
+
+function getReviewForgeStats(
+  cards: ReturnType<typeof buildStudyReviewCards>,
+  savedCards: NonNullable<StudyNote["flashcards"]>,
+  signal: ReturnType<typeof getNoteStudySignal>,
+): ReviewForgeStats {
+  const savedKeys = new Set(savedCards.map((card) => slugify(card.question)));
+  const unsavedCount = cards.filter((card) => !savedKeys.has(slugify(card.question))).length;
+  const dueNow = savedCards.filter((card) => new Date(card.dueAt).getTime() <= Date.now() && card.difficulty !== "known").length;
+  const learningCount = savedCards.filter((card) => card.difficulty === "learning").length;
+  const knownCount = savedCards.filter((card) => card.difficulty === "known").length;
+  const generatedScore = Math.round(clamp(cards.length * 8, 0, 100));
+  const deckScore = Math.round(clamp(savedCards.length * 10, 0, 100));
+  const pressureScore = Math.round(clamp(100 - dueNow * 14 - learningCount * 3, 0, 100));
+  const masteryScore = savedCards.length ? Math.round((knownCount / savedCards.length) * 100) : 0;
+  const readiness = weightedScore([
+    [signal.score, 0.28],
+    [generatedScore, 0.24],
+    [deckScore, 0.2],
+    [pressureScore, 0.16],
+    [masteryScore, 0.12],
+  ]);
+  const command =
+    cards.length === 0
+      ? "structure recall source"
+      : unsavedCount > 0
+        ? "forge recall deck"
+        : dueNow > 0
+          ? "pressure queue active"
+          : masteryScore >= 70
+            ? "mastery signal stable"
+            : "train learning loop";
+  const directive =
+    cards.length === 0
+      ? "Add headings, bullets, or dense notes so the forge can generate recall prompts."
+      : unsavedCount > 0
+        ? `${unsavedCount} generated card${unsavedCount === 1 ? "" : "s"} can be saved into the deck now.`
+        : dueNow > 0
+          ? `${dueNow} saved card${dueNow === 1 ? "" : "s"} need queue pressure before new capture.`
+          : masteryScore >= 70
+            ? "Most saved cards are known. Keep the deck warm with spaced queue passes."
+            : "The deck exists. Push learning cards through queue mode until mastery rises.";
+
+  return {
+    readiness,
+    command,
+    directive,
+    unsavedCount,
+    nodes: [
+      {
+        id: "generated",
+        title: "Generated",
+        value: `${cards.length}`,
+        detail: `${unsavedCount} unsaved`,
+        progress: generatedScore,
+        tone: cards.length >= 8 ? "lime" : cards.length >= 4 ? "cyan" : "amber",
+        mode: "review",
+      },
+      {
+        id: "deck",
+        title: "Deck Mass",
+        value: `${savedCards.length}`,
+        detail: `${learningCount} learning`,
+        progress: deckScore,
+        tone: savedCards.length >= 8 ? "lime" : savedCards.length >= 3 ? "violet" : "cyan",
+        mode: "queue",
+      },
+      {
+        id: "pressure",
+        title: "Queue Pressure",
+        value: `${dueNow}`,
+        detail: dueNow > 0 ? "due now" : "clear",
+        progress: pressureScore,
+        tone: dueNow > 3 ? "amber" : dueNow > 0 ? "violet" : "lime",
+        mode: "queue",
+      },
+      {
+        id: "mastery",
+        title: "Mastery",
+        value: `${masteryScore}%`,
+        detail: `${knownCount} known`,
+        progress: masteryScore,
+        tone: masteryScore >= 70 ? "lime" : masteryScore >= 34 ? "cyan" : "amber",
+        mode: "queue",
+      },
+    ],
+    preview: cards.slice(0, 6).map((card) => {
+      const key = slugify(card.question);
+      return {
+        key,
+        question: truncateText(card.question, 96),
+        source: card.source,
+        saved: savedKeys.has(key),
+      };
+    }),
+  };
 }
 
 function getNotesKnowledgeNexus(notes: StudyNote[], folderIndex: StudyFolderIndex) {
