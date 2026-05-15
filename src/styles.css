@@ -7012,25 +7012,6 @@ button.load-forecast-day:hover {
   gap: 14px;
 }
 
-.notes-home-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  border: 1px solid var(--hair-soft);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(53, 215, 255, 0.14), transparent 32%),
-    linear-gradient(90deg, rgba(53, 215, 255, 0.07), transparent),
-    rgba(5, 9, 18, 0.45);
-  padding: 18px;
-}
-
-.notes-home-hero div:first-child {
-  display: grid;
-  gap: 8px;
-}
-
-.notes-home-hero span,
 .notes-home-panel .ask-note-head span,
 .notes-health-grid span,
 .notes-home-list em,
@@ -7043,29 +7024,6 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
-.notes-home-hero strong {
-  color: var(--cyan);
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(24px, 3.8vw, 44px);
-  line-height: 1.05;
-  text-shadow: 0 0 18px rgba(53, 215, 255, 0.36);
-  text-transform: uppercase;
-}
-
-.notes-home-hero p {
-  max-width: 760px;
-  margin: 0;
-  color: var(--ink-2);
-  line-height: 1.65;
-}
-
-.notes-home-actions {
-  display: grid;
-  gap: 8px;
-  min-width: 180px;
-}
-
-.notes-home-actions button,
 .notes-home-panel button {
   border: 1px solid var(--cyan-dim);
   color: var(--cyan);
@@ -7077,7 +7035,6 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
-.notes-home-actions button:hover,
 .notes-home-panel button:hover {
   border-color: var(--cyan);
   background: rgba(53, 215, 255, 0.08);
@@ -10164,7 +10121,6 @@ button.load-forecast-day:hover {
   .notes-session-strip,
   .notes-session-pulse,
   .pdf-viewer-toolbar,
-  .notes-home-hero,
   .notes-home-grid,
   .notes-health-grid,
   .certification-hero,

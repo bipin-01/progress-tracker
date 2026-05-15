@@ -6464,19 +6464,6 @@ function NotesView({
 
               {mode === "home" ? (
                 <div className="notes-home-mode">
-                  <section className="notes-home-hero">
-                    <div>
-                      <span>Study Command</span>
-                      <strong>{dueFlashcards.length > 0 ? `${dueFlashcards.length} cards due now` : "No urgent reviews"}</strong>
-                      <p>{dueFlashcards.length > 0 ? "Start with the review queue before creating more material." : "Continue reading, clean weak notes, or capture the next idea."}</p>
-                    </div>
-                    <div className="notes-home-actions">
-                      <button type="button" onClick={() => setMode("queue")}>start queue</button>
-                      <button type="button" onClick={() => void createNote("note")}>quick note</button>
-                      <button type="button" onClick={() => setMode("reading")}>continue reading</button>
-                    </div>
-                  </section>
-
                   <div className="notes-home-grid">
                     <section className="notes-home-panel continue-panel">
                       <div className="ask-note-head">
