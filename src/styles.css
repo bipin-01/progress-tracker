@@ -13307,6 +13307,7 @@ button.load-forecast-day:hover {
 .zh-coach-evidence i,
 .zh-coach-evidence pre,
 .zh-coach-briefing p,
+.zh-coach-history p,
 .zh-coach-briefing u {
   overflow: hidden;
   color: var(--muted);
@@ -13324,6 +13325,7 @@ button.load-forecast-day:hover {
 .zh-placement-target strong,
 .zh-placement-outcome strong,
 .zh-coach-evidence strong,
+.zh-coach-history strong,
 .zh-coach-briefing strong {
   overflow: hidden;
   color: var(--cyan);
@@ -13681,6 +13683,136 @@ button.load-forecast-day:hover {
   width: var(--coach-urgency);
   background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
   box-shadow: 0 0 8px rgba(170, 114, 255, 0.24);
+}
+
+.zh-coach-history {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.2);
+  padding: 6px;
+}
+
+.zh-coach-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.zh-coach-history-head span,
+.zh-coach-history-list span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-coach-history-head strong {
+  font-size: 9px;
+}
+
+.zh-coach-history-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.zh-coach-history-list button {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 64px;
+  overflow: hidden;
+  border-color: rgba(53, 215, 255, 0.16);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.04), transparent),
+    rgba(2, 7, 15, 0.28);
+  padding: 6px 7px 10px;
+  text-align: left;
+}
+
+.zh-coach-history-list button.status-improved {
+  border-color: rgba(157, 255, 107, 0.25);
+}
+
+.zh-coach-history-list button.status-hot {
+  border-color: rgba(255, 78, 112, 0.32);
+}
+
+.zh-coach-history-list button.status-waiting {
+  border-color: rgba(170, 114, 255, 0.22);
+}
+
+.zh-coach-history-list button::after {
+  content: "";
+  position: absolute;
+  inset: auto 6px 5px 6px;
+  height: 2px;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-coach-history-list button::before {
+  content: "";
+  position: absolute;
+  inset: auto auto 5px 6px;
+  z-index: 1;
+  width: var(--coach-result);
+  max-width: calc(100% - 12px);
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 8px rgba(53, 215, 255, 0.18);
+}
+
+.zh-coach-history-list button.status-improved::before {
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+}
+
+.zh-coach-history-list button.status-hot::before {
+  background: linear-gradient(90deg, var(--zh-magenta), var(--danger));
+}
+
+.zh-coach-history-list strong {
+  color: var(--ink);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.zh-coach-history-list em,
+.zh-coach-history-list i,
+.zh-coach-history p {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-coach-history-list i {
+  color: var(--cyan);
+}
+
+.zh-coach-history-list button.status-improved i {
+  color: var(--green);
+}
+
+.zh-coach-history-list button.status-hot i {
+  color: var(--danger);
+}
+
+.zh-coach-history p {
+  margin: 0;
+  border: 1px dashed var(--hair-soft);
+  padding: 6px;
 }
 
 .zh-coach-evidence-grid {
@@ -14581,7 +14713,10 @@ button.load-forecast-day:hover {
   .zh-repair-history > div:last-child,
   .zh-practice-overview,
   .zh-practice-day-head,
-  .zh-practice-controls {
+  .zh-practice-controls,
+  .zh-coach-briefing,
+  .zh-coach-history-list,
+  .zh-coach-evidence-grid {
     grid-template-columns: 1fr;
   }
 

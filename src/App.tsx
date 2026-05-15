@@ -634,6 +634,7 @@ type ChineseCoachEvidencePacket = {
     voiceAttempts: number;
     repairEvents: number;
     placementEvents: number;
+    coachEvents: number;
   };
   srs: {
     reviewed: number;
@@ -674,6 +675,41 @@ type ChineseCoachBriefing = {
   urgency: number;
 };
 
+type ChineseCoachHistoryBaseline = {
+  reviewed: number;
+  due: number;
+  accuracy: number;
+  retention: number;
+  voiceAverage: number;
+  repairDelta: number;
+  placementReadiness: number;
+  placementConfidence: number;
+  placementWeeklyDelta: number;
+  xp: number;
+  combo: number;
+};
+
+type ChineseCoachHistoryEntry = {
+  id: string;
+  createdAt: string;
+  packetId: string;
+  mode: ChineseCoachBriefing["mode"];
+  signal: string;
+  title: string;
+  command: string;
+  day: number;
+  activeWord: string;
+  baseline: ChineseCoachHistoryBaseline;
+};
+
+type ChineseCoachHistoryOutcome = {
+  status: "waiting" | "improved" | "steady" | "hot";
+  label: string;
+  detail: string;
+  delta: string;
+  weight: number;
+};
+
 type ChineseMemorySnapshot = {
   version: 1;
   savedAt: string;
@@ -685,6 +721,7 @@ type ChineseMemorySnapshot = {
   completedRepairDrills: string[];
   repairHistory: ChineseRepairHistoryEntry[];
   placementHistory: ChinesePlacementHistoryEntry[];
+  coachHistory: ChineseCoachHistoryEntry[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -734,6 +771,7 @@ const CHINESE_KNOWN_CHARACTER_BASE = 1247;
 const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
 const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
 const CHINESE_SPEECH_HISTORY_LIMIT = 80;
+const CHINESE_COACH_HISTORY_LIMIT = 21;
 const CHINESE_REPAIR_DRILL_XP = 4;
 
 const chineseHskPlacementBands = [
@@ -1610,6 +1648,10 @@ function isChinesePlacementStatus(value: unknown): value is ChinesePlacementProf
   return value === "sample" || value === "steady" || value === "advance" || value === "repair";
 }
 
+function isChineseCoachBriefingMode(value: unknown): value is ChineseCoachBriefing["mode"] {
+  return value === "sample" || value === "repair" || value === "review" || value === "voice" || value === "placement" || value === "flow";
+}
+
 function getChineseStoredReviewState(value: unknown): ChineseReviewState | null {
   if (!isChineseRecord(value)) return null;
   const fallback = getDefaultChineseReviewState();
@@ -1690,6 +1732,42 @@ function getChineseStoredPlacementHistoryEntry(value: unknown): ChinesePlacement
   };
 }
 
+function getChineseStoredCoachHistoryBaseline(value: unknown): ChineseCoachHistoryBaseline {
+  const record: Record<string, unknown> = isChineseRecord(value) ? value : {};
+  return {
+    reviewed: Math.max(0, Math.trunc(getChineseNumber(record.reviewed, 0))),
+    due: Math.max(0, Math.trunc(getChineseNumber(record.due, 0))),
+    accuracy: getChineseClampedNumber(record.accuracy, 0, 0, 100),
+    retention: getChineseClampedNumber(record.retention, 0, 0, 100),
+    voiceAverage: getChineseClampedNumber(record.voiceAverage, 0, 0, 100),
+    repairDelta: Math.round(getChineseNumber(record.repairDelta, 0)),
+    placementReadiness: getChineseClampedNumber(record.placementReadiness, 0, 0, 100),
+    placementConfidence: getChineseClampedNumber(record.placementConfidence, 0, 0, 100),
+    placementWeeklyDelta: Math.round(getChineseNumber(record.placementWeeklyDelta, 0)),
+    xp: Math.max(0, Math.trunc(getChineseNumber(record.xp, 0))),
+    combo: Math.max(0, Math.trunc(getChineseNumber(record.combo, 0))),
+  };
+}
+
+function getChineseStoredCoachHistoryEntry(value: unknown): ChineseCoachHistoryEntry | null {
+  if (!isChineseRecord(value)) return null;
+  const packetId = typeof value.packetId === "string" ? value.packetId : "";
+  const title = typeof value.title === "string" ? value.title : "";
+  if (!packetId || !title) return null;
+  return {
+    id: typeof value.id === "string" ? value.id : `${packetId}-coach`,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+    packetId,
+    mode: isChineseCoachBriefingMode(value.mode) ? value.mode : "flow",
+    signal: typeof value.signal === "string" ? value.signal : "coach",
+    title,
+    command: typeof value.command === "string" ? value.command : "continue",
+    day: getChineseStoredDay(value.day),
+    activeWord: typeof value.activeWord === "string" ? value.activeWord : "",
+    baseline: getChineseStoredCoachHistoryBaseline(value.baseline),
+  };
+}
+
 function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(CHINESE_MEMORY_STORAGE_KEY);
@@ -1721,6 +1799,10 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
         .map(getChineseStoredPlacementHistoryEntry)
         .filter((entry): entry is ChinesePlacementHistoryEntry => Boolean(entry))
         .slice(0, 21),
+      coachHistory: (Array.isArray(parsed.coachHistory) ? parsed.coachHistory : [])
+        .map(getChineseStoredCoachHistoryEntry)
+        .filter((entry): entry is ChineseCoachHistoryEntry => Boolean(entry))
+        .slice(0, CHINESE_COACH_HISTORY_LIMIT),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
         .map(getChineseStoredSpeechAttempt)
@@ -2389,6 +2471,128 @@ function getChineseCoachBriefing(packet: ChineseCoachEvidencePacket): ChineseCoa
     steps: ["Run guided command", "Load active word", "Keep combo alive"],
     command: "continue",
     urgency: Math.max(10, Math.min(100, packet.srs.due * 3 + Math.abs(packet.placement.weeklyDelta))),
+  };
+}
+
+function getChineseCoachHistoryBaseline(packet: ChineseCoachEvidencePacket): ChineseCoachHistoryBaseline {
+  return {
+    reviewed: packet.srs.reviewed,
+    due: packet.srs.due,
+    accuracy: packet.srs.accuracy,
+    retention: packet.srs.retention,
+    voiceAverage: packet.voice.average,
+    repairDelta: packet.repair.delta,
+    placementReadiness: packet.placement.readiness,
+    placementConfidence: packet.placement.confidence,
+    placementWeeklyDelta: packet.placement.weeklyDelta,
+    xp: packet.memory.xp,
+    combo: packet.memory.combo,
+  };
+}
+
+function getSignedChineseDelta(value: number, suffix = "") {
+  const rounded = Math.round(value);
+  return `${rounded > 0 ? "+" : ""}${rounded}${suffix}`;
+}
+
+function getChineseCoachHistoryOutcome(
+  entry: ChineseCoachHistoryEntry,
+  packet: ChineseCoachEvidencePacket,
+): ChineseCoachHistoryOutcome {
+  const current = getChineseCoachHistoryBaseline(packet);
+  const reviewedDelta = current.reviewed - entry.baseline.reviewed;
+  const dueReduced = entry.baseline.due - current.due;
+  const retentionDelta = current.retention - entry.baseline.retention;
+  const accuracyDelta = current.accuracy - entry.baseline.accuracy;
+  const voiceDelta = current.voiceAverage - entry.baseline.voiceAverage;
+  const repairDelta = current.repairDelta - entry.baseline.repairDelta;
+  const placementRiskDelta = Math.abs(entry.baseline.placementWeeklyDelta) - Math.abs(current.placementWeeklyDelta);
+  const readinessDelta = current.placementReadiness - entry.baseline.placementReadiness;
+  const confidenceDelta = current.placementConfidence - entry.baseline.placementConfidence;
+  const comboDelta = current.combo - entry.baseline.combo;
+  const hasMovement =
+    reviewedDelta !== 0 ||
+    dueReduced !== 0 ||
+    retentionDelta !== 0 ||
+    accuracyDelta !== 0 ||
+    voiceDelta !== 0 ||
+    repairDelta !== 0 ||
+    placementRiskDelta !== 0 ||
+    readinessDelta !== 0 ||
+    confidenceDelta !== 0 ||
+    comboDelta !== 0;
+
+  if (!hasMovement) {
+    return {
+      status: "waiting",
+      label: "awaiting evidence",
+      detail: "run the command, then review, speak, or calibrate to measure impact",
+      delta: "0 signal",
+      weight: 12,
+    };
+  }
+
+  if (entry.mode === "review") {
+    const score = dueReduced * 3 + retentionDelta + accuracyDelta + reviewedDelta;
+    const improved = dueReduced > 0 || retentionDelta > 1 || accuracyDelta > 1;
+    const hot = dueReduced < 0 && retentionDelta < 0;
+    return {
+      status: improved ? "improved" : hot ? "hot" : "steady",
+      label: improved ? "queue eased" : hot ? "memory pressure" : "review stable",
+      detail: `${getSignedChineseDelta(-dueReduced)} due · ${getSignedChineseDelta(retentionDelta, "%")} retention`,
+      delta: `${getSignedChineseDelta(score)} srs`,
+      weight: clampChinesePercent(50 + score),
+    };
+  }
+
+  if (entry.mode === "voice" || entry.mode === "sample") {
+    const score = voiceDelta + confidenceDelta + reviewedDelta;
+    const improved = voiceDelta > 0 || confidenceDelta > 0;
+    const hot = voiceDelta < 0 && confidenceDelta <= 0;
+    return {
+      status: improved ? "improved" : hot ? "hot" : "steady",
+      label: improved ? "speech signal up" : hot ? "speech still thin" : "sample stable",
+      detail: `${getSignedChineseDelta(voiceDelta, "%")} voice · ${getSignedChineseDelta(confidenceDelta, "%")} conf`,
+      delta: `${getSignedChineseDelta(score)} voice`,
+      weight: clampChinesePercent(50 + score),
+    };
+  }
+
+  if (entry.mode === "repair") {
+    const score = repairDelta * 2 + voiceDelta + comboDelta;
+    const improved = repairDelta > 0 || voiceDelta > 0 || comboDelta > 0;
+    const hot = repairDelta < 0 && voiceDelta <= 0;
+    return {
+      status: improved ? "improved" : hot ? "hot" : "steady",
+      label: improved ? "repair taking hold" : hot ? "repair still hot" : "repair stable",
+      detail: `${getSignedChineseDelta(repairDelta, "%")} risk · ${getSignedChineseDelta(voiceDelta, "%")} voice`,
+      delta: `${getSignedChineseDelta(score)} repair`,
+      weight: clampChinesePercent(50 + score),
+    };
+  }
+
+  if (entry.mode === "placement") {
+    const score = placementRiskDelta + readinessDelta + confidenceDelta;
+    const improved = placementRiskDelta > 0 || readinessDelta > 0;
+    const hot = placementRiskDelta < 0 && readinessDelta < 0;
+    return {
+      status: improved ? "improved" : hot ? "hot" : "steady",
+      label: improved ? "load aligned" : hot ? "load drift" : "placement stable",
+      detail: `${getSignedChineseDelta(placementRiskDelta)} load risk · ${getSignedChineseDelta(readinessDelta, "%")} ready`,
+      delta: `${getSignedChineseDelta(score)} place`,
+      weight: clampChinesePercent(50 + score),
+    };
+  }
+
+  const score = reviewedDelta + dueReduced * 2 + retentionDelta + voiceDelta + comboDelta;
+  const improved = score > 2;
+  const hot = score < -2;
+  return {
+    status: improved ? "improved" : hot ? "hot" : "steady",
+    label: improved ? "circuit gained" : hot ? "circuit drag" : "circuit stable",
+    detail: `${getSignedChineseDelta(reviewedDelta)} reviews · ${getSignedChineseDelta(comboDelta)} combo`,
+    delta: `${getSignedChineseDelta(score)} flow`,
+    weight: clampChinesePercent(50 + score),
   };
 }
 
@@ -13186,6 +13390,7 @@ function ChineseView() {
   const [completedRepairDrills, setCompletedRepairDrills] = useState<Set<string>>(() => new Set());
   const [repairHistory, setRepairHistory] = useState<ChineseRepairHistoryEntry[]>([]);
   const [placementHistory, setPlacementHistory] = useState<ChinesePlacementHistoryEntry[]>([]);
+  const [coachHistory, setCoachHistory] = useState<ChineseCoachHistoryEntry[]>([]);
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -13219,6 +13424,7 @@ function ChineseView() {
   const memoryVoiceCount = speechAttempts.length;
   const memoryRepairCount = completedRepairDrills.size;
   const memoryPlacementCount = placementHistory.length;
+  const memoryCoachCount = coachHistory.length;
   const repairHistoryStrip = repairHistory.slice(0, 7);
   const placementHistoryStrip = placementHistory.slice(0, 2);
   const placementOutcome = getChinesePlacementOutcome(placementHistory);
@@ -13483,6 +13689,7 @@ function ChineseView() {
         voiceAttempts: memoryVoiceCount,
         repairEvents: repairHistory.length,
         placementEvents: placementHistory.length,
+        coachEvents: memoryCoachCount,
       },
       srs: {
         reviewed: reviewedCount,
@@ -13526,6 +13733,7 @@ function ChineseView() {
     adaptiveRepairMission.tone.tone,
     dueReviewCount,
     memoryCardCount,
+    memoryCoachCount,
     memoryVoiceCount,
     placementHistory.length,
     placementOutcome.deltaAverage,
@@ -13551,6 +13759,14 @@ function ChineseView() {
   const coachEvidenceChecksum = useMemo(() => getChineseEvidenceChecksum(coachEvidenceText), [coachEvidenceText]);
   const coachEvidencePreview = coachEvidenceText.split("\n").slice(0, 10).join("\n");
   const coachBriefing = useMemo(() => getChineseCoachBriefing(coachEvidencePacket), [coachEvidencePacket]);
+  const coachHistoryRows = useMemo(
+    () =>
+      coachHistory.slice(0, 3).map((entry) => ({
+        entry,
+        outcome: getChineseCoachHistoryOutcome(entry, coachEvidencePacket),
+      })),
+    [coachEvidencePacket, coachHistory],
+  );
 
   useEffect(() => {
     setAssemblyTileIds([]);
@@ -13581,6 +13797,7 @@ function ChineseView() {
       setCompletedRepairDrills(new Set(snapshot.completedRepairDrills));
       setRepairHistory(snapshot.repairHistory);
       setPlacementHistory(snapshot.placementHistory);
+      setCoachHistory(snapshot.coachHistory);
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -13601,6 +13818,7 @@ function ChineseView() {
       completedRepairDrills: Array.from(completedRepairDrills).sort(),
       repairHistory: repairHistory.slice(0, 21),
       placementHistory: placementHistory.slice(0, 21),
+      coachHistory: coachHistory.slice(0, CHINESE_COACH_HISTORY_LIMIT),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
@@ -13608,6 +13826,7 @@ function ChineseView() {
   }, [
     completedDrills,
     completedRepairDrills,
+    coachHistory,
     memoryHydrated,
     placementHistory,
     repairHistory,
@@ -13800,7 +14019,32 @@ function ChineseView() {
     }
   }
 
+  function logCoachBriefing() {
+    const entry: ChineseCoachHistoryEntry = {
+      id: `${coachEvidencePacket.packetId}:${coachBriefing.mode}:${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      packetId: coachEvidencePacket.packetId,
+      mode: coachBriefing.mode,
+      signal: coachBriefing.signal,
+      title: coachBriefing.title,
+      command: coachBriefing.command,
+      day: selectedPracticeRecord.day,
+      activeWord: coachEvidencePacket.scope.activeWord,
+      baseline: getChineseCoachHistoryBaseline(coachEvidencePacket),
+    };
+    setCoachHistory((current) => [entry, ...current].slice(0, CHINESE_COACH_HISTORY_LIMIT));
+    return entry;
+  }
+
+  function openCoachHistoryEntry(entry: ChineseCoachHistoryEntry) {
+    selectPracticeDay(entry.day);
+    if (entry.activeWord) openDictionary(entry.activeWord);
+    setRewardMessage(`coach log loaded · ${entry.signal} · ${entry.packetId}`);
+  }
+
   function runCoachBriefing() {
+    logCoachBriefing();
+
     if (coachBriefing.mode === "sample") {
       setLessonFocusActive(true);
       setActiveLessonStep("listen");
@@ -14701,6 +14945,35 @@ function ChineseView() {
                       {coachBriefing.command}
                     </button>
                     <u aria-hidden="true" />
+                  </div>
+                  <div className="zh-coach-history" aria-label="Coach briefing intervention history">
+                    <div className="zh-coach-history-head">
+                      <span>briefing log</span>
+                      <strong>{coachHistory.length}/{CHINESE_COACH_HISTORY_LIMIT}</strong>
+                    </div>
+                    {coachHistoryRows.length ? (
+                      <div className="zh-coach-history-list">
+                        {coachHistoryRows.map(({ entry, outcome }) => (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            className={`status-${outcome.status}`}
+                            style={{ "--coach-result": `${outcome.weight}%` } as CSSProperties}
+                            title={outcome.detail}
+                            onClick={() => openCoachHistoryEntry(entry)}
+                          >
+                            <span>
+                              D{String(entry.day).padStart(3, "0")} · {entry.mode}
+                            </span>
+                            <strong>{entry.title}</strong>
+                            <em>{outcome.label}</em>
+                            <i>{outcome.delta}</i>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>arm a briefing to start the intervention trail</p>
+                    )}
                   </div>
                   <div className="zh-coach-evidence-grid">
                     <span>
