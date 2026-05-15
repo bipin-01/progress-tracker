@@ -11477,6 +11477,34 @@ function ChineseView() {
   const activePinyinUnits = useMemo(() => getChinesePinyinUnits(activePhrase.pinyin), [activePhrase]);
   const activeMeaningUnits = useMemo(() => getChineseMeaningUnits(activePhrase.meaning), [activePhrase]);
   const decoderInputUnits = useMemo(() => getChinesePinyinUnits(pinyinDecoderInput), [pinyinDecoderInput]);
+  const toneRadar = useMemo(() => {
+    const total = Math.max(activeToneSignal.length, 1);
+    const density = chineseToneRails.map((rail) => {
+      const tone = Number(rail.label);
+      const count = activeToneSignal.filter((signal) => signal.tone === tone).length;
+      return {
+        ...rail,
+        tone,
+        count,
+        weight: Math.round((count / total) * 100),
+      };
+    });
+    const dominant = density.reduce((winner, item) => (item.count > winner.count ? item : winner), density[0]);
+    const points = activeToneSignal.map((signal, index) => {
+      const averagePitch = signal.pitch.reduce((sum, pitch) => sum + pitch, 0) / signal.pitch.length;
+      return {
+        ...signal,
+        x: 8 + (index / Math.max(activeToneSignal.length - 1, 1)) * 84,
+        y: 92 - averagePitch,
+      };
+    });
+    return {
+      density,
+      dominant,
+      points,
+      path: points.map((point) => `${point.x},${point.y}`).join(" "),
+    };
+  }, [activeToneSignal]);
   const decoderResults = useMemo(
     () =>
       activePinyinUnits.map((target, index) => {
@@ -11743,6 +11771,32 @@ function ChineseView() {
 
         <HudCard className="chinese-tone-card">
           <CardHeader title="Tone Lab" meta="listen first" />
+          <div className="chinese-tone-radar">
+            <div className="chinese-radar-head">
+              <span>tone radar</span>
+              <strong>{toneRadar.dominant.name} dominant</strong>
+            </div>
+            <svg className="chinese-radar-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label={`Tone contour radar for ${activeLesson.title}`}>
+              <line className="chinese-radar-gridline" x1="0" y1="25" x2="100" y2="25" />
+              <line className="chinese-radar-gridline" x1="0" y1="50" x2="100" y2="50" />
+              <line className="chinese-radar-gridline" x1="0" y1="75" x2="100" y2="75" />
+              <polyline points={toneRadar.path} />
+              {toneRadar.points.map((point) => (
+                <g key={point.id}>
+                  <circle cx={point.x} cy={point.y} r="2.8" />
+                </g>
+              ))}
+            </svg>
+            <div className="chinese-radar-density">
+              {toneRadar.density.map((item) => (
+                <div key={item.label} className={item.count > 0 ? "active" : ""}>
+                  <span>T{item.label}</span>
+                  <strong>{item.count}</strong>
+                  <i style={{ "--tone-weight": `${item.weight}%` } as CSSProperties} />
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="chinese-tone-stack">
             {chineseToneRails.map((tone) => (
               <button type="button" onClick={() => speakMandarin(tone.sample)} key={tone.label}>
