@@ -46,13 +46,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added a seven-day load forecast: Daily Mission Uplink now predicts upcoming new-word load, review-anchor weight, SRS pressure, and repair injections, recommends light/heavy/overload actions, exposes the forecast in the coach evidence packet, and lets the coach route the user to the lightest day before overload compounds.
 - 2026-05-15 - Added Review-First Shield: when the load forecast enters heavy or overload, the daily new-word rail is replaced by a recall lane, the active word card becomes a review target, and the coach forecast command opens Focus Tunnel on the next SRS card before any new vocabulary is loaded.
 - 2026-05-15 - Added Review Gate Unlock: after enough distinct recall cards are graded, the shield switches from locked to ready, the coach command can restore the daily new-word rail, and Memory Core persists the cleared gate across refreshes.
+- 2026-05-15 - Added Review Gate Ledger: cleared review-first gates now appear beside repair history as compact behavior evidence, contribute to Memory Core counts, and export in the coach evidence packet for future AI analysis.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Add a compact review-gate history strip so cleared locks become visible behavior evidence for the future coach agent.
+- Add a compact missed-character ledger that groups wrong pinyin, weak voice, and repeated SRS lapses into one repair queue.
 
 ## Design Rules For Future Passes
 

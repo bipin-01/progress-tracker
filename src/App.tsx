@@ -673,6 +673,7 @@ type ChineseCoachEvidencePacket = {
     cards: number;
     voiceAttempts: number;
     repairEvents: number;
+    reviewGates: number;
     placementEvents: number;
     coachEvents: number;
   };
@@ -13653,9 +13654,17 @@ function ChineseView() {
   const memoryCardCount = Object.keys(reviewRatings).length;
   const memoryVoiceCount = speechAttempts.length;
   const memoryRepairCount = completedRepairDrills.size;
+  const memoryReviewGateCount = reviewUnlocks.length;
   const memoryPlacementCount = placementHistory.length;
   const memoryCoachCount = coachHistory.length;
   const repairHistoryStrip = repairHistory.slice(0, 7);
+  const reviewGateHistoryStrip = reviewUnlocks.slice(0, 7);
+  const reviewGateHistoryAverage = reviewGateHistoryStrip.length
+    ? Math.round(
+        reviewGateHistoryStrip.reduce((total, entry) => total + (entry.reviewedCards / Math.max(entry.target, 1)) * 100, 0) /
+          reviewGateHistoryStrip.length,
+      )
+    : 0;
   const placementHistoryStrip = placementHistory.slice(0, 2);
   const placementOutcome = getChinesePlacementOutcome(placementHistory);
   const repairComparison = getChineseRepairComparison(repairHistory, speechAttempts);
@@ -13930,6 +13939,7 @@ function ChineseView() {
       reviewMastery,
       speechAttempts.length,
       repairHistory.length,
+      memoryReviewGateCount,
       placementHistory.length,
       placementOutcome.status,
       placementOutcome.deltaAverage,
@@ -13956,6 +13966,7 @@ function ChineseView() {
         cards: memoryCardCount,
         voiceAttempts: memoryVoiceCount,
         repairEvents: repairHistory.length,
+        reviewGates: memoryReviewGateCount,
         placementEvents: placementHistory.length,
         coachEvents: memoryCoachCount,
       },
@@ -14019,6 +14030,7 @@ function ChineseView() {
     loadForecast.summary,
     memoryCardCount,
     memoryCoachCount,
+    memoryReviewGateCount,
     memoryVoiceCount,
     placementHistory.length,
     placementOutcome.deltaAverage,
@@ -14255,6 +14267,11 @@ function ChineseView() {
     const primarySymbol = entry.symbols[0];
     if (primarySymbol) openDictionary(primarySymbol);
     setRewardMessage(`repair history loaded · T${entry.tone} ${entry.toneName}`);
+  }
+
+  function openReviewUnlockEntry(entry: ChineseReviewUnlockEntry) {
+    selectPracticeDay(entry.day);
+    setRewardMessage(`review gate loaded · ${entry.status} · ${entry.reviewedCards}/${entry.target}`);
   }
 
   function logPlacementHistory(profile: ChinesePlacementProfile) {
@@ -14880,23 +14897,48 @@ function ChineseView() {
               </button>
             </div>
 
-            <div className="zh-repair-history" aria-label="Recent Chinese repair history">
-              <div>
-                <span>repair history</span>
-                <strong>{repairHistoryStrip.length}/7</strong>
+            <div className="zh-behavior-history-grid">
+              <div className="zh-repair-history" aria-label="Recent Chinese repair history">
+                <div>
+                  <span>repair history</span>
+                  <strong>{repairHistoryStrip.length}/7</strong>
+                </div>
+                <div>
+                  {repairHistoryStrip.length ? (
+                    repairHistoryStrip.map((entry) => (
+                      <button key={entry.id} type="button" onClick={() => openRepairHistoryEntry(entry)}>
+                        <span>D{String(entry.day).padStart(3, "0")}</span>
+                        <strong>T{entry.tone}</strong>
+                        <em>{entry.symbols.length ? entry.symbols.join(" ") : entry.toneName}</em>
+                      </button>
+                    ))
+                  ) : (
+                    <p>complete a repair mission to log the weakness that was fixed</p>
+                  )}
+                </div>
               </div>
-              <div>
-                {repairHistoryStrip.length ? (
-                  repairHistoryStrip.map((entry) => (
-                    <button key={entry.id} type="button" onClick={() => openRepairHistoryEntry(entry)}>
-                      <span>D{String(entry.day).padStart(3, "0")}</span>
-                      <strong>T{entry.tone}</strong>
-                      <em>{entry.symbols.length ? entry.symbols.join(" ") : entry.toneName}</em>
-                    </button>
-                  ))
-                ) : (
-                  <p>complete a repair mission to log the weakness that was fixed</p>
-                )}
+
+              <div className="zh-review-gate-history" aria-label="Review gate unlock history">
+                <div>
+                  <span>gate ledger</span>
+                  <strong>{reviewGateHistoryStrip.length}/7</strong>
+                  <em>{reviewGateHistoryAverage ? `${reviewGateHistoryAverage}% recall` : "waiting"}</em>
+                </div>
+                <div>
+                  {reviewGateHistoryStrip.length ? (
+                    reviewGateHistoryStrip.map((entry) => (
+                      <button key={entry.id} type="button" className={`status-${entry.status}`} onClick={() => openReviewUnlockEntry(entry)}>
+                        <span>D{String(entry.day).padStart(3, "0")}</span>
+                        <strong>{entry.status}</strong>
+                        <em>
+                          {entry.reviewedCards}/{entry.target} · {entry.peakLoad} load
+                        </em>
+                      </button>
+                    ))
+                  ) : (
+                    <p>clear a review-first gate to start behavior evidence</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -14978,7 +15020,10 @@ function ChineseView() {
               <div className={`zh-memory-core ${memoryStatus === "offline" ? "offline" : ""}`}>
                 <span>memory core</span>
                 <strong>{memoryCoreLabel}</strong>
-                <em>{memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair · {memoryPlacementCount} placement · {memoryCoachCount} coach</em>
+                <em>
+                  {memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair · {memoryReviewGateCount} gate ·{" "}
+                  {memoryPlacementCount} placement · {memoryCoachCount} coach
+                </em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>
                 <span>phase signal</span>
