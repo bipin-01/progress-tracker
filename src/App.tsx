@@ -548,6 +548,20 @@ type ChineseMissDrillHistoryEntry = {
   score: number;
 };
 
+type ChineseMissDrillFollowUpEntry = {
+  id: string;
+  signalId: string;
+  hanzi: string;
+  pinyin: string;
+  sources: ChineseMissLedgerSource[];
+  risk: number;
+  createdDay: number;
+  dueDay: number;
+  interval: number;
+  attempts: number;
+  lastCompletedDay: number;
+};
+
 type ChineseAdaptiveRepairDrill = {
   id: string;
   label: string;
@@ -730,6 +744,8 @@ type ChineseCoachEvidencePacket = {
     topHanzi: string[];
     topRisk: number;
     sources: string[];
+    followUpsDue: number;
+    nextFollowUp: string;
     recommendation: string;
   };
   placement: {
@@ -816,6 +832,7 @@ type ChineseMemorySnapshot = {
   reviewUnlocks: ChineseReviewUnlockEntry[];
   completedMissDrills: string[];
   missDrillHistory: ChineseMissDrillHistoryEntry[];
+  missDrillFollowUps: ChineseMissDrillFollowUpEntry[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -867,6 +884,7 @@ const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
 const CHINESE_SPEECH_HISTORY_LIMIT = 80;
 const CHINESE_COACH_HISTORY_LIMIT = 21;
 const CHINESE_MISS_DRILL_HISTORY_LIMIT = 21;
+const CHINESE_MISS_FOLLOW_UP_LIMIT = 21;
 const CHINESE_REPAIR_DRILL_XP = 4;
 
 const chineseHskPlacementBands = [
@@ -1902,6 +1920,59 @@ function getChineseStoredMissDrillHistoryEntry(value: unknown): ChineseMissDrill
   };
 }
 
+function getChineseStoredMissDrillFollowUpEntry(value: unknown): ChineseMissDrillFollowUpEntry | null {
+  if (!isChineseRecord(value)) return null;
+  const signalId = typeof value.signalId === "string" ? value.signalId : "";
+  const hanzi = typeof value.hanzi === "string" ? value.hanzi : "";
+  const pinyin = typeof value.pinyin === "string" ? value.pinyin : "";
+  if (!signalId || !hanzi || !pinyin) return null;
+  const sources = Array.isArray(value.sources) ? value.sources.filter(isChineseMissLedgerSource) : [];
+  const createdDay = getChineseStoredDay(value.createdDay);
+  const interval = Math.max(1, Math.trunc(getChineseClampedNumber(value.interval, 1, 1, 30)));
+
+  return {
+    id: typeof value.id === "string" ? value.id : `${signalId}-follow-up`,
+    signalId,
+    hanzi,
+    pinyin,
+    sources,
+    risk: getChineseClampedNumber(value.risk, 0, 0, 100),
+    createdDay,
+    dueDay: getChineseStoredDay(value.dueDay ?? createdDay + interval),
+    interval,
+    attempts: Math.max(0, Math.trunc(getChineseNumber(value.attempts, 0))),
+    lastCompletedDay: getChineseStoredDay(value.lastCompletedDay ?? createdDay),
+  };
+}
+
+function getChineseMissFollowUpInterval(
+  signal: Pick<ChineseMissedCharacterSignal, "risk" | "sources">,
+  attempts = 0,
+) {
+  const base = signal.risk >= 90 || signal.sources.includes("srs") ? 1 : signal.risk >= 75 || signal.sources.includes("voice") ? 2 : 3;
+  return Math.min(21, base + Math.max(0, attempts) * 2);
+}
+
+function getChineseMissFollowUpDueLabel(entry: ChineseMissDrillFollowUpEntry, day: number) {
+  const delta = entry.dueDay - day;
+  if (delta < 0) return `${Math.abs(delta)}d late`;
+  if (delta === 0) return "due now";
+  return `D+${delta}`;
+}
+
+function getChineseMissFollowUpSignal(entry: ChineseMissDrillFollowUpEntry): ChineseMissedCharacterSignal {
+  return {
+    id: entry.signalId,
+    hanzi: entry.hanzi,
+    pinyin: entry.pinyin,
+    sources: entry.sources,
+    risk: entry.risk,
+    count: entry.attempts + 1,
+    detail: `D${String(entry.dueDay).padStart(3, "0")} follow-up`,
+    action: "rerun micro drill",
+  };
+}
+
 function getChineseStoredCoachHistoryEntry(value: unknown): ChineseCoachHistoryEntry | null {
   if (!isChineseRecord(value)) return null;
   const packetId = typeof value.packetId === "string" ? value.packetId : "";
@@ -1965,6 +2036,10 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
         .map(getChineseStoredMissDrillHistoryEntry)
         .filter((entry): entry is ChineseMissDrillHistoryEntry => Boolean(entry))
         .slice(0, CHINESE_MISS_DRILL_HISTORY_LIMIT),
+      missDrillFollowUps: (Array.isArray(parsed.missDrillFollowUps) ? parsed.missDrillFollowUps : [])
+        .map(getChineseStoredMissDrillFollowUpEntry)
+        .filter((entry): entry is ChineseMissDrillFollowUpEntry => Boolean(entry))
+        .slice(0, CHINESE_MISS_FOLLOW_UP_LIMIT),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
         .map(getChineseStoredSpeechAttempt)
@@ -13836,6 +13911,8 @@ function ChineseView() {
   const [activeMissDrillSnapshot, setActiveMissDrillSnapshot] = useState<ChineseMissedCharacterSignal | null>(null);
   const [missDrillDone, setMissDrillDone] = useState<Set<string>>(() => new Set());
   const [missDrillHistory, setMissDrillHistory] = useState<ChineseMissDrillHistoryEntry[]>([]);
+  const [missDrillFollowUps, setMissDrillFollowUps] = useState<ChineseMissDrillFollowUpEntry[]>([]);
+  const [activeMissFollowUpId, setActiveMissFollowUpId] = useState("");
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -14095,6 +14172,12 @@ function ChineseView() {
     (activeMissDrillDoneCount / Math.max(chineseMissDrillSteps.length, 1)) * 100,
   );
   const missDrillHistoryStrip = missDrillHistory.slice(0, 3);
+  const activeMissFollowUps = [...missDrillFollowUps].sort(
+    (a, b) => a.dueDay - b.dueDay || b.risk - a.risk || a.hanzi.localeCompare(b.hanzi),
+  );
+  const dueMissFollowUps = activeMissFollowUps.filter((entry) => entry.dueDay <= selectedPracticeRecord.day);
+  const nextMissFollowUp = dueMissFollowUps[0] ?? activeMissFollowUps[0];
+  const missFollowUpStrip = (dueMissFollowUps.length ? dueMissFollowUps : activeMissFollowUps).slice(0, 3);
   const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
   const activeVoiceToneWeakness = adaptiveRepairMission.tone;
   const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
@@ -14174,6 +14257,9 @@ function ChineseView() {
       repairHistory.length,
       memoryReviewGateCount,
       memoryMissDrillCount,
+      dueMissFollowUps.length,
+      nextMissFollowUp?.hanzi ?? "clear",
+      nextMissFollowUp?.dueDay ?? 0,
       missedCharacterLedger.length,
       topMissedCharacter?.hanzi ?? "clear",
       topMissedCharacter?.risk ?? 0,
@@ -14231,8 +14317,17 @@ function ChineseView() {
         topHanzi: missedCharacterLedger.slice(0, 3).map((signal) => signal.hanzi),
         topRisk: topMissedCharacter?.risk ?? 0,
         sources: missedCharacterSources,
+        followUpsDue: dueMissFollowUps.length,
+        nextFollowUp: nextMissFollowUp
+          ? `${nextMissFollowUp.hanzi} D${String(nextMissFollowUp.dueDay).padStart(3, "0")} ${getChineseMissFollowUpDueLabel(
+              nextMissFollowUp,
+              selectedPracticeRecord.day,
+            )}`
+          : "clear",
         recommendation: topMissedCharacter
           ? `${topMissedCharacter.hanzi} · ${topMissedCharacter.detail} · ${topMissedCharacter.action}`
+          : nextMissFollowUp
+            ? `Follow up ${nextMissFollowUp.hanzi} on D${String(nextMissFollowUp.dueDay).padStart(3, "0")}.`
           : "No merged miss signal yet.",
       },
       placement: {
@@ -14268,6 +14363,7 @@ function ChineseView() {
     adaptiveRepairMission.hasSignal,
     adaptiveRepairMission.summary,
     adaptiveRepairMission.tone.tone,
+    dueMissFollowUps.length,
     dueReviewCount,
     loadForecast.averageLoad,
     loadForecast.peak.day,
@@ -14282,6 +14378,7 @@ function ChineseView() {
     memoryVoiceCount,
     missedCharacterLedger,
     missedCharacterSources,
+    nextMissFollowUp,
     placementHistory.length,
     placementOutcome.deltaAverage,
     placementOutcome.label,
@@ -14352,6 +14449,7 @@ function ChineseView() {
       setReviewUnlocks(snapshot.reviewUnlocks);
       setMissDrillDone(new Set(snapshot.completedMissDrills));
       setMissDrillHistory(snapshot.missDrillHistory);
+      setMissDrillFollowUps(snapshot.missDrillFollowUps);
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -14376,6 +14474,7 @@ function ChineseView() {
       reviewUnlocks: reviewUnlocks.slice(0, 21),
       completedMissDrills: Array.from(missDrillDone).sort(),
       missDrillHistory: missDrillHistory.slice(0, CHINESE_MISS_DRILL_HISTORY_LIMIT),
+      missDrillFollowUps: missDrillFollowUps.slice(0, CHINESE_MISS_FOLLOW_UP_LIMIT),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
@@ -14386,6 +14485,7 @@ function ChineseView() {
     coachHistory,
     memoryHydrated,
     missDrillDone,
+    missDrillFollowUps,
     missDrillHistory,
     placementHistory,
     repairHistory,
@@ -14568,12 +14668,25 @@ function ChineseView() {
     setRewardMessage(`miss ledger loaded · ${signal.hanzi} · ${signal.sources.join("+")}`);
   }
 
-  function armMissDrill(signal = topMissedCharacter) {
+  function resetMissDrillProgress(signalId: string) {
+    setMissDrillDone((current) => {
+      const next = new Set(current);
+      chineseMissDrillSteps.forEach((step) => next.delete(`${signalId}:${step.id}`));
+      return next;
+    });
+  }
+
+  function armMissDrill(
+    signal = topMissedCharacter,
+    options: { reset?: boolean; followUpId?: string } = {},
+  ) {
     if (!signal) {
       setRewardMessage("miss drill waiting · create a pinyin, voice, or SRS miss first");
       return;
     }
 
+    if (options.reset) resetMissDrillProgress(signal.id);
+    setActiveMissFollowUpId(options.followUpId ?? "");
     stageMissDrillSignal(signal);
     setActiveLessonStep("build");
     setPinyinDecoderInput("");
@@ -14581,16 +14694,53 @@ function ChineseView() {
   }
 
   function repeatMissDrillEntry(entry: ChineseMissDrillHistoryEntry) {
-    armMissDrill({
-      id: entry.signalId,
-      hanzi: entry.hanzi,
-      pinyin: entry.pinyin,
-      sources: entry.sources,
-      risk: entry.risk,
-      count: 1,
-      detail: `${entry.score}% packet`,
-      action: "repeat micro drill",
+    armMissDrill(
+      {
+        id: entry.signalId,
+        hanzi: entry.hanzi,
+        pinyin: entry.pinyin,
+        sources: entry.sources,
+        risk: entry.risk,
+        count: 1,
+        detail: `${entry.score}% packet`,
+        action: "repeat micro drill",
+      },
+      { reset: true },
+    );
+  }
+
+  function scheduleMissFollowUp(signal: ChineseMissedCharacterSignal, completedDay: number) {
+    setMissDrillFollowUps((current) => {
+      const existing = current.find((entry) => entry.signalId === signal.id);
+      const isActiveFollowUp = Boolean(activeMissFollowUpId && existing?.id === activeMissFollowUpId);
+      const attempts = isActiveFollowUp ? (existing?.attempts ?? 0) + 1 : existing?.attempts ?? 0;
+      const interval = getChineseMissFollowUpInterval(signal, attempts);
+      const nextEntry: ChineseMissDrillFollowUpEntry = {
+        id: existing?.id ?? `${signal.id}-follow-up`,
+        signalId: signal.id,
+        hanzi: signal.hanzi,
+        pinyin: signal.pinyin,
+        sources: signal.sources,
+        risk: signal.risk,
+        createdDay: existing?.createdDay ?? completedDay,
+        dueDay: Math.min(CHINESE_PRACTICE_TOTAL_DAYS, completedDay + interval),
+        interval,
+        attempts,
+        lastCompletedDay: completedDay,
+      };
+
+      return [nextEntry, ...current.filter((entry) => entry.id !== nextEntry.id)]
+        .sort((a, b) => a.dueDay - b.dueDay || b.risk - a.risk)
+        .slice(0, CHINESE_MISS_FOLLOW_UP_LIMIT);
     });
+  }
+
+  function loadMissFollowUp(entry: ChineseMissDrillFollowUpEntry) {
+    const signal = getChineseMissFollowUpSignal(entry);
+    armMissDrill(signal, { reset: true, followUpId: entry.id });
+    setRewardMessage(
+      `${getChineseMissFollowUpDueLabel(entry, selectedPracticeRecord.day)} · ${entry.hanzi} follow-up armed`,
+    );
   }
 
   function runMissDrillStep(stepId: ChineseMissDrillStepId) {
@@ -14602,6 +14752,12 @@ function ChineseView() {
 
     const card = stageMissDrillSignal(signal);
     const doneKey = `${signal.id}:${stepId}`;
+    if (missDrillDone.has(doneKey)) {
+      const lockedCount = chineseMissDrillSteps.filter((step) => missDrillDone.has(`${signal.id}:${step.id}`)).length;
+      setRewardMessage(`${signal.hanzi} ${stepId} already locked · ${lockedCount}/${chineseMissDrillSteps.length}`);
+      return;
+    }
+
     const nextDone = new Set(missDrillDone).add(doneKey);
     setMissDrillDone(nextDone);
 
@@ -14626,7 +14782,7 @@ function ChineseView() {
 
     const nextDoneCount = chineseMissDrillSteps.filter((step) => nextDone.has(`${signal.id}:${step.id}`)).length;
     const allDone = nextDoneCount === chineseMissDrillSteps.length;
-    if (allDone && !missDrillHistory.some((entry) => entry.signalId === signal.id)) {
+    if (allDone) {
       const entry: ChineseMissDrillHistoryEntry = {
         id: `${signal.id}:${Date.now()}`,
         signalId: signal.id,
@@ -14641,9 +14797,15 @@ function ChineseView() {
         entry,
         ...current.filter((item) => item.signalId !== signal.id),
       ].slice(0, CHINESE_MISS_DRILL_HISTORY_LIMIT));
-      setSessionXp((xp) => xp + 18);
+      scheduleMissFollowUp(signal, selectedPracticeRecord.day);
+      setSessionXp((xp) => xp + (activeMissFollowUpId ? 12 : 18));
       setReviewCombo((combo) => combo + 1);
-      setRewardMessage(`micro drill locked · ${signal.hanzi} · +18 XP`);
+      setRewardMessage(
+        activeMissFollowUpId
+          ? `follow-up locked · ${signal.hanzi} · next D+${getChineseMissFollowUpInterval(signal, (missDrillFollowUps.find((item) => item.id === activeMissFollowUpId)?.attempts ?? 0) + 1)}`
+          : `micro drill locked · ${signal.hanzi} · follow-up queued`,
+      );
+      setActiveMissFollowUpId("");
       return;
     }
 
@@ -15323,6 +15485,13 @@ function ChineseView() {
                   <span>miss ledger</span>
                   <strong>{topMissedCharacter ? `${topMissedCharacter.risk}%` : "--"}</strong>
                   <em>{topMissedCharacter ? topMissedCharacter.sources.join("+") : "clear"}</em>
+                  <i className={dueMissFollowUps.length ? "zh-miss-followup-signal due" : "zh-miss-followup-signal"}>
+                    {dueMissFollowUps.length
+                      ? `${dueMissFollowUps.length} due`
+                      : nextMissFollowUp
+                        ? `D${String(nextMissFollowUp.dueDay).padStart(3, "0")} next`
+                        : `${missDrillHistory.length} locked`}
+                  </i>
                   {topMissedCharacter ? (
                     <button type="button" className="zh-miss-drill-arm" onClick={() => armMissDrill(topMissedCharacter)}>
                       micro drill
@@ -15342,6 +15511,34 @@ function ChineseView() {
                   ) : (
                     <p>pinyin, voice, and SRS misses will merge here</p>
                   )}
+                  {missFollowUpStrip.length ? (
+                    <div className="zh-miss-followups" aria-label="Timed miss drill follow-up queue">
+                      <div>
+                        <span>follow-up queue</span>
+                        <strong>
+                          {dueMissFollowUps.length}/{activeMissFollowUps.length}
+                        </strong>
+                      </div>
+                      {missFollowUpStrip.map((entry) => {
+                        const due = entry.dueDay <= selectedPracticeRecord.day;
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            className={due ? "due" : ""}
+                            onClick={() => loadMissFollowUp(entry)}
+                          >
+                            <strong className="zh-cn">{entry.hanzi}</strong>
+                            <span className={getChineseToneClass(entry.pinyin)}>{entry.pinyin}</span>
+                            <em>{getChineseMissFollowUpDueLabel(entry, selectedPracticeRecord.day)}</em>
+                            <i>
+                              {entry.interval}d · r{entry.attempts + 1}
+                            </i>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   {activeMissDrillSignal ? (
                     <div
                       className="zh-miss-drill-packet"

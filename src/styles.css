@@ -12049,6 +12049,22 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.zh-miss-followup-signal {
+  width: fit-content;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  color: var(--ink-2);
+  font-size: 8px;
+  font-style: normal;
+  letter-spacing: 0.16em;
+  padding: 3px 6px;
+  text-transform: uppercase;
+}
+
+.zh-miss-followup-signal.due {
+  border-color: rgba(255, 209, 102, 0.36);
+  color: var(--zh-gold);
+}
+
 .zh-repair-history > div:last-child,
 .zh-review-gate-history > div:last-child,
 .zh-miss-ledger > div:last-child {
@@ -12162,6 +12178,47 @@ button.load-forecast-day:hover {
     linear-gradient(90deg, rgba(255, 209, 102, 0.08) var(--miss-drill-progress), transparent var(--miss-drill-progress)),
     rgba(2, 7, 15, 0.42);
   padding: 6px;
+}
+
+.zh-miss-followups {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(116px, 0.22fr) repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.045), transparent 56%),
+    rgba(2, 7, 15, 0.36);
+  padding: 5px;
+}
+
+.zh-miss-followups > div {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  border-left: 2px solid rgba(53, 215, 255, 0.52);
+  padding-left: 7px;
+}
+
+.zh-miss-followups > div strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.zh-miss-followups button {
+  border-color: rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.025);
+}
+
+.zh-miss-followups button.due {
+  border-color: rgba(255, 209, 102, 0.28);
+  background: rgba(255, 209, 102, 0.045);
+}
+
+.zh-miss-followups button.due em {
+  color: var(--zh-gold);
 }
 
 .zh-miss-drill-core {
@@ -15304,6 +15361,7 @@ button.load-forecast-day:hover {
   .zh-repair-history > div:last-child,
   .zh-review-gate-history > div:last-child,
   .zh-miss-ledger > div:last-child,
+  .zh-miss-followups,
   .zh-miss-drill-packet,
   .zh-miss-drill-steps,
   .zh-load-forecast-strip,
