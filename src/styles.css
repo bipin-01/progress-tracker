@@ -15843,7 +15843,12 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head,
 .prompt-portfolio-gallery-summary,
-.prompt-portfolio-gallery-list {
+.prompt-portfolio-gallery-list,
+.prompt-portfolio-polish,
+.prompt-portfolio-polish-head,
+.prompt-portfolio-polish-steps,
+.prompt-portfolio-polish-detail,
+.prompt-portfolio-polish-checklist {
   display: grid;
   gap: 8px;
 }
@@ -15862,7 +15867,10 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head > div,
 .prompt-portfolio-gallery-summary > div,
-.prompt-portfolio-gallery-list > div {
+.prompt-portfolio-gallery-list > div,
+.prompt-portfolio-polish,
+.prompt-portfolio-polish-head > div,
+.prompt-portfolio-polish-detail > div {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -15870,6 +15878,44 @@ button.load-forecast-day:hover {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.03);
   padding: 9px;
+}
+
+.prompt-portfolio-polish {
+  border-color: rgba(255, 181, 74, 0.15);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.035), transparent 46%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-polish-head {
+  grid-template-columns: minmax(170px, 0.28fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-polish-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.prompt-portfolio-polish-steps button {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  padding: 8px;
+  text-align: left;
+}
+
+.prompt-portfolio-polish-steps button.active {
+  border-color: rgba(255, 181, 74, 0.38);
+  background: rgba(255, 181, 74, 0.07);
+}
+
+.prompt-portfolio-polish-detail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prompt-portfolio-polish-checklist {
+  border: 1px solid rgba(255, 181, 74, 0.12);
+  background: rgba(255, 181, 74, 0.025);
+  padding: 8px;
 }
 
 .prompt-portfolio-gallery-list > div.active {
@@ -15884,7 +15930,8 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head span,
 .prompt-portfolio-gallery-summary span,
-.prompt-portfolio-gallery-list span {
+.prompt-portfolio-gallery-list span,
+.prompt-portfolio-polish span {
   color: var(--ink-2);
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;
@@ -15894,7 +15941,8 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head strong,
 .prompt-portfolio-gallery-summary strong,
-.prompt-portfolio-gallery-list strong {
+.prompt-portfolio-gallery-list strong,
+.prompt-portfolio-polish strong {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 14px;
@@ -15903,7 +15951,8 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head p,
 .prompt-portfolio-gallery-summary p,
-.prompt-portfolio-gallery-list p {
+.prompt-portfolio-gallery-list p,
+.prompt-portfolio-polish p {
   margin: 0;
   color: var(--ink-1);
   font-size: 12px;
@@ -15913,7 +15962,8 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head em,
 .prompt-portfolio-gallery-list em,
-.prompt-portfolio-gallery-list i {
+.prompt-portfolio-gallery-list i,
+.prompt-portfolio-polish em {
   color: var(--ink-2);
   font-size: 10px;
   font-style: normal;
@@ -18082,6 +18132,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-gallery-head,
   .prompt-portfolio-gallery-summary,
   .prompt-portfolio-gallery-list,
+  .prompt-portfolio-polish-head,
+  .prompt-portfolio-polish-steps,
+  .prompt-portfolio-polish-detail,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-review-grid,
   .prompt-evidence-builder-head,
@@ -18156,6 +18209,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-gallery-head,
   .prompt-portfolio-gallery-summary,
   .prompt-portfolio-gallery-list,
+  .prompt-portfolio-polish-head,
+  .prompt-portfolio-polish-steps,
+  .prompt-portfolio-polish-detail,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-compare-head,
   .prompt-checkpoint-review-grid,

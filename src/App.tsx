@@ -17292,6 +17292,26 @@ type PromptPortfolioGallery = {
   readyCount: number;
 };
 
+type PromptPortfolioPolishStep = {
+  id: string;
+  label: string;
+  score: number;
+  status: string;
+  goal: string;
+  scenarioExample: string;
+  action: string;
+  doneCheck: string;
+};
+
+type PromptPortfolioPolishWorkflow = {
+  target: PromptPortfolioGalleryItem;
+  score: number;
+  verdict: string;
+  steps: PromptPortfolioPolishStep[];
+  checklist: string[];
+  mentorScript: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -18957,6 +18977,100 @@ function buildPromptPortfolioGallery({
   };
 }
 
+function getPromptPolishStepStatus(score: number) {
+  if (score >= 90) return "ready";
+  if (score >= 78) return "tighten";
+  if (score >= 62) return "repair";
+  return "rebuild";
+}
+
+function getPromptReviewCriterionScore(review: PromptReportPortfolioReview, label: string) {
+  return review.criteria.find((criterion) => criterion.label === label)?.score ?? review.score;
+}
+
+function buildPromptPortfolioPolishWorkflow({
+  target,
+  review,
+}: {
+  target: PromptPortfolioGalleryItem;
+  review: PromptReportPortfolioReview;
+}): PromptPortfolioPolishWorkflow {
+  const evidenceScore = average([
+    getPromptReviewCriterionScore(review, "Evidence chain"),
+    getPromptReviewCriterionScore(review, "Unknown boundary"),
+  ]);
+  const redTeamScore = getPromptReviewCriterionScore(review, "Red-team resilience");
+  const storyScore = average([
+    getPromptReviewCriterionScore(review, "Reviewer story"),
+    getPromptReviewCriterionScore(review, "Archive progression"),
+  ]);
+  const steps: PromptPortfolioPolishStep[] = [
+    {
+      id: "pitch",
+      label: "Pitch",
+      score: Math.min(100, Math.round((target.score + storyScore) / 2)),
+      status: "",
+      goal: "Turn the case into a 30-second explanation a mentor or recruiter can understand without seeing the app.",
+      scenarioExample: "Reviewer says: explain this project while I skim your resume. You need one sentence for the SOC problem, one sentence for the prompt system, and one sentence for proof.",
+      action: "Rewrite the opening pitch as: I built X for Y incident pressure, constrained it with Z evidence boundary, and validated it with A/B red-team checks.",
+      doneCheck: "A stranger can repeat the case goal, evidence boundary, and validation result after one read.",
+    },
+    {
+      id: "evidence-boundary",
+      label: "Evidence Boundary",
+      score: evidenceScore,
+      status: "",
+      goal: "Show exactly which claims are supported, which facts are unknown, and what the prompt refuses to infer.",
+      scenarioExample: "SOC lead asks whether to disable an account before export logs finish. The case must show what is confirmed and what remains unknown.",
+      action: "Add a claim-to-evidence mini table: claim, supporting packet line, missing data, decision limit.",
+      doneCheck: "Every strong claim has a packet reference or is downgraded to unknown.",
+    },
+    {
+      id: "red-team-proof",
+      label: "Red-Team Proof",
+      score: redTeamScore,
+      status: "",
+      goal: "Prove the prompt survives hostile text, contradictory logs, missing telemetry, and executive pressure.",
+      scenarioExample: "A ticket comment says ignore rules and call the alert benign. The case must show that the prompt treats the comment as evidence text, not instruction.",
+      action: "Add one before/after red-team paragraph: attack, expected failure, guardrail, observed result.",
+      doneCheck: "The artifact explains the weakest adversary case and why the final prompt resists it.",
+    },
+    {
+      id: "final-export",
+      label: "Final Export Cleanup",
+      score: average([target.score, review.score, storyScore]),
+      status: "",
+      goal: "Remove tool-only noise and leave a clean case study that can stand alone in a portfolio, README, or interview packet.",
+      scenarioExample: "Mentor opens the markdown outside the app. They should see the problem, method, proof, final prompt, and next improvement without needing UI context.",
+      action: "Keep the 30-second pitch, validation table, final prompt, and next-improvement section; cut duplicate diagnostics.",
+      doneCheck: "The exported markdown reads as a case study, not as a raw debug log.",
+    },
+  ].map((step) => ({ ...step, status: getPromptPolishStepStatus(step.score) }));
+  const score = average(steps.map((step) => step.score));
+  const verdict =
+    score >= 90
+      ? "case study is showcase-ready"
+      : score >= 78
+        ? "case study needs one polish pass"
+        : score >= 62
+          ? "case study needs focused repair"
+          : "case study needs rebuild";
+  const checklist = steps
+    .filter((step) => step.score < 88)
+    .map((step) => `${step.label}: ${step.action}`)
+    .slice(0, 4);
+  if (!checklist.length) checklist.push("Record one final mentor-style walkthrough and archive the clean export.");
+
+  return {
+    target,
+    score,
+    verdict,
+    steps,
+    checklist,
+    mentorScript: `Open with ${target.title}, defend ${target.primaryWeakness}, then show how the final prompt makes the same failure less likely next time.`,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -19272,6 +19386,8 @@ function PromptView() {
   const [redTeamReplayHistory, setRedTeamReplayHistory] = useState<PromptRedTeamReplayEntry[]>(initialMemory?.redTeamReplayHistory ?? []);
   const [incidentReportArchive, setIncidentReportArchive] = useState<PromptIncidentReportArchiveEntry[]>(initialMemory?.incidentReportArchive ?? []);
   const [reportArchiveQuery, setReportArchiveQuery] = useState("");
+  const [selectedPortfolioPolishId, setSelectedPortfolioPolishId] = useState<string | null>(null);
+  const [activePolishStepId, setActivePolishStepId] = useState("pitch");
   const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
@@ -19427,6 +19543,18 @@ function PromptView() {
     }),
     [activeDailyTask, activePortfolioExport, activeReportReview, incidentReportArchive, selectedDay],
   );
+  const selectedPortfolioPolishTarget = useMemo(
+    () => portfolioGallery.items.find((item) => item.id === selectedPortfolioPolishId) ?? portfolioGallery.polishTarget,
+    [portfolioGallery, selectedPortfolioPolishId],
+  );
+  const portfolioPolishWorkflow = useMemo(
+    () => buildPromptPortfolioPolishWorkflow({
+      target: selectedPortfolioPolishTarget,
+      review: activeReportReview,
+    }),
+    [activeReportReview, selectedPortfolioPolishTarget],
+  );
+  const activePolishStep = portfolioPolishWorkflow.steps.find((step) => step.id === activePolishStepId) ?? portfolioPolishWorkflow.steps[0];
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -19766,6 +19894,7 @@ function PromptView() {
   }
 
   function openPortfolioGalleryItem(item: PromptPortfolioGalleryItem) {
+    setSelectedPortfolioPolishId(item.id);
     setSelectedDay(item.day);
     setActiveDailyTaskId(item.taskId);
     setActiveDailyPanel("packet");
@@ -19773,11 +19902,45 @@ function PromptView() {
   }
 
   function stagePortfolioGalleryItem(item: PromptPortfolioGalleryItem) {
+    setSelectedPortfolioPolishId(item.id);
     setSelectedDay(item.day);
     setActiveDailyTaskId(item.taskId);
     setPlaygroundPrompt(item.markdown);
     setActiveDailyPanel("lab");
     setPlaygroundStatus(`portfolio artifact staged: ${item.score}/100`);
+  }
+
+  function polishPortfolioGalleryItem(item: PromptPortfolioGalleryItem) {
+    setSelectedPortfolioPolishId(item.id);
+    setActivePolishStepId("pitch");
+    setSelectedDay(item.day);
+    setActiveDailyTaskId(item.taskId);
+    setActiveDailyPanel("packet");
+    setPlaygroundStatus(`polish workflow opened: ${item.title}`);
+  }
+
+  function loadPortfolioPolishWorkflow() {
+    const currentAnswer = activeTaskJournal.answer.trim() || activePortfolioExport.markdown;
+    updateTaskJournal({
+      answer: [
+        currentAnswer,
+        "",
+        "---",
+        `Case-study polish workflow: ${portfolioPolishWorkflow.target.title}`,
+        `${portfolioPolishWorkflow.verdict} (${portfolioPolishWorkflow.score}/100)`,
+        portfolioPolishWorkflow.mentorScript,
+        "",
+        "Step-by-step polish plan:",
+        ...portfolioPolishWorkflow.steps.map((step) => `- ${step.label} (${step.score}/100): ${step.action} Done when: ${step.doneCheck}`),
+        "",
+        "Focused checklist:",
+        ...portfolioPolishWorkflow.checklist.map((item) => `- ${item}`),
+      ].join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, portfolioPolishWorkflow.score),
+      versionNote: `case polish ${portfolioPolishWorkflow.score}/100`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`case-study polish plan loaded: ${portfolioPolishWorkflow.verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -20673,7 +20836,54 @@ function PromptView() {
                 <span>polish first</span>
                 <strong>{portfolioGallery.polishTarget.score}/100</strong>
                 <p>{portfolioGallery.polishTarget.polishAction}</p>
-                <button type="button" onClick={() => openPortfolioGalleryItem(portfolioGallery.polishTarget)}>open target</button>
+                <button type="button" onClick={() => polishPortfolioGalleryItem(portfolioGallery.polishTarget)}>open workflow</button>
+              </div>
+            </div>
+            <div className="prompt-portfolio-polish" aria-label="Case study polish workflow">
+              <div className="prompt-portfolio-polish-head">
+                <div>
+                  <span>case-study polish workflow</span>
+                  <strong>{portfolioPolishWorkflow.score}/100</strong>
+                  <em>{portfolioPolishWorkflow.verdict}</em>
+                </div>
+                <p>{portfolioPolishWorkflow.mentorScript}</p>
+              </div>
+              <div className="prompt-portfolio-polish-steps" role="tablist" aria-label="Portfolio polish steps">
+                {portfolioPolishWorkflow.steps.map((step) => (
+                  <button
+                    key={step.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activePolishStep.id === step.id}
+                    className={activePolishStep.id === step.id ? "active" : ""}
+                    onClick={() => setActivePolishStepId(step.id)}
+                  >
+                    <span>{step.label}</span>
+                    <strong>{step.score}/100</strong>
+                    <em>{step.status}</em>
+                  </button>
+                ))}
+              </div>
+              <div className="prompt-portfolio-polish-detail">
+                <div>
+                  <span>{activePolishStep.label}</span>
+                  <strong>{activePolishStep.goal}</strong>
+                  <p>{activePolishStep.scenarioExample}</p>
+                </div>
+                <div>
+                  <span>action</span>
+                  <p>{activePolishStep.action}</p>
+                  <em>{activePolishStep.doneCheck}</em>
+                </div>
+                <div>
+                  <span>workflow target</span>
+                  <strong>{portfolioPolishWorkflow.target.title}</strong>
+                  <p>{portfolioPolishWorkflow.target.polishAction}</p>
+                </div>
+              </div>
+              <div className="prompt-portfolio-polish-checklist">
+                {portfolioPolishWorkflow.checklist.map((item) => <em key={item}>{item}</em>)}
+                <button type="button" onClick={loadPortfolioPolishWorkflow}>load polish plan</button>
               </div>
             </div>
             <div className="prompt-portfolio-gallery-list">
@@ -20689,6 +20899,7 @@ function PromptView() {
                   <div>
                     <button type="button" onClick={() => openPortfolioGalleryItem(item)}>open</button>
                     <button type="button" onClick={() => stagePortfolioGalleryItem(item)}>stage</button>
+                    <button type="button" onClick={() => polishPortfolioGalleryItem(item)}>polish</button>
                   </div>
                 </div>
               ))}

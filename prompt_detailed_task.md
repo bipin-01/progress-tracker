@@ -492,3 +492,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a case-study polish workflow that opens the selected gallery target and walks the learner through pitch, evidence boundary, red-team proof, and final export cleanup step by step.
+
+### 2026-05-16 - Case Study Polish Workflow
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the gallery could rank artifacts, but it did not yet teach the learner how to polish a selected case study step by step.
+
+Problem observed:
+- The portfolio gallery identified the best artifact and the highest-impact polish target, but the learner still had to decide what "polish" meant.
+- UI/UX needed a smoother transition from selecting a gallery card to editing the related case study.
+- Task content needed realistic mentor/recruiter review steps: a short pitch, evidence boundary defense, red-team proof, and final export cleanup.
+
+Decision:
+- More relevant content and scenario-based guidance was needed. This fit the 70% rule because professional portfolio work requires knowing how to explain and defend the artifact, not only how to generate it.
+
+Implemented:
+- Added a selected case-study polish workflow to the portfolio gallery.
+- Added four guided steps: Pitch, Evidence Boundary, Red-Team Proof, and Final Export Cleanup.
+- Each step now shows score, status, goal, realistic reviewer scenario, concrete action, and done-check.
+- Gallery cards now include a polish action that opens the target task, selects it as the active polish workflow, and returns the learner to the Packet panel.
+- Added a workflow checklist and a load-polish-plan action that writes the step-by-step polish plan into the active task journal.
+- Added deterministic polish scoring from the selected gallery target and portfolio review rubric.
+- Styled the workflow as a quiet amber stepper inside the gallery with responsive step cards and smooth panel entry.
+
+Next likely upgrade:
+- Add a mentor-defense simulator that asks interview-style questions about the selected case study and scores whether the learner can defend evidence boundaries, red-team choices, and final prompt tradeoffs.
