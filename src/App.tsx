@@ -68,11 +68,15 @@ import {
 } from "./chinesePracticePlan";
 import {
   getPromptDailyTasks,
+  promptAnatomyParts,
   promptDrills,
+  promptFoundationConcepts,
   promptMasteryPhases,
+  promptMistakePatterns,
   promptReferenceSheets,
   promptRoadmapWeeks,
   promptScenarios,
+  promptSkillLevels,
   promptTheoryQuestions,
 } from "./promptEngineeringPlan";
 import type { PromptDrill, PromptTheoryQuestion } from "./promptEngineeringPlan";
@@ -17091,6 +17095,8 @@ function PromptView() {
   const [activeDrillId, setActiveDrillId] = useState(promptDrills[0].id);
   const [hintOpen, setHintOpen] = useState(false);
   const [answerOpen, setAnswerOpen] = useState(false);
+  const [activeConceptId, setActiveConceptId] = useState(promptFoundationConcepts[0].id);
+  const [activeMistakeId, setActiveMistakeId] = useState(promptMistakePatterns[0].id);
   const [activeReferenceId, setActiveReferenceId] = useState(promptReferenceSheets[0].id);
   const [activeScenarioId, setActiveScenarioId] = useState(promptScenarios[0].id);
   const [playgroundPrompt, setPlaygroundPrompt] = useState(initialMemory?.playgroundPrompt || promptDrills[0].modelAnswer);
@@ -17103,6 +17109,8 @@ function PromptView() {
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
+  const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
+  const activeMistake = promptMistakePatterns.find((mistake) => mistake.id === activeMistakeId) ?? promptMistakePatterns[0];
   const activeReference = promptReferenceSheets.find((sheet) => sheet.id === activeReferenceId) ?? promptReferenceSheets[0];
   const activeScenario = promptScenarios.find((scenario) => scenario.id === activeScenarioId) ?? promptScenarios[0];
   const dueQuestions = promptTheoryQuestions
@@ -17210,7 +17218,7 @@ function PromptView() {
           <div className="prompt-hero-copy">
             <span>100-level SOC prompt engineering</span>
             <strong>Prompt Ops Academy</strong>
-            <p>Phase 1 builds a 90-day operator base; the full track scales into a two-year autonomous defense boot camp.</p>
+            <p>Start at zero: a prompt is an instruction, evidence is the boundary, output is the shape, iteration is the skill. Phase 1 builds a 90-day operator base; the full track scales into a two-year autonomous defense boot camp.</p>
           </div>
           <div className="prompt-hero-metrics">
             <div>
@@ -17257,6 +17265,97 @@ function PromptView() {
         </HudCard>
       </section>
 
+      <section className="prompt-zero-grid" aria-label="Prompt engineering zero-to-one teaching layer">
+        <HudCard className="prompt-foundation-card">
+          <CardHeader title="Zero Knowledge Primer" meta={`L${activeConcept.level}`} />
+          <div className="prompt-concept-tabs">
+            {promptFoundationConcepts.map((concept) => (
+              <button
+                key={concept.id}
+                type="button"
+                className={concept.id === activeConcept.id ? "active" : ""}
+                onClick={() => setActiveConceptId(concept.id)}
+              >
+                <span>L{concept.level}</span>
+                <strong>{concept.title}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="prompt-teach-card">
+            <span>plain english</span>
+            <strong>{activeConcept.plainEnglish}</strong>
+            <p>{activeConcept.whyItMatters}</p>
+            <div className="prompt-baby-step">
+              <em>baby step</em>
+              <p>{activeConcept.babyStep}</p>
+            </div>
+            <div className="prompt-baby-step">
+              <em>SOC transfer</em>
+              <p>{activeConcept.socTransfer}</p>
+            </div>
+            <button type="button" onClick={() => setPlaygroundPrompt(activeConcept.firstPrompt)}>
+              load first prompt
+            </button>
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-anatomy-card">
+          <CardHeader title="Prompt Anatomy Builder" meta={`${promptAnatomyParts.length} parts`} />
+          <div className="prompt-anatomy-grid">
+            {promptAnatomyParts.map((part, index) => (
+              <div key={part.id}>
+                <span>{String(index + 1).padStart(2, "0")} · {part.label}</span>
+                <strong>{part.babyMeaning}</strong>
+                <p>{part.socMeaning}</p>
+                <code>{part.template}</code>
+              </div>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-level-card">
+          <CardHeader title="0 -> 100 Skill Ladder" meta="calibration" />
+          <div className="prompt-level-rail">
+            {promptSkillLevels.map((level) => (
+              <div key={level.level} className={level.level <= activePhase.level ? "active" : ""}>
+                <span>{level.level}</span>
+                <strong>{level.label}</strong>
+                <p>{level.capability}</p>
+                <em>{level.practice}</em>
+                <i>{level.danger}</i>
+              </div>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-mistake-card">
+          <CardHeader title="Mistake Clinic" meta="before / after" />
+          <div className="prompt-mistake-tabs">
+            {promptMistakePatterns.map((mistake) => (
+              <button
+                key={mistake.id}
+                type="button"
+                className={mistake.id === activeMistake.id ? "active" : ""}
+                onClick={() => setActiveMistakeId(mistake.id)}
+              >
+                {mistake.title}
+              </button>
+            ))}
+          </div>
+          <div className="prompt-mistake-body">
+            <span>symptom</span>
+            <p>{activeMistake.symptom}</p>
+            <span>fix</span>
+            <p>{activeMistake.fix}</p>
+            <div>
+              <code>{activeMistake.before}</code>
+              <code>{activeMistake.after}</code>
+            </div>
+            <button type="button" onClick={() => setPlaygroundPrompt(activeMistake.after)}>load fixed prompt</button>
+          </div>
+        </HudCard>
+      </section>
+
       <section className="prompt-phase-grid" aria-label="Prompt engineering mastery phases">
         {promptMasteryPhases.map((phase) => (
           <HudCard key={phase.id} className={`prompt-phase-card ${phase.id === activePhase.id ? "active" : ""}`}>
@@ -17287,6 +17386,8 @@ function PromptView() {
                 <span>W{String(week.week).padStart(2, "0")}</span>
                 <strong>{week.title}</strong>
                 <em>L{week.level} · {week.deliverable}</em>
+                <p>{week.beginnerLesson}</p>
+                <i>{week.firstPrinciple}</i>
               </button>
             ))}
           </div>
@@ -17338,9 +17439,18 @@ function PromptView() {
           <div className="prompt-drill-brief">
             <span>{activeDrill.technique}</span>
             <strong>{activeDrill.situation}</strong>
+            <p>{activeDrill.whyItMatters}</p>
+            <div className="prompt-walkthrough">
+              {activeDrill.walkthrough.map((step, index) => (
+                <span key={step}>
+                  {String(index + 1).padStart(2, "0")} {step}
+                </span>
+              ))}
+            </div>
             <div className="prompt-drill-actions">
               <button type="button" onClick={() => setHintOpen((open) => !open)}>{hintOpen ? "hide hint" : "hint"}</button>
               <button type="button" onClick={() => setAnswerOpen((open) => !open)}>{answerOpen ? "hide model" : "reveal"}</button>
+              <button type="button" onClick={() => setPlaygroundPrompt(activeDrill.starterPrompt)}>load starter</button>
             </div>
             {hintOpen && <p>{activeDrill.hint}</p>}
             {answerOpen && <pre>{activeDrill.modelAnswer}</pre>}

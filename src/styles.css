@@ -15369,6 +15369,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-command-grid,
+.prompt-zero-grid,
 .prompt-main-grid,
 .prompt-lab-grid,
 .prompt-reference-grid {
@@ -15378,6 +15379,10 @@ button.load-forecast-day:hover {
 
 .prompt-command-grid {
   grid-template-columns: minmax(0, 1.3fr) minmax(340px, 0.7fr);
+}
+
+.prompt-zero-grid {
+  grid-template-columns: minmax(360px, 0.78fr) minmax(0, 1.22fr);
 }
 
 .prompt-main-grid {
@@ -15394,6 +15399,10 @@ button.load-forecast-day:hover {
 
 .prompt-hero-card,
 .prompt-day-card,
+.prompt-foundation-card,
+.prompt-anatomy-card,
+.prompt-level-card,
+.prompt-mistake-card,
 .prompt-phase-card,
 .prompt-roadmap-card,
 .prompt-srs-card,
@@ -15506,6 +15515,10 @@ button.load-forecast-day:hover {
 }
 
 .prompt-day-card,
+.prompt-foundation-card,
+.prompt-anatomy-card,
+.prompt-level-card,
+.prompt-mistake-card,
 .prompt-srs-card,
 .prompt-drill-card,
 .prompt-iteration-card,
@@ -15525,11 +15538,15 @@ button.load-forecast-day:hover {
 .prompt-day-control input,
 .prompt-grade-row button,
 .prompt-drill-actions button,
+.prompt-teach-card button,
+.prompt-mistake-body button,
 .prompt-playground-actions button,
 .prompt-playground-actions input,
 .prompt-playground-actions select,
 .prompt-reference-tabs button,
-.prompt-scenario-tabs button {
+.prompt-scenario-tabs button,
+.prompt-concept-tabs button,
+.prompt-mistake-tabs button {
   min-height: 34px;
   border: 1px solid rgba(53, 215, 255, 0.22);
   background: rgba(2, 7, 15, 0.42);
@@ -15551,7 +15568,9 @@ button.load-forecast-day:hover {
 .prompt-roadmap,
 .prompt-drill-tabs,
 .prompt-iteration-list,
-.prompt-scenario-list {
+.prompt-scenario-list,
+.prompt-concept-tabs,
+.prompt-mistake-tabs {
   display: grid;
   gap: 6px;
 }
@@ -15560,7 +15579,8 @@ button.load-forecast-day:hover {
 .prompt-roadmap button,
 .prompt-drill-tabs button,
 .prompt-iteration-list button,
-.prompt-scenario-list button {
+.prompt-scenario-list button,
+.prompt-concept-tabs button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 4px 10px;
@@ -15598,6 +15618,7 @@ button.load-forecast-day:hover {
 .prompt-daily-list strong,
 .prompt-roadmap strong,
 .prompt-drill-tabs strong,
+.prompt-concept-tabs strong,
 .prompt-review-card strong,
 .prompt-drill-brief strong,
 .prompt-iteration-list strong,
@@ -15614,11 +15635,193 @@ button.load-forecast-day:hover {
 .prompt-daily-list em,
 .prompt-roadmap em,
 .prompt-iteration-list em,
-.prompt-scenario-list em {
+.prompt-scenario-list em,
+.prompt-roadmap p,
+.prompt-roadmap i {
   grid-column: 2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.prompt-roadmap p,
+.prompt-roadmap i {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: normal;
+  text-transform: none;
+}
+
+.prompt-roadmap i {
+  color: var(--zh-gold);
+  font-style: normal;
+}
+
+.prompt-foundation-card {
+  grid-row: span 2;
+}
+
+.prompt-teach-card,
+.prompt-mistake-body {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(2, 7, 15, 0.38);
+  padding: 12px;
+}
+
+.prompt-teach-card > span,
+.prompt-mistake-body > span,
+.prompt-concept-tabs span,
+.prompt-anatomy-grid span,
+.prompt-level-rail span,
+.prompt-walkthrough span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-teach-card strong,
+.prompt-anatomy-grid strong {
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  text-transform: none;
+}
+
+.prompt-teach-card p,
+.prompt-baby-step p,
+.prompt-anatomy-grid p,
+.prompt-level-rail p,
+.prompt-mistake-body p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.65;
+  text-transform: none;
+}
+
+.prompt-baby-step {
+  display: grid;
+  gap: 5px;
+  border-left: 2px solid rgba(53, 215, 255, 0.38);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 8px 10px;
+}
+
+.prompt-baby-step em {
+  color: var(--cyan);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.prompt-anatomy-card {
+  grid-column: 2;
+}
+
+.prompt-anatomy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.prompt-anatomy-grid div,
+.prompt-level-rail div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.025);
+  padding: 9px;
+}
+
+.prompt-anatomy-grid code,
+.prompt-mistake-body code {
+  display: block;
+  border: 1px solid rgba(170, 114, 255, 0.16);
+  background: rgba(2, 7, 15, 0.5);
+  color: var(--cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 7px;
+  white-space: normal;
+}
+
+.prompt-level-card,
+.prompt-mistake-card {
+  grid-column: 2;
+}
+
+.prompt-level-rail {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.prompt-level-rail div.active {
+  border-color: rgba(158, 255, 102, 0.28);
+  background: rgba(158, 255, 102, 0.035);
+}
+
+.prompt-level-rail strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-level-rail em,
+.prompt-level-rail i {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.5;
+  text-transform: none;
+}
+
+.prompt-level-rail i {
+  color: var(--zh-gold);
+}
+
+.prompt-mistake-tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.prompt-mistake-tabs button {
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.prompt-mistake-tabs button.active,
+.prompt-concept-tabs button.active {
+  border-color: rgba(53, 215, 255, 0.5);
+  background: rgba(53, 215, 255, 0.085);
+}
+
+.prompt-mistake-body div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.prompt-mistake-body code:first-child {
+  border-color: rgba(255, 91, 140, 0.22);
+  color: var(--red);
+}
+
+.prompt-mistake-body code:last-child {
+  border-color: rgba(158, 255, 102, 0.22);
+  color: var(--lime);
 }
 
 .prompt-phase-grid {
@@ -15746,6 +15949,21 @@ button.load-forecast-day:hover {
   gap: 10px;
 }
 
+.prompt-walkthrough {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.prompt-walkthrough span {
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  line-height: 1.5;
+  padding: 6px;
+  text-transform: none;
+}
+
 .prompt-drill-actions,
 .prompt-playground-actions,
 .prompt-scenario-tabs,
@@ -15852,12 +16070,25 @@ button.load-forecast-day:hover {
   }
 
   .prompt-command-grid,
+  .prompt-zero-grid,
   .prompt-main-grid,
   .prompt-lab-grid,
   .prompt-reference-grid,
   .prompt-hero-card,
   .prompt-phase-grid {
     grid-template-columns: 1fr;
+  }
+
+  .prompt-anatomy-card,
+  .prompt-level-card,
+  .prompt-mistake-card {
+    grid-column: auto;
+  }
+
+  .prompt-anatomy-grid,
+  .prompt-level-rail,
+  .prompt-walkthrough {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .zh-right-col {
@@ -15893,6 +16124,11 @@ button.load-forecast-day:hover {
   .prompt-hero-metrics,
   .prompt-grade-row,
   .prompt-question-strip,
+  .prompt-anatomy-grid,
+  .prompt-level-rail,
+  .prompt-mistake-tabs,
+  .prompt-mistake-body div,
+  .prompt-walkthrough,
   .zh-decomp-grid,
   .zh-lesson-steps,
   .zh-guided-circuit,
