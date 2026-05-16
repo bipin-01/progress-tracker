@@ -569,3 +569,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a mentor-defense score trend that compares rehearsal attempts across questions, identifies the weakest speaking pattern, and generates a two-minute recovery drill before portfolio review.
+
+### 2026-05-16 - Mentor Defense Score Trend
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because timed rehearsals created saved speaking attempts, but the route did not yet compare those attempts across all defense questions.
+
+Problem observed:
+- The learner could save timed answers, but each answer lived mostly inside its current question.
+- There was no fast way to know which defense area was weakest before a portfolio or mentor review.
+- The route needed richer real-life coaching for spoken review pressure: the learner needs to know whether they are missing evidence, uncertainty, a human gate, or a measurable next action.
+
+Decision:
+- More relevant coaching and trend infrastructure was needed. This fit the 70% rule because a serious prompt engineering bootcamp should not only collect practice attempts; it should diagnose speaking patterns and prescribe focused recovery drills.
+
+Implemented:
+- Added a mentor-defense score trend across all five defense questions.
+- The trend compares saved rehearsal attempts by latest score, average score, best score, attempt count, and score delta.
+- Added weakest speaking pattern detection using the same live answer scan signals: concrete evidence, unknown boundary, review gate, and next action.
+- Added per-question trend cards that can switch the active defense question.
+- Added a two-minute recovery drill generated from the weakest question and the selected case-study weakness.
+- Added a load-recovery-drill action that writes the drill into the active task journal and prepares the rehearsal surface for the weak question.
+- Styled the trend as a quiet analytics layer under timed rehearsal, with responsive cards, smooth visual hierarchy, and a compact amber recovery strip.
+
+Next likely upgrade:
+- Add mentor-defense readiness gates to the portfolio gallery so artifacts cannot be marked showcase-ready until every defense question has at least one timed answer above a threshold.

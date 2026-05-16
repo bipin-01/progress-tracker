@@ -17347,6 +17347,35 @@ type PromptMentorRehearsalAttempt = {
   savedAt: string;
 };
 
+type PromptMentorRehearsalTrendPoint = {
+  questionId: string;
+  label: string;
+  attempts: number;
+  averageScore: number;
+  bestScore: number;
+  latestScore: number;
+  delta: number;
+  status: string;
+  weakPattern: string;
+  recoveryCue: string;
+};
+
+type PromptMentorRehearsalTrend = {
+  totalAttempts: number;
+  overallScore: number;
+  verdict: string;
+  weakest: PromptMentorRehearsalTrendPoint;
+  strongest: PromptMentorRehearsalTrendPoint;
+  points: PromptMentorRehearsalTrendPoint[];
+  recoveryDrill: {
+    title: string;
+    scenario: string;
+    steps: string[];
+    answerFrame: string;
+    successMetric: string;
+  };
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -19351,6 +19380,107 @@ function buildPromptMentorRehearsalCoaching(answer: string, question: PromptMent
   };
 }
 
+function getPromptMentorRehearsalTrendStatus(score: number, attempts: number) {
+  if (!attempts) return "no spoken sample";
+  if (score >= 88) return "portfolio voice";
+  if (score >= 76) return "review-capable";
+  if (score >= 62) return "needs compression";
+  return "mentor risk";
+}
+
+function buildPromptMentorWeakPattern(attempts: PromptMentorRehearsalAttempt[], question: PromptMentorDefenseQuestion) {
+  if (!attempts.length) return `No timed answer saved for ${question.label}; the reviewer cannot hear your reasoning yet.`;
+  const latest = attempts[0];
+  const coaching = buildPromptMentorRehearsalCoaching(latest.answer, question);
+  const wordCount = latest.answer.trim().split(/\s+/).filter(Boolean).length;
+  if (coaching.missing.length) return `Latest answer is missing: ${coaching.missing.slice(0, 2).join(", ")}.`;
+  if (wordCount > 115) return "Answer has the right ingredients, but it is too long for a live review.";
+  if (latest.selfScore < 76) return "Answer is present, but your own score says it still feels unstable.";
+  return "Signal is usable; rehearse once more with a cleaner opening sentence.";
+}
+
+function buildPromptMentorRecoveryCue(question: PromptMentorDefenseQuestion) {
+  if (question.id === "evidence-boundary") return "Say one confirmed fact, one missing fact, one decision limit, then stop.";
+  if (question.id === "red-team-proof") return "Name the injected instruction, the guardrail, and the result without saying generic safety words.";
+  if (question.id === "output-contract") return "List three required fields and explain how each makes the next analyst safer.";
+  if (question.id === "tradeoffs") return "Defend restraint: not automated, why not, human gate, safer next move.";
+  return "Name the weakness, run one measurable experiment, define the success metric.";
+}
+
+function buildPromptMentorRehearsalTrend({
+  attempts,
+  questions,
+  target,
+}: {
+  attempts: PromptMentorRehearsalAttempt[];
+  questions: PromptMentorDefenseQuestion[];
+  target: PromptPortfolioGalleryItem;
+}): PromptMentorRehearsalTrend {
+  const points = questions.map((question) => {
+    const questionAttempts = attempts
+      .filter((attempt) => attempt.questionId === question.id)
+      .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    const latestScore = questionAttempts[0]?.selfScore ?? 0;
+    const priorScore = questionAttempts[1]?.selfScore ?? latestScore;
+    const averageScore = average(questionAttempts.map((attempt) => attempt.selfScore));
+    const bestScore = questionAttempts.reduce((best, attempt) => Math.max(best, attempt.selfScore), 0);
+    return {
+      questionId: question.id,
+      label: question.label,
+      attempts: questionAttempts.length,
+      averageScore,
+      bestScore,
+      latestScore,
+      delta: questionAttempts.length > 1 ? latestScore - priorScore : 0,
+      status: getPromptMentorRehearsalTrendStatus(latestScore || averageScore, questionAttempts.length),
+      weakPattern: buildPromptMentorWeakPattern(questionAttempts, question),
+      recoveryCue: buildPromptMentorRecoveryCue(question),
+    };
+  });
+  const attempted = points.filter((point) => point.attempts > 0);
+  const scoreSource = attempted.length ? attempted.map((point) => point.averageScore) : questions.map((question) => Math.round(question.score * 0.58));
+  const overallScore = average(scoreSource);
+  const totalAttempts = attempts.length;
+  const weakest = points.reduce((weakestPoint, point) => {
+    const pointScore = point.attempts ? point.latestScore : -1;
+    const weakestScore = weakestPoint.attempts ? weakestPoint.latestScore : -1;
+    return pointScore < weakestScore || (pointScore === weakestScore && point.attempts < weakestPoint.attempts) ? point : weakestPoint;
+  }, points[0]);
+  const strongest = points.reduce((bestPoint, point) => (point.bestScore > bestPoint.bestScore ? point : bestPoint), points[0]);
+  const verdict =
+    !totalAttempts
+      ? "no rehearsal baseline"
+      : overallScore >= 88
+        ? "mentor voice ready"
+        : overallScore >= 76
+          ? "one weak answer remains"
+          : overallScore >= 62
+            ? "needs recovery drill"
+            : "not ready for review";
+  const recoveryDrill = {
+    title: `Two-minute repair: ${weakest.label}`,
+    scenario: `A SOC lead asks about ${target.title} and interrupts after 30 seconds. The answer must defend ${target.primaryWeakness} without wandering into unsupported claims.`,
+    steps: [
+      `0:00-0:30 - Open with the exact case: ${target.title}.`,
+      `0:30-1:00 - ${weakest.recoveryCue}`,
+      "1:00-1:30 - Name the reviewer risk you are reducing.",
+      "1:30-2:00 - Close with the measurable next check you would archive.",
+    ],
+    answerFrame: `${weakest.label}: ${weakest.recoveryCue} Then tie the answer to ${target.primaryWeakness} and one measurable reviewer-safe next step.`,
+    successMetric: "Pass when the answer includes evidence, uncertainty, a gate, and a measurable next action in under 90 seconds.",
+  };
+
+  return {
+    totalAttempts,
+    overallScore,
+    verdict,
+    weakest,
+    strongest,
+    points,
+    recoveryDrill,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -19675,6 +19805,7 @@ function PromptView() {
   const [defenseRehearsalAnswer, setDefenseRehearsalAnswer] = useState("");
   const [defenseRehearsalSelfScore, setDefenseRehearsalSelfScore] = useState(72);
   const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
+  const queuedDefenseRehearsalRef = useRef<{ questionId: string; answer: string; seconds: number; score: number } | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
   const activeDailyTask = dailyTasks.find((task) => task.id === activeDailyTaskId) ?? dailyTasks[0];
@@ -19850,6 +19981,13 @@ function PromptView() {
     [activeReportReview, portfolioPolishWorkflow, selectedPortfolioPolishTarget],
   );
   const activeDefenseQuestion = mentorDefenseSimulator.questions.find((question) => question.id === activeDefenseQuestionId) ?? mentorDefenseSimulator.questions[0];
+  const mentorTargetRehearsals = useMemo(
+    () =>
+      mentorRehearsals.filter(
+        (attempt) => attempt.taskId === activeDailyTask.id && attempt.targetId === mentorDefenseSimulator.target.id,
+      ),
+    [activeDailyTask.id, mentorDefenseSimulator.target.id, mentorRehearsals],
+  );
   const defenseAnswerTemplate = useMemo(
     () => buildPromptMentorAnswerTemplate(activeDefenseQuestion, mentorDefenseSimulator.target),
     [activeDefenseQuestion, mentorDefenseSimulator.target],
@@ -19860,10 +19998,19 @@ function PromptView() {
   );
   const activeDefenseRehearsals = useMemo(
     () =>
-      mentorRehearsals
-        .filter((attempt) => attempt.taskId === activeDailyTask.id && attempt.questionId === activeDefenseQuestion.id)
+      mentorTargetRehearsals
+        .filter((attempt) => attempt.questionId === activeDefenseQuestion.id)
         .slice(0, 3),
-    [activeDailyTask.id, activeDefenseQuestion.id, mentorRehearsals],
+    [activeDefenseQuestion.id, mentorTargetRehearsals],
+  );
+  const mentorRehearsalTrend = useMemo(
+    () =>
+      buildPromptMentorRehearsalTrend({
+        attempts: mentorTargetRehearsals,
+        questions: mentorDefenseSimulator.questions,
+        target: mentorDefenseSimulator.target,
+      }),
+    [mentorDefenseSimulator.questions, mentorDefenseSimulator.target, mentorTargetRehearsals],
   );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
@@ -19966,6 +20113,15 @@ function PromptView() {
   }, [activeDailyTaskId]);
 
   useEffect(() => {
+    const queued = queuedDefenseRehearsalRef.current;
+    if (queued?.questionId === activeDefenseQuestion.id) {
+      queuedDefenseRehearsalRef.current = null;
+      setDefenseRehearsalRunning(false);
+      setDefenseRehearsalSeconds(queued.seconds);
+      setDefenseRehearsalAnswer(queued.answer);
+      setDefenseRehearsalSelfScore(queued.score);
+      return;
+    }
     setDefenseRehearsalRunning(false);
     setDefenseRehearsalSeconds(90);
     setDefenseRehearsalAnswer(buildPromptMentorAnswerTemplate(activeDefenseQuestion, mentorDefenseSimulator.target));
@@ -20359,6 +20515,44 @@ function PromptView() {
       versionNote: `timed defense ${activeDefenseQuestion.label} ${defenseRehearsalSelfScore}/100`,
     });
     setPlaygroundStatus(`rehearsal saved: ${verdict}`);
+  }
+
+  function loadMentorRecoveryDrill() {
+    const weakestQuestion = mentorDefenseSimulator.questions.find((question) => question.id === mentorRehearsalTrend.weakest.questionId) ?? activeDefenseQuestion;
+    const recoveryDraft = {
+      questionId: weakestQuestion.id,
+      answer: mentorRehearsalTrend.recoveryDrill.answerFrame,
+      seconds: 120,
+      score: Math.max(62, mentorRehearsalTrend.weakest.latestScore || Math.round(weakestQuestion.score)),
+    };
+    if (weakestQuestion.id !== activeDefenseQuestion.id) {
+      queuedDefenseRehearsalRef.current = recoveryDraft;
+      setActiveDefenseQuestionId(weakestQuestion.id);
+    }
+    setDefenseRehearsalRunning(false);
+    setDefenseRehearsalSeconds(recoveryDraft.seconds);
+    setDefenseRehearsalAnswer(recoveryDraft.answer);
+    setDefenseRehearsalSelfScore(recoveryDraft.score);
+    updateTaskJournal({
+      answer: [
+        activeTaskJournal.answer.trim(),
+        "",
+        "---",
+        `Mentor-defense recovery drill: ${mentorRehearsalTrend.recoveryDrill.title}`,
+        `Trend verdict: ${mentorRehearsalTrend.verdict} · ${mentorRehearsalTrend.overallScore}/100`,
+        mentorRehearsalTrend.recoveryDrill.scenario,
+        "",
+        "Two-minute recovery protocol:",
+        ...mentorRehearsalTrend.recoveryDrill.steps.map((step) => `- ${step}`),
+        "",
+        `Answer frame: ${mentorRehearsalTrend.recoveryDrill.answerFrame}`,
+        `Success metric: ${mentorRehearsalTrend.recoveryDrill.successMetric}`,
+      ].filter(Boolean).join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, mentorRehearsalTrend.overallScore),
+      versionNote: `mentor recovery ${mentorRehearsalTrend.weakest.label} ${mentorRehearsalTrend.overallScore}/100`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`mentor recovery drill loaded: ${mentorRehearsalTrend.weakest.label}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -21420,6 +21614,51 @@ function PromptView() {
                   ) : (
                     <p>// no timed answers saved for this question yet</p>
                   )}
+                </div>
+                <div className="prompt-portfolio-rehearsal-trend" aria-label="Mentor defense score trend">
+                  <div className="prompt-portfolio-rehearsal-trend-head">
+                    <div>
+                      <span>defense score trend</span>
+                      <strong>{mentorRehearsalTrend.overallScore}/100</strong>
+                      <em>{mentorRehearsalTrend.verdict}</em>
+                    </div>
+                    <div>
+                      <span>weakest speaking pattern</span>
+                      <strong>{mentorRehearsalTrend.weakest.label}</strong>
+                      <p>{mentorRehearsalTrend.weakest.weakPattern}</p>
+                    </div>
+                    <div>
+                      <span>strongest answer</span>
+                      <strong>{mentorRehearsalTrend.strongest.bestScore || 0}/100</strong>
+                      <p>{mentorRehearsalTrend.strongest.label} · {mentorRehearsalTrend.totalAttempts} total attempts</p>
+                    </div>
+                  </div>
+                  <div className="prompt-portfolio-rehearsal-trend-grid">
+                    {mentorRehearsalTrend.points.map((point) => (
+                      <button
+                        key={point.questionId}
+                        type="button"
+                        className={point.questionId === mentorRehearsalTrend.weakest.questionId ? "weakest" : ""}
+                        onClick={() => setActiveDefenseQuestionId(point.questionId)}
+                      >
+                        <span>{point.label}</span>
+                        <strong>{point.latestScore || point.averageScore || 0}/100</strong>
+                        <em>{point.attempts} reps · {point.delta > 0 ? "+" : ""}{point.delta}</em>
+                        <p>{point.status}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="prompt-portfolio-rehearsal-recovery">
+                    <div>
+                      <span>{mentorRehearsalTrend.recoveryDrill.title}</span>
+                      <strong>{mentorRehearsalTrend.recoveryDrill.scenario}</strong>
+                      <p>{mentorRehearsalTrend.recoveryDrill.successMetric}</p>
+                    </div>
+                    <ol>
+                      {mentorRehearsalTrend.recoveryDrill.steps.map((step) => <li key={step}>{step}</li>)}
+                    </ol>
+                    <button type="button" onClick={loadMentorRecoveryDrill}>load recovery drill</button>
+                  </div>
                 </div>
               </div>
             </div>

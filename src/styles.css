@@ -15859,7 +15859,11 @@ button.load-forecast-day:hover {
 .prompt-portfolio-rehearsal-workspace,
 .prompt-portfolio-rehearsal-score,
 .prompt-portfolio-rehearsal-actions,
-.prompt-portfolio-rehearsal-history {
+.prompt-portfolio-rehearsal-history,
+.prompt-portfolio-rehearsal-trend,
+.prompt-portfolio-rehearsal-trend-head,
+.prompt-portfolio-rehearsal-trend-grid,
+.prompt-portfolio-rehearsal-recovery {
   display: grid;
   gap: 8px;
 }
@@ -15890,7 +15894,10 @@ button.load-forecast-day:hover {
 .prompt-portfolio-rehearsal-workspace > div,
 .prompt-portfolio-rehearsal-workspace label,
 .prompt-portfolio-rehearsal-score label,
-.prompt-portfolio-rehearsal-score > div {
+.prompt-portfolio-rehearsal-score > div,
+.prompt-portfolio-rehearsal-trend,
+.prompt-portfolio-rehearsal-trend-head > div,
+.prompt-portfolio-rehearsal-recovery {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -16090,6 +16097,58 @@ button.load-forecast-day:hover {
   letter-spacing: 0.08em;
 }
 
+.prompt-portfolio-rehearsal-trend {
+  border-color: rgba(53, 215, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.04), transparent 52%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-rehearsal-trend-head {
+  grid-template-columns: minmax(150px, 0.22fr) minmax(220px, 0.45fr) minmax(180px, 0.33fr);
+}
+
+.prompt-portfolio-rehearsal-trend-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.prompt-portfolio-rehearsal-trend-grid button {
+  display: grid;
+  gap: 4px;
+  min-height: 92px;
+  padding: 8px;
+  text-align: left;
+}
+
+.prompt-portfolio-rehearsal-trend-grid button.weakest {
+  border-color: rgba(255, 181, 74, 0.38);
+  background: rgba(255, 181, 74, 0.055);
+}
+
+.prompt-portfolio-rehearsal-recovery {
+  grid-template-columns: minmax(260px, 0.42fr) minmax(280px, 0.46fr) auto;
+  align-items: start;
+  border-color: rgba(255, 181, 74, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.045), transparent 56%),
+    rgba(2, 7, 15, 0.32);
+}
+
+.prompt-portfolio-rehearsal-recovery ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-1);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.prompt-portfolio-rehearsal-recovery button {
+  align-self: start;
+  white-space: nowrap;
+}
+
 .prompt-portfolio-gallery-list > div.active {
   border-color: rgba(53, 215, 255, 0.2);
   background: rgba(53, 215, 255, 0.045);
@@ -16105,7 +16164,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
-.prompt-portfolio-rehearsal span {
+.prompt-portfolio-rehearsal span,
+.prompt-portfolio-rehearsal-trend span {
   color: var(--ink-2);
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;
@@ -16118,7 +16178,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
-.prompt-portfolio-rehearsal strong {
+.prompt-portfolio-rehearsal strong,
+.prompt-portfolio-rehearsal-trend strong {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 14px;
@@ -16130,7 +16191,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-list p,
 .prompt-portfolio-polish p,
 .prompt-portfolio-defense p,
-.prompt-portfolio-rehearsal p {
+.prompt-portfolio-rehearsal p,
+.prompt-portfolio-rehearsal-trend p {
   margin: 0;
   color: var(--ink-1);
   font-size: 12px;
@@ -16143,7 +16205,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
 .prompt-portfolio-defense em,
-.prompt-portfolio-rehearsal em {
+.prompt-portfolio-rehearsal em,
+.prompt-portfolio-rehearsal-trend em {
   color: var(--ink-2);
   font-size: 10px;
   font-style: normal;
@@ -18321,6 +18384,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-rehearsal-head,
   .prompt-portfolio-rehearsal-workspace,
   .prompt-portfolio-rehearsal-score,
+  .prompt-portfolio-rehearsal-trend-head,
+  .prompt-portfolio-rehearsal-trend-grid,
+  .prompt-portfolio-rehearsal-recovery,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-review-grid,
   .prompt-evidence-builder-head,
@@ -18404,6 +18470,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-rehearsal-head,
   .prompt-portfolio-rehearsal-workspace,
   .prompt-portfolio-rehearsal-score,
+  .prompt-portfolio-rehearsal-trend-head,
+  .prompt-portfolio-rehearsal-trend-grid,
+  .prompt-portfolio-rehearsal-recovery,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-compare-head,
   .prompt-checkpoint-review-grid,
