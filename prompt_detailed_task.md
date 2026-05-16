@@ -671,3 +671,29 @@ Implemented:
 
 Next likely upgrade:
 - Add completion tracking for scheduled defense calendar days so the micro-plan can mark practiced days, missed days, and automatically reschedule missed rehearsals.
+
+### 2026-05-16 - Defense Calendar Completion Tracking
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the seven-day micro-plan could schedule rehearsals, but it still did not remember whether a scheduled defense day was actually practiced.
+
+Problem observed:
+- A scheduled defense day wrote a plan into the journal, but the calendar could not distinguish planned, scheduled, practiced, missed, or rescheduled work.
+- Saving a timed rehearsal did not close the matching calendar commitment.
+- Missed rehearsals could disappear from the visible seven-day strip instead of returning as the next recovery task.
+
+Decision:
+- More tracking infrastructure was needed. This fit the 70% rule because a serious bootcamp should treat scheduled defense practice as a commitment with completion state, not a decorative calendar card.
+
+Implemented:
+- Added persisted defense calendar schedules to prompt memory.
+- Scheduling a calendar day now creates a tracked schedule entry with day, linked task, target artifact, defense question, and scheduled timestamp.
+- Saving a matching timed mentor-defense rehearsal now marks the schedule as practiced.
+- Calendar cards now show planned, scheduled, practiced, missed, or rescheduled status.
+- Missed scheduled rehearsals are automatically pulled back into the visible seven-day micro-plan as rescheduled work when the selected bootcamp day advances.
+- Schedule-day now keeps the rehearsal surface connected to the linked bootcamp task journal, so completion tracking and daily task evidence stay aligned.
+- Styled practiced, scheduled, missed, and rescheduled cards with quiet status colors while preserving the existing futuristic visual language.
+
+Next likely upgrade:
+- Add a defense calendar review summary that calculates completion rate, missed rehearsal debt, and the highest-risk recurring defense question across the last scheduled practices.

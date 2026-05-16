@@ -17340,7 +17340,10 @@ type PromptPortfolioReviewCalendarDay = {
   action: string;
   successMetric: string;
   status: string;
+  completionStatus: "planned" | "scheduled" | "practiced" | "missed" | "rescheduled";
   minutes: number;
+  scheduleId?: string;
+  missedFromDay?: number;
 };
 
 type PromptPortfolioGallery = {
@@ -17409,6 +17412,18 @@ type PromptMentorRehearsalAttempt = {
   savedAt: string;
 };
 
+type PromptDefenseCalendarSchedule = {
+  id: string;
+  day: number;
+  taskId: string;
+  targetId: string;
+  questionId: string;
+  questionLabel: string;
+  title: string;
+  scheduledAt: string;
+  completedAt?: string;
+};
+
 type PromptMentorRehearsalTrendPoint = {
   questionId: string;
   label: string;
@@ -17448,6 +17463,7 @@ type PromptMemorySnapshot = {
   redTeamReplayHistory: PromptRedTeamReplayEntry[];
   incidentReportArchive: PromptIncidentReportArchiveEntry[];
   mentorRehearsals: PromptMentorRehearsalAttempt[];
+  defenseCalendarSchedules: PromptDefenseCalendarSchedule[];
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -17595,6 +17611,28 @@ function normalizePromptMentorRehearsalAttempt(value: unknown): PromptMentorRehe
   };
 }
 
+function normalizePromptDefenseCalendarSchedule(value: unknown): PromptDefenseCalendarSchedule | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<PromptDefenseCalendarSchedule>;
+  const id = typeof record.id === "string" && record.id ? record.id : "";
+  const taskId = typeof record.taskId === "string" && record.taskId ? record.taskId : "";
+  const targetId = typeof record.targetId === "string" && record.targetId ? record.targetId : "";
+  const questionId = typeof record.questionId === "string" && record.questionId ? record.questionId : "";
+  const scheduledAt = typeof record.scheduledAt === "string" && record.scheduledAt ? record.scheduledAt : "";
+  if (!id || !taskId || !targetId || !questionId || !scheduledAt) return null;
+  return {
+    id,
+    day: Math.min(Math.max(Math.trunc(Number(record.day) || 1), 1), 90),
+    taskId,
+    targetId,
+    questionId,
+    questionLabel: typeof record.questionLabel === "string" && record.questionLabel ? record.questionLabel : "mentor defense",
+    title: typeof record.title === "string" && record.title ? record.title : "Portfolio defense rehearsal",
+    scheduledAt,
+    completedAt: typeof record.completedAt === "string" && record.completedAt ? record.completedAt : undefined,
+  };
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17642,6 +17680,13 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
             .filter((entry): entry is PromptMentorRehearsalAttempt => Boolean(entry))
             .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
             .slice(0, 90)
+        : [],
+      defenseCalendarSchedules: Array.isArray(parsed.defenseCalendarSchedules)
+        ? parsed.defenseCalendarSchedules
+            .map(normalizePromptDefenseCalendarSchedule)
+            .filter((entry): entry is PromptDefenseCalendarSchedule => Boolean(entry))
+            .sort((a, b) => a.day - b.day || b.scheduledAt.localeCompare(a.scheduledAt))
+            .slice(-120)
         : [],
       playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
       playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
@@ -19192,17 +19237,90 @@ function getPromptDefenseCalendarTaskMode(questionId: string): PromptDailyTask["
   return "evaluate";
 }
 
+function isPromptDefenseSchedulePracticed(
+  schedule: PromptDefenseCalendarSchedule,
+  rehearsals: PromptMentorRehearsalAttempt[],
+) {
+  if (schedule.completedAt) return true;
+  return rehearsals.some(
+    (attempt) =>
+      attempt.taskId === schedule.taskId &&
+      attempt.targetId === schedule.targetId &&
+      attempt.questionId === schedule.questionId &&
+      attempt.savedAt >= schedule.scheduledAt,
+  );
+}
+
+function findPromptDefenseScheduleForPlan(
+  schedules: PromptDefenseCalendarSchedule[],
+  plan: {
+    day: number;
+    taskId: string;
+    queueItem?: PromptPortfolioReviewQueueItem;
+  },
+) {
+  if (!plan.queueItem) return undefined;
+  return schedules.find(
+    (schedule) =>
+      schedule.day === plan.day &&
+      schedule.taskId === plan.taskId &&
+      schedule.targetId === plan.queueItem?.item.id &&
+      schedule.questionId === plan.queueItem?.nextCheck.questionId,
+  );
+}
+
+function getPromptDefenseCalendarCompletionStatus({
+  schedule,
+  selectedDay,
+  rehearsals,
+  rescheduled,
+}: {
+  schedule?: PromptDefenseCalendarSchedule;
+  selectedDay: number;
+  rehearsals: PromptMentorRehearsalAttempt[];
+  rescheduled?: boolean;
+}): PromptPortfolioReviewCalendarDay["completionStatus"] {
+  if (schedule && isPromptDefenseSchedulePracticed(schedule, rehearsals)) return "practiced";
+  if (rescheduled) return "rescheduled";
+  if (schedule && schedule.day < selectedDay) return "missed";
+  if (schedule) return "scheduled";
+  return "planned";
+}
+
+function findPromptReviewQueueForSchedule(
+  schedule: PromptDefenseCalendarSchedule,
+  reviewQueue: PromptPortfolioReviewQueueItem[],
+) {
+  return (
+    reviewQueue.find((queueItem) => queueItem.item.id === schedule.targetId && queueItem.nextCheck.questionId === schedule.questionId) ??
+    reviewQueue.find((queueItem) => queueItem.item.id === schedule.targetId)
+  );
+}
+
 function buildPromptPortfolioReviewCalendar(
   reviewQueue: PromptPortfolioReviewQueueItem[],
   selectedDay: number,
+  schedules: PromptDefenseCalendarSchedule[],
+  rehearsals: PromptMentorRehearsalAttempt[],
 ): PromptPortfolioReviewCalendarDay[] {
   const anchorDay = Math.min(Math.max(Math.trunc(selectedDay), 1), 90);
+  const missedSchedules = schedules
+    .filter((schedule) => schedule.day < anchorDay && !isPromptDefenseSchedulePracticed(schedule, rehearsals))
+    .sort((a, b) => a.day - b.day || a.scheduledAt.localeCompare(b.scheduledAt));
   return Array.from({ length: 7 }, (_, index): PromptPortfolioReviewCalendarDay => {
     const day = Math.min(90, anchorDay + index);
-    const queueItem = reviewQueue.length ? reviewQueue[index % reviewQueue.length] : undefined;
+    const missedSchedule = missedSchedules[index];
+    const queueItem = missedSchedule ? findPromptReviewQueueForSchedule(missedSchedule, reviewQueue) : reviewQueue.length ? reviewQueue[index % reviewQueue.length] : undefined;
     const taskMode = queueItem ? getPromptDefenseCalendarTaskMode(queueItem.nextCheck.questionId) : index % 2 === 0 ? "evaluate" : "review";
     const dayTasks = getPromptDailyTasks(day);
     const linkedTask = dayTasks.find((task) => task.mode === taskMode) ?? dayTasks[0];
+    const matchingSchedule = findPromptDefenseScheduleForPlan(schedules, { day, taskId: linkedTask.id, queueItem }) ?? missedSchedule;
+    const completionStatus = getPromptDefenseCalendarCompletionStatus({
+      schedule: matchingSchedule,
+      selectedDay: anchorDay,
+      rehearsals,
+      rescheduled: Boolean(missedSchedule && queueItem),
+    });
 
     if (!queueItem) {
       return {
@@ -19217,7 +19335,9 @@ function buildPromptPortfolioReviewCalendar(
         action: "Open the strongest artifact, rehearse the pitch once, then lock the answer into the task journal.",
         successMetric: "Pass when the answer names evidence, unknowns, a human gate, and one next improvement in under 90 seconds.",
         status: "maintenance",
+        completionStatus,
         minutes: 10,
+        scheduleId: matchingSchedule?.id,
       };
     }
 
@@ -19233,8 +19353,11 @@ function buildPromptPortfolioReviewCalendar(
       scenario: queueItem.scenario,
       action: queueItem.rehearsalPlan[1] ?? queueItem.nextCheck.recoveryCue,
       successMetric: `Clear the ${queueItem.nextCheck.label} gate by saving one timed answer at ${queueItem.item.defenseGate.threshold}/100 or higher.`,
-      status: queueItem.scheduleLabel,
+      status: missedSchedule ? "rescheduled" : queueItem.scheduleLabel,
+      completionStatus,
       minutes: queueItem.nextCheck.attempts ? 12 : 15,
+      scheduleId: matchingSchedule?.id,
+      missedFromDay: missedSchedule?.day,
     };
   });
 }
@@ -19246,6 +19369,7 @@ function buildPromptPortfolioGallery({
   archive,
   review,
   mentorRehearsals,
+  defenseCalendarSchedules,
 }: {
   activeExport: PromptPortfolioExportPacket;
   activeTask: PromptDailyTask;
@@ -19253,6 +19377,7 @@ function buildPromptPortfolioGallery({
   archive: PromptIncidentReportArchiveEntry[];
   review: PromptReportPortfolioReview;
   mentorRehearsals: PromptMentorRehearsalAttempt[];
+  defenseCalendarSchedules: PromptDefenseCalendarSchedule[];
 }): PromptPortfolioGallery {
   const activeWeakness = review.checklist[0] ?? review.reviewerBrief;
   const activeItem: PromptPortfolioGallerySeed = {
@@ -19303,7 +19428,7 @@ function buildPromptPortfolioGallery({
     return aNeedsDefense - bNeedsDefense || aNeedsPolish - bNeedsPolish || a.showcaseScore - b.showcaseScore;
   })[0] ?? attachPromptPortfolioDefenseGate(activeItem, mentorRehearsals);
   const reviewQueue = buildPromptPortfolioReviewQueue(items);
-  const reviewCalendar = buildPromptPortfolioReviewCalendar(reviewQueue, selectedDay);
+  const reviewCalendar = buildPromptPortfolioReviewCalendar(reviewQueue, selectedDay, defenseCalendarSchedules, mentorRehearsals);
 
   return {
     items,
@@ -20039,6 +20164,7 @@ function PromptView() {
   const [redTeamReplayHistory, setRedTeamReplayHistory] = useState<PromptRedTeamReplayEntry[]>(initialMemory?.redTeamReplayHistory ?? []);
   const [incidentReportArchive, setIncidentReportArchive] = useState<PromptIncidentReportArchiveEntry[]>(initialMemory?.incidentReportArchive ?? []);
   const [mentorRehearsals, setMentorRehearsals] = useState<PromptMentorRehearsalAttempt[]>(initialMemory?.mentorRehearsals ?? []);
+  const [defenseCalendarSchedules, setDefenseCalendarSchedules] = useState<PromptDefenseCalendarSchedule[]>(initialMemory?.defenseCalendarSchedules ?? []);
   const [reportArchiveQuery, setReportArchiveQuery] = useState("");
   const [selectedPortfolioPolishId, setSelectedPortfolioPolishId] = useState<string | null>(null);
   const [activePolishStepId, setActivePolishStepId] = useState("pitch");
@@ -20201,8 +20327,9 @@ function PromptView() {
       archive: incidentReportArchive,
       review: activeReportReview,
       mentorRehearsals,
+      defenseCalendarSchedules,
     }),
-    [activeDailyTask, activePortfolioExport, activeReportReview, incidentReportArchive, mentorRehearsals, selectedDay],
+    [activeDailyTask, activePortfolioExport, activeReportReview, defenseCalendarSchedules, incidentReportArchive, mentorRehearsals, selectedDay],
   );
   const selectedPortfolioPolishTarget = useMemo(
     () => portfolioGallery.items.find((item) => item.id === selectedPortfolioPolishId) ?? portfolioGallery.polishTarget,
@@ -20342,11 +20469,12 @@ function PromptView() {
       redTeamReplayHistory,
       incidentReportArchive,
       mentorRehearsals,
+      defenseCalendarSchedules,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, incidentReportArchive, iterations, masteryHistory, mentorRehearsals, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
+  }, [completedTasks, defenseCalendarSchedules, incidentReportArchive, iterations, masteryHistory, mentorRehearsals, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -20718,10 +20846,31 @@ function PromptView() {
   function loadPortfolioReviewCalendarDay(planDay: PromptPortfolioReviewCalendarDay) {
     if (planDay.queueItem) {
       loadPortfolioDefenseGateDrill(planDay.queueItem.item, planDay.queueItem.nextCheck);
+      setSelectedDay(planDay.day);
+      setActiveDailyTaskId(planDay.taskId);
+      setActiveDailyPanel("packet");
     } else {
       setSelectedDay(planDay.day);
       setActiveDailyTaskId(planDay.taskId);
       setActiveDailyPanel("journal");
+    }
+
+    if (planDay.queueItem) {
+      const scheduledAt = new Date().toISOString();
+      const scheduleEntry: PromptDefenseCalendarSchedule = {
+        id: planDay.scheduleId ?? `defense-calendar-${planDay.taskId}-${planDay.queueItem.item.id}-${planDay.queueItem.nextCheck.questionId}-${Date.now()}`,
+        day: planDay.day,
+        taskId: planDay.taskId,
+        targetId: planDay.queueItem.item.id,
+        questionId: planDay.queueItem.nextCheck.questionId,
+        questionLabel: planDay.queueItem.nextCheck.label,
+        title: planDay.title,
+        scheduledAt,
+      };
+      setDefenseCalendarSchedules((current) => [
+        ...current.filter((entry) => entry.id !== scheduleEntry.id),
+        scheduleEntry,
+      ].slice(-120));
     }
 
     setTaskJournals((current) => {
@@ -20841,6 +20990,16 @@ function PromptView() {
 
     setDefenseRehearsalRunning(false);
     setMentorRehearsals((current) => [attempt, ...current].slice(0, 90));
+    setDefenseCalendarSchedules((current) =>
+      current.map((schedule) =>
+        !schedule.completedAt &&
+        schedule.taskId === attempt.taskId &&
+        schedule.targetId === attempt.targetId &&
+        schedule.questionId === attempt.questionId
+          ? { ...schedule, completedAt: savedAt }
+          : schedule,
+      ),
+    );
     updateTaskJournal({
       answer: [
         activeTaskJournal.answer.trim(),
@@ -21840,20 +21999,23 @@ function PromptView() {
                 <div>
                   <span>7-day defense micro-plan</span>
                   <strong>{portfolioGallery.reviewCalendar.filter((day) => day.queueItem).length} gate drills</strong>
-                  <em>{portfolioGallery.reviewCalendar[0]?.title ?? "portfolio rehearsal"}</em>
+                  <em>
+                    {portfolioGallery.reviewCalendar.filter((day) => day.completionStatus === "practiced").length} practiced ·{" "}
+                    {portfolioGallery.reviewCalendar.filter((day) => day.completionStatus === "rescheduled").length} rescheduled
+                  </em>
                 </div>
                 <p>Turns the blocked review queue into scheduled bootcamp work. Each day links one defense answer to a daily task journal so portfolio practice does not float outside the 90-day system.</p>
               </div>
               <div className="prompt-portfolio-defense-calendar-grid">
                 {portfolioGallery.reviewCalendar.map((planDay) => (
-                  <div key={planDay.id} className={planDay.queueItem ? "queued" : "maintenance"}>
+                  <div key={planDay.id} className={`${planDay.queueItem ? "queued" : "maintenance"} ${planDay.completionStatus}`}>
                     <div>
                       <span>{planDay.label} · D{String(planDay.day).padStart(2, "0")}</span>
                       <strong>{planDay.minutes}m</strong>
                     </div>
-                    <em>{planDay.status} · {planDay.taskMode}</em>
+                    <em>{planDay.completionStatus} · {planDay.status} · {planDay.taskMode}</em>
                     <p>{planDay.title}</p>
-                    <i>{planDay.taskLabel}</i>
+                    <i>{planDay.taskLabel}{planDay.missedFromDay ? ` · missed D${String(planDay.missedFromDay).padStart(2, "0")}` : ""}</i>
                     <div>
                       <span>{planDay.action}</span>
                       <button type="button" onClick={() => loadPortfolioReviewCalendarDay(planDay)}>schedule day</button>
