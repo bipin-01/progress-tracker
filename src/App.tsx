@@ -643,6 +643,18 @@ type ChineseLoadForecast = {
   days: ChineseLoadForecastDay[];
 };
 
+type ChineseReviewUnlockEntry = {
+  id: string;
+  key: string;
+  createdAt: string;
+  day: number;
+  status: ChineseLoadForecastStatus;
+  reviewedCards: number;
+  target: number;
+  peakLoad: number;
+  summary: string;
+};
+
 type ChineseCoachEvidencePacket = {
   version: 1;
   packetId: string;
@@ -691,10 +703,13 @@ type ChineseCoachEvidencePacket = {
   };
   forecast: {
     status: ChineseLoadForecastStatus;
+    shield: "clear" | "locked" | "ready" | "unlocked";
     peakDay: number;
     peakLoad: number;
     averageLoad: number;
     recommendedDay: number;
+    unlockProgress: number;
+    unlockTarget: number;
     recommendation: string;
   };
   nextAction: string;
@@ -760,6 +775,7 @@ type ChineseMemorySnapshot = {
   repairHistory: ChineseRepairHistoryEntry[];
   placementHistory: ChinesePlacementHistoryEntry[];
   coachHistory: ChineseCoachHistoryEntry[];
+  reviewUnlocks: ChineseReviewUnlockEntry[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -1661,6 +1677,10 @@ function getChineseDueLabel(state: ChineseReviewState, today = CHINESE_TODAY_IND
   return `D+${delta}`;
 }
 
+function getChineseReviewUnlockKey(day: number, status: ChineseLoadForecastStatus) {
+  return `D${String(day).padStart(3, "0")}:${status}`;
+}
+
 function isChineseRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -1688,6 +1708,10 @@ function isChinesePlacementStatus(value: unknown): value is ChinesePlacementProf
 
 function isChineseCoachBriefingMode(value: unknown): value is ChineseCoachBriefing["mode"] {
   return value === "sample" || value === "repair" || value === "review" || value === "voice" || value === "placement" || value === "forecast" || value === "flow";
+}
+
+function isChineseLoadForecastStatus(value: unknown): value is ChineseLoadForecastStatus {
+  return value === "light" || value === "steady" || value === "heavy" || value === "overload";
 }
 
 function getChineseStoredReviewState(value: unknown): ChineseReviewState | null {
@@ -1789,6 +1813,23 @@ function getChineseStoredCoachHistoryBaseline(value: unknown): ChineseCoachHisto
   };
 }
 
+function getChineseStoredReviewUnlockEntry(value: unknown): ChineseReviewUnlockEntry | null {
+  if (!isChineseRecord(value)) return null;
+  const key = typeof value.key === "string" ? value.key : "";
+  if (!key) return null;
+  return {
+    id: typeof value.id === "string" ? value.id : `${key}-unlock`,
+    key,
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+    day: getChineseStoredDay(value.day),
+    status: isChineseLoadForecastStatus(value.status) ? value.status : "steady",
+    reviewedCards: Math.max(0, Math.trunc(getChineseNumber(value.reviewedCards, 0))),
+    target: Math.max(1, Math.trunc(getChineseNumber(value.target, 1))),
+    peakLoad: Math.max(0, Math.trunc(getChineseNumber(value.peakLoad, 0))),
+    summary: typeof value.summary === "string" ? value.summary : "review gate cleared",
+  };
+}
+
 function getChineseStoredCoachHistoryEntry(value: unknown): ChineseCoachHistoryEntry | null {
   if (!isChineseRecord(value)) return null;
   const packetId = typeof value.packetId === "string" ? value.packetId : "";
@@ -1843,6 +1884,10 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
         .map(getChineseStoredCoachHistoryEntry)
         .filter((entry): entry is ChineseCoachHistoryEntry => Boolean(entry))
         .slice(0, CHINESE_COACH_HISTORY_LIMIT),
+      reviewUnlocks: (Array.isArray(parsed.reviewUnlocks) ? parsed.reviewUnlocks : [])
+        .map(getChineseStoredReviewUnlockEntry)
+        .filter((entry): entry is ChineseReviewUnlockEntry => Boolean(entry))
+        .slice(0, 21),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
         .map(getChineseStoredSpeechAttempt)
@@ -2539,7 +2584,20 @@ function getChineseEvidenceChecksum(value: string) {
 function getChineseCoachBriefing(packet: ChineseCoachEvidencePacket): ChineseCoachBriefing {
   const weakSymbols = packet.voice.weakHanzi.length ? packet.voice.weakHanzi.slice(0, 3).join(" ") : packet.scope.activeWord;
 
-  if (packet.forecast.status === "overload" || packet.forecast.status === "heavy") {
+  if ((packet.forecast.status === "overload" || packet.forecast.status === "heavy") && packet.forecast.shield !== "unlocked") {
+    if (packet.forecast.shield === "ready") {
+      return {
+        mode: "forecast",
+        signal: "gate clear",
+        title: "Resume new words",
+        body: `${packet.forecast.unlockProgress}/${packet.forecast.unlockTarget} review cards cleared the pressure gate.`,
+        why: "The review-first lock has enough evidence to restore the daily rail.",
+        steps: ["Restore new-word rail", "Load the active word", "Keep recall warm after the lesson"],
+        command: "unlock words",
+        urgency: 34,
+      };
+    }
+
     return {
       mode: "forecast",
       signal: "load forecast",
@@ -13565,6 +13623,7 @@ function ChineseView() {
   const [repairHistory, setRepairHistory] = useState<ChineseRepairHistoryEntry[]>([]);
   const [placementHistory, setPlacementHistory] = useState<ChinesePlacementHistoryEntry[]>([]);
   const [coachHistory, setCoachHistory] = useState<ChineseCoachHistoryEntry[]>([]);
+  const [reviewUnlocks, setReviewUnlocks] = useState<ChineseReviewUnlockEntry[]>([]);
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -13689,6 +13748,7 @@ function ChineseView() {
   const reviewedCount = reviewedStates.reduce((total, state) => total + state.totalReviews, 0);
   const successfulReviewCount = reviewedStates.reduce((total, state) => total + state.successfulReviews, 0);
   const dueReviewCount = reviewQueue.filter(({ state }) => ["NEW", "DUE", "LATE"].includes(getChineseReviewStatus(state))).length;
+  const reviewedTodayCards = reviewedStates.filter((state) => state.lastReviewedDay === CHINESE_TODAY_INDEX).length;
   const reviewMastery = Math.round(
     reviewQueue.reduce((total, item) => total + getChineseRetention(item.state), 0) / Math.max(reviewQueue.length, 1),
   );
@@ -13807,14 +13867,27 @@ function ChineseView() {
     repairTargetDay: adaptiveRepairMission.targetDay,
     repairActive: adaptiveRepairMission.hasSignal && !repairMissionLocked,
   });
-  const reviewFirstActive = loadForecast.status === "heavy" || loadForecast.status === "overload";
+  const reviewFirstPressureActive = loadForecast.status === "heavy" || loadForecast.status === "overload";
   const reviewedDueRows = reviewQueue.filter(({ state }) => {
     const status = getChineseReviewStatus(state);
     return state.totalReviews > 0 && ["LATE", "DUE", "SOON"].includes(status);
   });
   const reviewFirstRows = (reviewedDueRows.length ? reviewedDueRows : reviewQueue).slice(0, 6);
   const reviewFirstTarget = reviewFirstRows[0]?.card ?? activeReviewCard;
-  const reviewFirstProgress = clampChinesePercent((reviewedToday / Math.max(CHINESE_DAILY_REVIEW_TARGET, 1)) * 100);
+  const reviewUnlockKey = getChineseReviewUnlockKey(selectedPracticeRecord.day, loadForecast.status);
+  const reviewUnlockTarget = Math.min(6, Math.max(1, dueReviewCount || reviewFirstRows.length));
+  const reviewUnlockProgress = Math.min(reviewUnlockTarget, reviewedTodayCards);
+  const reviewFirstUnlocked = reviewUnlocks.some((entry) => entry.key === reviewUnlockKey);
+  const reviewUnlockReady = reviewFirstPressureActive && !reviewFirstUnlocked && reviewUnlockProgress >= reviewUnlockTarget;
+  const reviewFirstActive = reviewFirstPressureActive && !reviewFirstUnlocked;
+  const reviewFirstShieldState: ChineseCoachEvidencePacket["forecast"]["shield"] = !reviewFirstPressureActive
+    ? "clear"
+    : reviewFirstUnlocked
+      ? "unlocked"
+      : reviewUnlockReady
+        ? "ready"
+        : "locked";
+  const reviewFirstProgress = clampChinesePercent((reviewUnlockProgress / Math.max(reviewUnlockTarget, 1)) * 100);
   const placementProfile = getChinesePlacementProfile({
     knownCharacters,
     reviewMastery,
@@ -13837,8 +13910,12 @@ function ChineseView() {
       ...voiceHeatmap.hanziHotspots.slice(0, 3).map((hotspot) => hotspot.hanzi),
     ].filter((hanzi, index, list): hanzi is string => Boolean(hanzi) && list.indexOf(hanzi) === index);
     const nextAction =
-      reviewFirstActive
+      reviewFirstShieldState === "ready"
+        ? `Review gate cleared: restore D${String(selectedPracticeRecord.day).padStart(3, "0")} new words.`
+        : reviewFirstShieldState === "locked"
         ? `Review-first shield active: clear recall before adding D${String(selectedPracticeRecord.day).padStart(3, "0")} words.`
+        : reviewFirstShieldState === "unlocked"
+          ? `Review gate cleared: continue D${String(selectedPracticeRecord.day).padStart(3, "0")} daily words.`
         : placementProfile.status === "sample"
         ? "Run one focus-tunnel placement sample."
         : adaptiveRepairMission.hasSignal && !repairMissionLocked
@@ -13909,10 +13986,13 @@ function ChineseView() {
       },
       forecast: {
         status: loadForecast.status,
+        shield: reviewFirstShieldState,
         peakDay: loadForecast.peak.day,
         peakLoad: loadForecast.peak.totalLoad,
         averageLoad: loadForecast.averageLoad,
         recommendedDay: loadForecast.recommendedDay,
+        unlockProgress: reviewUnlockProgress,
+        unlockTarget: reviewUnlockTarget,
         recommendation: loadForecast.summary,
       },
       nextAction,
@@ -13952,7 +14032,9 @@ function ChineseView() {
     repairHistory.length,
     repairMissionLocked,
     reviewCombo,
-    reviewFirstActive,
+    reviewFirstShieldState,
+    reviewUnlockProgress,
+    reviewUnlockTarget,
     reviewMastery,
     reviewedCount,
     selectedPracticeRecord.day,
@@ -14004,6 +14086,7 @@ function ChineseView() {
       setRepairHistory(snapshot.repairHistory);
       setPlacementHistory(snapshot.placementHistory);
       setCoachHistory(snapshot.coachHistory);
+      setReviewUnlocks(snapshot.reviewUnlocks);
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -14025,6 +14108,7 @@ function ChineseView() {
       repairHistory: repairHistory.slice(0, 21),
       placementHistory: placementHistory.slice(0, 21),
       coachHistory: coachHistory.slice(0, CHINESE_COACH_HISTORY_LIMIT),
+      reviewUnlocks: reviewUnlocks.slice(0, 21),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
@@ -14038,6 +14122,7 @@ function ChineseView() {
     repairHistory,
     reviewCombo,
     reviewRatings,
+    reviewUnlocks,
     selectedPracticeDay,
     sessionXp,
     speechAttempts,
@@ -14270,11 +14355,34 @@ function ChineseView() {
     loadReviewFirstCard(reviewFirstTarget, true);
   }
 
+  function unlockReviewFirstShield() {
+    if (!reviewFirstPressureActive) return;
+    const entry: ChineseReviewUnlockEntry = {
+      id: `${reviewUnlockKey}:${Date.now()}`,
+      key: reviewUnlockKey,
+      createdAt: new Date().toISOString(),
+      day: selectedPracticeRecord.day,
+      status: loadForecast.status,
+      reviewedCards: reviewUnlockProgress,
+      target: reviewUnlockTarget,
+      peakLoad: loadForecast.peak.totalLoad,
+      summary: `D${String(selectedPracticeRecord.day).padStart(3, "0")} rail restored after ${reviewUnlockProgress}/${reviewUnlockTarget} recall cards.`,
+    };
+    setReviewUnlocks((current) => [entry, ...current.filter((item) => item.key !== reviewUnlockKey)].slice(0, 21));
+    setCardRevealed(false);
+    setActiveLessonStep("listen");
+    setRewardMessage(`new-word rail restored · ${reviewUnlockProgress}/${reviewUnlockTarget} recalled`);
+  }
+
   function runCoachBriefing() {
     logCoachBriefing();
 
     if (coachBriefing.mode === "forecast") {
-      startReviewFirstSession();
+      if (reviewUnlockReady) {
+        unlockReviewFirstShield();
+      } else {
+        startReviewFirstSession();
+      }
       return;
     }
 
@@ -14639,8 +14747,17 @@ function ChineseView() {
                   </em>
                   <p>{reviewFirstActive ? reviewFirstTarget.meaning : activePracticeWord.meaning}</p>
                 </div>
-                <button type="button" onClick={reviewFirstActive ? startReviewFirstSession : () => loadPracticeWord(activePracticeWord)}>
-                  {reviewFirstActive ? "review first" : "load word"}
+                <button
+                  type="button"
+                  onClick={
+                    reviewFirstActive
+                      ? reviewUnlockReady
+                        ? unlockReviewFirstShield
+                        : startReviewFirstSession
+                      : () => loadPracticeWord(activePracticeWord)
+                  }
+                >
+                  {reviewFirstActive ? (reviewUnlockReady ? "unlock words" : "review first") : "load word"}
                 </button>
               </div>
 
@@ -14653,11 +14770,19 @@ function ChineseView() {
                   <div className="zh-review-first-head">
                     <div>
                       <span>review-first shield</span>
-                      <strong>{loadForecast.status === "overload" ? "new words locked" : "new words paused"}</strong>
-                      <em>{dueReviewCount} due · {reviewedToday}/{CHINESE_DAILY_REVIEW_TARGET} reviewed</em>
+                      <strong>
+                        {reviewUnlockReady
+                          ? "gate cleared"
+                          : loadForecast.status === "overload"
+                            ? "new words locked"
+                            : "new words paused"}
+                      </strong>
+                      <em>
+                        {dueReviewCount} due · gate {reviewUnlockProgress}/{reviewUnlockTarget} · {reviewedToday}/{CHINESE_DAILY_REVIEW_TARGET} today
+                      </em>
                     </div>
-                    <button type="button" onClick={startReviewFirstSession}>
-                      start recall
+                    <button type="button" onClick={reviewUnlockReady ? unlockReviewFirstShield : startReviewFirstSession}>
+                      {reviewUnlockReady ? "unlock words" : "start recall"}
                     </button>
                   </div>
                   <div className="zh-review-first-cards">
@@ -14678,11 +14803,21 @@ function ChineseView() {
                       );
                     })}
                   </div>
-                  <p>{loadForecast.summary}</p>
+                  <p>{reviewUnlockReady ? "Recall pressure is cleared enough to resume today’s new-word rail." : loadForecast.summary}</p>
                   <u aria-hidden="true" />
                 </div>
               ) : (
-                <div className="zh-mission-word-rail" aria-label="Daily practice quick rail">
+                <div
+                  className={`zh-mission-word-rail ${reviewFirstShieldState === "unlocked" ? "unlocked" : ""}`}
+                  aria-label="Daily practice quick rail"
+                >
+                  {reviewFirstShieldState === "unlocked" ? (
+                    <div className="zh-review-unlock-signal">
+                      <span>review gate cleared</span>
+                      <strong>{reviewUnlockProgress}/{reviewUnlockTarget}</strong>
+                      <em>new-word rail restored</em>
+                    </div>
+                  ) : null}
                   {missionRailWords.map((word) => (
                     <button
                       key={word.practiceId}
