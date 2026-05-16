@@ -238,3 +238,29 @@ Implemented:
 
 Next likely upgrade:
 - Add an evidence packet diff that compares the original packet with the learner's saved journal attempt and highlights exactly which evidence lines were omitted, transformed, or invented.
+
+### 2026-05-16 - Evidence Packet Diff Review
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the Packet panel could build and grade evidence, but it still did not show exactly where a learner's prompt drifted from the packet.
+
+Problem observed:
+- Packet preservation score was useful, but too abstract for repair practice.
+- Learners needed to see which packet lines were preserved, softened/transformed, omitted, or replaced by unsupported claims.
+- UI/UX needed a smoother path from score to revision without forcing the learner to manually compare the packet and journal text.
+
+Decision:
+- More scenario-based, real-life repair content was needed. This fit the 70% rule because SOC prompt engineering fails when evidence gets omitted or conclusions are invented under pressure.
+
+Implemented:
+- Added an evidence packet diff engine for `/prompt`.
+- The diff compares the active evidence packet against the current journal answer or lab prompt.
+- Added status detection for preserved, transformed, and omitted packet lines across confirmed evidence, missing data, constraints, and output schema.
+- Added heuristic detection for risky invented claims such as over-certainty, unsupported severity, unsupported malware/exfiltration conclusions, and unsafe containment leaps.
+- Added a compact Packet panel diff readout with score, counts, omitted lines, transformed lines, invented claims, and a next repair action.
+- Replaced the passive "grade journal prompt" action with a "load diff repair" action that pushes a structured repair checklist into the journal.
+- Styled the diff as a quiet green analysis layer with responsive grids and the existing smooth panel transition language.
+
+Next likely upgrade:
+- Add a packet-safe rewrite preview that takes the diff repair checklist and generates a side-by-side v1/v2 prompt comparison before the learner saves a new attempt.

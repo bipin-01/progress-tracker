@@ -17073,6 +17073,37 @@ type PromptEvidencePacketGrade = {
   nextAction: string;
 };
 
+type PromptEvidenceDiffSource = "confirmed" | "missing" | "constraint" | "schema";
+
+type PromptEvidenceDiffStatus = "preserved" | "transformed" | "omitted";
+
+type PromptEvidencePacketDiffLine = {
+  id: string;
+  source: PromptEvidenceDiffSource;
+  line: string;
+  status: PromptEvidenceDiffStatus;
+  matchedKeywords: string[];
+  reason: string;
+};
+
+type PromptEvidenceInventedClaim = {
+  id: string;
+  text: string;
+  label: string;
+  reason: string;
+};
+
+type PromptEvidencePacketDiff = {
+  score: number;
+  label: string;
+  lines: PromptEvidencePacketDiffLine[];
+  preservedCount: number;
+  transformedCount: number;
+  omittedCount: number;
+  inventedClaims: PromptEvidenceInventedClaim[];
+  nextAction: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17280,6 +17311,15 @@ function getPromptEvidenceChecksum(value: string) {
   return hash.toString(16).toUpperCase().padStart(4, "0");
 }
 
+function normalizePromptEvidenceText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/[^a-z0-9\s.-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getPromptEvidenceKeywords(value: string) {
   const stop = new Set(["missing", "confirmed", "before", "after", "with", "from", "that", "this", "they", "their", "over", "under", "unknown", "alert", "event"]);
   return value
@@ -17399,6 +17439,177 @@ function gradePromptAgainstEvidencePacket(prompt: string, packet: PromptEvidence
     missing,
     nextAction,
   };
+}
+
+function getPromptEvidenceDiffItems(packet: PromptEvidencePacket) {
+  return [
+    ...packet.confirmedEvidence.map((line) => ({ source: "confirmed" as const, line })),
+    ...packet.missingEvidence.map((line) => ({ source: "missing" as const, line })),
+    ...packet.constraints.map((line) => ({ source: "constraint" as const, line })),
+    ...packet.outputSchema.map((field) => ({ source: "schema" as const, line: `${field} field` })),
+  ];
+}
+
+function getPromptEvidenceLineDiff({
+  line,
+  source,
+  prompt,
+  index,
+}: {
+  line: string;
+  source: PromptEvidenceDiffSource;
+  prompt: string;
+  index: number;
+}): PromptEvidencePacketDiffLine {
+  const normalizedPrompt = normalizePromptEvidenceText(prompt);
+  const normalizedLine = normalizePromptEvidenceText(line);
+  const keywords = getPromptEvidenceKeywords(line.replace(/_/g, " "));
+  const matchedKeywords = keywords.filter((keyword) => normalizedPrompt.includes(normalizePromptEvidenceText(keyword)));
+  const exactVariants = [normalizedLine, normalizePromptEvidenceText(line.replace(/_/g, " "))].filter(Boolean);
+  const exactMatch = exactVariants.some((variant) => normalizedPrompt.includes(variant));
+  const schemaMatch =
+    source === "schema" &&
+    normalizedPrompt.includes(normalizePromptEvidenceText(line.replace(/\sfield$/i, "")));
+
+  if (exactMatch || schemaMatch) {
+    return {
+      id: `${source}-${index}`,
+      source,
+      line,
+      status: "preserved",
+      matchedKeywords,
+      reason: source === "schema" ? "schema field appears in the output contract" : "line meaning appears intact",
+    };
+  }
+
+  const keywordTarget = Math.max(1, Math.ceil(Math.min(keywords.length, 4) * 0.5));
+  if (matchedKeywords.length >= keywordTarget) {
+    return {
+      id: `${source}-${index}`,
+      source,
+      line,
+      status: "transformed",
+      matchedKeywords,
+      reason: "partial keywords survived, but the packet line was rewritten or weakened",
+    };
+  }
+
+  return {
+    id: `${source}-${index}`,
+    source,
+    line,
+    status: "omitted",
+    matchedKeywords,
+    reason: "no reliable trace of this packet line was found",
+  };
+}
+
+function getPromptEvidenceInventedClaims(prompt: string, packet: PromptEvidencePacket): PromptEvidenceInventedClaim[] {
+  const packetKeywordSet = new Set(
+    [
+      packet.scenarioTitle,
+      packet.decisionPressure,
+      ...packet.confirmedEvidence,
+      ...packet.missingEvidence,
+      ...packet.constraints,
+      ...packet.outputSchema,
+    ].flatMap((line) => getPromptEvidenceKeywords(line).map(normalizePromptEvidenceText)),
+  );
+  const structuralPattern = /\b(do not|avoid|unknown|missing data|confirmed evidence|constraints?|output schema|human approval|acceptance test|return|format)\b/i;
+  const riskPatterns = [
+    { label: "over-certainty", pattern: /\b(definitely|confirmed compromise|proven|root cause|no missing data|all evidence confirms|without doubt)\b/i },
+    { label: "containment leap", pattern: /\b(contain immediately|block the user|disable the account|delete|quarantine|revoke sessions?|reset passwords?)\b/i },
+    { label: "unsupported conclusion", pattern: /\b(ransomware|malware|data breach|insider threat|credential theft|exfiltration|c2|command and control)\b/i },
+    { label: "unstated severity", pattern: /\b(critical severity|sev ?1|high confidence|business impact confirmed)\b/i },
+  ];
+  const segments = prompt
+    .split(/\n|[.!?]\s+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 34);
+
+  return segments
+    .flatMap((segment, index) => {
+      if (structuralPattern.test(segment)) return [];
+      const matchedPattern = riskPatterns.find((item) => item.pattern.test(segment));
+      if (!matchedPattern) return [];
+      const normalizedSegment = normalizePromptEvidenceText(segment);
+      const packetKeywordHits = Array.from(packetKeywordSet).filter((keyword) => keyword.length > 3 && normalizedSegment.includes(keyword));
+      if (packetKeywordHits.length >= 2 && !/no missing data|without doubt|confirmed compromise/i.test(segment)) return [];
+      return [{
+        id: `invented-${index}`,
+        text: segment,
+        label: matchedPattern.label,
+        reason: packetKeywordHits.length
+          ? "risky conclusion appears with too little packet support"
+          : "risky conclusion does not map back to packet evidence",
+      }];
+    })
+    .slice(0, 4);
+}
+
+function buildPromptEvidencePacketDiff(prompt: string, packet: PromptEvidencePacket): PromptEvidencePacketDiff {
+  const lines = getPromptEvidenceDiffItems(packet).map((item, index) => getPromptEvidenceLineDiff({ ...item, prompt, index }));
+  const preservedCount = lines.filter((line) => line.status === "preserved").length;
+  const transformedCount = lines.filter((line) => line.status === "transformed").length;
+  const omittedCount = lines.filter((line) => line.status === "omitted").length;
+  const inventedClaims = getPromptEvidenceInventedClaims(prompt, packet);
+  const total = Math.max(1, lines.length);
+  const score = Math.max(0, Math.min(100, Math.round(((preservedCount * 100 + transformedCount * 56) / total) - inventedClaims.length * 12)));
+  const label =
+    score >= 88 && inventedClaims.length === 0
+      ? "clean translation"
+      : score >= 70
+        ? "repairable drift"
+        : score >= 45
+          ? "evidence leak"
+          : "packet broken";
+  const nextAction =
+    inventedClaims.length > 0
+      ? "Remove unsupported conclusions before adding new wording."
+      : omittedCount > 0
+        ? "Restore the omitted packet lines, starting with missing data and schema."
+        : transformedCount > 0
+          ? "Tighten transformed lines until they are explicit output requirements."
+          : "Diff is clean; save this as the evidence-safe version.";
+
+  return {
+    score,
+    label,
+    lines,
+    preservedCount,
+    transformedCount,
+    omittedCount,
+    inventedClaims,
+    nextAction,
+  };
+}
+
+function buildPromptEvidenceDiffRepairPrompt(diff: PromptEvidencePacketDiff, packet: PromptEvidencePacket, task: PromptDailyTask) {
+  const omitted = diff.lines.filter((line) => line.status === "omitted");
+  const transformed = diff.lines.filter((line) => line.status === "transformed");
+  return [
+    `DIFF REPAIR // ${packet.packetId}`,
+    `task: ${task.label}`,
+    `scenario: ${packet.scenarioTitle}`,
+    "",
+    "repair rules:",
+    "- Preserve confirmed evidence as facts.",
+    "- Preserve missing data as unknowns or questions.",
+    "- Preserve constraints as hard rules, not suggestions.",
+    "- Preserve the output schema exactly enough for another analyst to reuse it.",
+    "- Remove conclusions that are not supported by the packet.",
+    "",
+    "omitted packet lines:",
+    ...(omitted.length ? omitted.map((line) => `- [${line.source}] ${line.line}`) : ["- none"]),
+    "",
+    "transformed packet lines:",
+    ...(transformed.length ? transformed.map((line) => `- [${line.source}] ${line.line}`) : ["- none"]),
+    "",
+    "invented or unsupported claims:",
+    ...(diff.inventedClaims.length ? diff.inventedClaims.map((claim) => `- [${claim.label}] ${claim.text}`) : ["- none"]),
+    "",
+    "rewrite the prompt below so the evidence packet survives without omissions, weak transformations, or invented claims:",
+  ].join("\n");
 }
 
 function getPromptMasteryLabel(score: number) {
@@ -17732,6 +17943,10 @@ function PromptView() {
     () => gradePromptAgainstEvidencePacket(evidencePromptSource, activeEvidencePacket),
     [activeEvidencePacket, evidencePromptSource],
   );
+  const activeEvidenceDiff = useMemo(
+    () => buildPromptEvidencePacketDiff(evidencePromptSource, activeEvidencePacket),
+    [activeEvidencePacket, evidencePromptSource],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -17874,6 +18089,17 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`evidence packet journaled: ${activeEvidencePacket.packetId}`);
+  }
+
+  function loadEvidenceDiffRepairIntoJournal() {
+    const repairPrompt = buildPromptEvidenceDiffRepairPrompt(activeEvidenceDiff, activeEvidencePacket, activeDailyTask);
+    const currentAnswer = activeTaskJournal.answer.trim();
+    updateTaskJournal({
+      answer: currentAnswer ? `${currentAnswer}\n\n---\n${repairPrompt}` : repairPrompt,
+      versionNote: `diff repair ${activeEvidencePacket.packetId}`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`packet diff repair loaded: ${activeEvidencePacket.packetId}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -18138,6 +18364,45 @@ function PromptView() {
                         <strong>{activeEvidenceGrade.schemaCoverage}%</strong>
                       </div>
                     </div>
+                    <div className="prompt-evidence-diff">
+                      <div className="prompt-evidence-diff-head">
+                        <div>
+                          <span>packet diff</span>
+                          <strong>{activeEvidenceDiff.score}/100</strong>
+                          <em>{activeEvidenceDiff.label}</em>
+                        </div>
+                        <p>{activeEvidenceDiff.nextAction}</p>
+                      </div>
+                      <div className="prompt-evidence-diff-stats">
+                        <span>{activeEvidenceDiff.preservedCount} preserved</span>
+                        <span>{activeEvidenceDiff.transformedCount} transformed</span>
+                        <span>{activeEvidenceDiff.omittedCount} omitted</span>
+                        <span>{activeEvidenceDiff.inventedClaims.length} invented</span>
+                      </div>
+                      <div className="prompt-evidence-diff-board">
+                        <div>
+                          <span>omitted lines</span>
+                          {activeEvidenceDiff.lines.filter((line) => line.status === "omitted").slice(0, 4).map((line) => (
+                            <code key={line.id}>{line.source}: {line.line}</code>
+                          ))}
+                          {!activeEvidenceDiff.omittedCount && <em>no omissions detected</em>}
+                        </div>
+                        <div>
+                          <span>transformed lines</span>
+                          {activeEvidenceDiff.lines.filter((line) => line.status === "transformed").slice(0, 4).map((line) => (
+                            <code key={line.id}>{line.source}: {line.line}</code>
+                          ))}
+                          {!activeEvidenceDiff.transformedCount && <em>no weak rewrites detected</em>}
+                        </div>
+                        <div>
+                          <span>invented claims</span>
+                          {activeEvidenceDiff.inventedClaims.map((claim) => (
+                            <code key={claim.id}>{claim.label}: {claim.text}</code>
+                          ))}
+                          {!activeEvidenceDiff.inventedClaims.length && <em>no unsupported conclusions detected</em>}
+                        </div>
+                      </div>
+                    </div>
                     <div className="prompt-evidence-tests">
                       <div>
                         <span>acceptance tests</span>
@@ -18154,7 +18419,7 @@ function PromptView() {
                   <div className="prompt-evidence-actions">
                     <button type="button" onClick={loadEvidencePacketIntoLab}>load packet into lab</button>
                     <button type="button" onClick={loadEvidencePacketIntoJournal}>start journal from packet</button>
-                    <button type="button" onClick={() => setActiveDailyPanel("journal")}>grade journal prompt</button>
+                    <button type="button" onClick={loadEvidenceDiffRepairIntoJournal}>load diff repair</button>
                   </div>
                 </>
               )}
