@@ -80,7 +80,7 @@ import {
   promptSkillLevels,
   promptTheoryQuestions,
 } from "./promptEngineeringPlan";
-import type { PromptDrill, PromptTheoryQuestion } from "./promptEngineeringPlan";
+import type { PromptDailyTask, PromptDrill, PromptTheoryQuestion } from "./promptEngineeringPlan";
 import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
@@ -17003,6 +17003,33 @@ type PromptMasteryTrendPoint = PromptDayMasterySnapshot & {
   status: "locked" | "draft" | "empty";
 };
 
+type PromptWeakSignalKey = "taskCompletion" | "journalCompletion" | "coachScore" | "srsReadiness" | "playgroundScore";
+
+type PromptWeakSignal = {
+  key: PromptWeakSignalKey;
+  label: string;
+  score: number;
+  repair: string;
+  scenarioLens: string;
+};
+
+type PromptCheckpointAttempt = {
+  id: string;
+  task: PromptDailyTask;
+  answer: string;
+  selfScore: number;
+  savedAt: string;
+  note: string;
+  feedback?: PromptTaskFeedback;
+};
+
+type PromptCheckpointReview = {
+  checkpoint: PromptMasteryHistoryEntry;
+  weakSignal: PromptWeakSignal;
+  recommendedTask: PromptDailyTask;
+  attempts: PromptCheckpointAttempt[];
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17272,6 +17299,127 @@ function buildPromptDayMasterySnapshot({
   };
 }
 
+function getPromptWeakSignal(snapshot: PromptDayMasterySnapshot): PromptWeakSignal {
+  const signals: PromptWeakSignal[] = [
+    {
+      key: "taskCompletion",
+      label: "Task closure",
+      score: snapshot.taskCompletion,
+      repair: "Close the unfinished task only after its deliverable exists. Completion without artifact teaches the wrong habit.",
+      scenarioLens: "Look for the daily task that never became a concrete SOC artifact.",
+    },
+    {
+      key: "journalCompletion",
+      label: "Journal evidence",
+      score: snapshot.journalCompletion,
+      repair: "Save the attempt, not just the idea. The coach cannot review invisible work.",
+      scenarioLens: "Find the first task without a saved answer and write the smallest defensible prompt attempt.",
+    },
+    {
+      key: "coachScore",
+      label: "Coach score",
+      score: snapshot.coachScore,
+      repair: "Revise the weakest answer by adding the missing control the scan named first.",
+      scenarioLens: "Treat the lowest-scoring saved prompt like a failed detection rule and repair the specific failure class.",
+    },
+    {
+      key: "srsReadiness",
+      label: "SRS readiness",
+      score: snapshot.srsReadiness,
+      repair: "Review the due theory before adding new prompt patterns.",
+      scenarioLens: "Connect the missed theory to the active incident so recall becomes operational.",
+    },
+    {
+      key: "playgroundScore",
+      label: "Lab score",
+      score: snapshot.playgroundScore,
+      repair: "Run the prompt through the lab and save a stronger version with a reasoned score.",
+      scenarioLens: "Use the scenario pressure line as the eval case for the next prompt version.",
+    },
+  ];
+  return signals.sort((a, b) => a.score - b.score)[0];
+}
+
+function getPromptRecommendedTaskForWeakSignal({
+  day,
+  weakSignal,
+  tasks,
+  completedTasks,
+  taskJournals,
+}: {
+  day: number;
+  weakSignal: PromptWeakSignal;
+  tasks: PromptDailyTask[];
+  completedTasks: Set<string>;
+  taskJournals: Record<string, PromptTaskJournal>;
+}) {
+  if (weakSignal.key === "taskCompletion") return tasks.find((task) => !completedTasks.has(task.id)) ?? tasks[1] ?? tasks[0];
+  if (weakSignal.key === "journalCompletion") {
+    return tasks.find((task) => {
+      const journal = taskJournals[task.id];
+      return !journal || (!journal.answer.trim() && !journal.history.length);
+    }) ?? tasks[1] ?? tasks[0];
+  }
+  if (weakSignal.key === "coachScore") {
+    return [...tasks].sort((a, b) => {
+      const aScore = taskJournals[a.id]?.lastFeedback?.score ?? (taskJournals[a.id]?.answer ? buildTaskJournalFeedback(taskJournals[a.id].answer, a.label).score : 101);
+      const bScore = taskJournals[b.id]?.lastFeedback?.score ?? (taskJournals[b.id]?.answer ? buildTaskJournalFeedback(taskJournals[b.id].answer, b.label).score : 101);
+      return aScore - bScore;
+    })[0] ?? tasks[0];
+  }
+  if (weakSignal.key === "srsReadiness") return tasks.find((task) => task.id === `d${day}-srs`) ?? tasks[tasks.length - 1] ?? tasks[0];
+  return tasks.find((task) => task.mode === "iterate") ?? tasks.find((task) => task.mode === "build") ?? tasks[0];
+}
+
+function buildPromptCheckpointReview({
+  checkpoint,
+  completedTasks,
+  taskJournals,
+}: {
+  checkpoint: PromptMasteryHistoryEntry;
+  completedTasks: Set<string>;
+  taskJournals: Record<string, PromptTaskJournal>;
+}): PromptCheckpointReview {
+  const tasks = getPromptDailyTasks(checkpoint.day);
+  const weakSignal = getPromptWeakSignal(checkpoint);
+  const recommendedTask = getPromptRecommendedTaskForWeakSignal({ day: checkpoint.day, weakSignal, tasks, completedTasks, taskJournals });
+  const attempts = tasks
+    .flatMap((task) => {
+      const journal = taskJournals[task.id];
+      if (!journal) return [];
+      const currentAttempt = journal.answer.trim()
+        ? [{
+            id: `${task.id}-current`,
+            task,
+            answer: journal.answer,
+            selfScore: journal.selfScore,
+            savedAt: journal.savedAt || checkpoint.savedAt,
+            note: journal.versionNote || "Current journal draft",
+            feedback: journal.lastFeedback,
+          }]
+        : [];
+      const history = journal.history.map((entry) => ({
+        id: entry.id,
+        task,
+        answer: entry.answer,
+        selfScore: entry.selfScore,
+        savedAt: entry.savedAt,
+        note: entry.versionNote || "Saved checkpoint attempt",
+        feedback: entry.feedback,
+      }));
+      return [...currentAttempt, ...history];
+    })
+    .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+    .slice(0, 5);
+
+  return {
+    checkpoint,
+    weakSignal,
+    recommendedTask,
+    attempts,
+  };
+}
+
 function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
   const analysis = analyzePromptText(prompt);
   const verdict = analysis.score >= 86 ? "production candidate" : analysis.score >= 68 ? "strong draft" : analysis.score >= 48 ? "needs constraints" : "unsafe draft";
@@ -17327,6 +17475,7 @@ function PromptView() {
   const [iterations, setIterations] = useState<PromptIteration[]>(initialMemory?.iterations ?? []);
   const [taskJournals, setTaskJournals] = useState<Record<string, PromptTaskJournal>>(initialMemory?.taskJournals ?? {});
   const [masteryHistory, setMasteryHistory] = useState<PromptMasteryHistoryEntry[]>(initialMemory?.masteryHistory ?? []);
+  const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
   const activeDailyTask = dailyTasks.find((task) => task.id === activeDailyTaskId) ?? dailyTasks[0];
@@ -17381,6 +17530,12 @@ function PromptView() {
     },
     [masteryHistory],
   );
+  const activeCheckpointReview = useMemo(() => {
+    if (reviewCheckpointDay === null) return null;
+    const checkpoint = masteryHistoryByDay.get(reviewCheckpointDay) ?? null;
+    return checkpoint ? buildPromptCheckpointReview({ checkpoint, completedTasks, taskJournals }) : null;
+  }, [completedTasks, masteryHistoryByDay, reviewCheckpointDay, taskJournals]);
+  const activeCheckpointAttemptCount = activeCheckpointReview?.attempts.length ?? 0;
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
   const activeMistake = promptMistakePatterns.find((mistake) => mistake.id === activeMistakeId) ?? promptMistakePatterns[0];
@@ -17442,7 +17597,17 @@ function PromptView() {
         },
       ].sort((a, b) => a.day - b.day).slice(-90),
     );
+    setReviewCheckpointDay(selectedDay);
     setPlaygroundStatus(`D${String(selectedDay).padStart(2, "0")} mastery checkpoint locked`);
+  }
+
+  function loadCheckpointDrill(task: PromptDailyTask) {
+    const dayMatch = task.id.match(/^d(\d+)-/);
+    if (dayMatch) setSelectedDay(Number(dayMatch[1]));
+    setActiveDailyTaskId(task.id);
+    setActiveDailyPanel("journal");
+    setPlaygroundPrompt(task.template);
+    setPlaygroundStatus(`checkpoint drill loaded: ${task.label}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -17838,11 +18003,18 @@ function PromptView() {
             </div>
             <div className="prompt-mastery-trend" aria-label="Seven day prompt mastery trend">
               {masteryTrend.map((snapshot) => (
-                <div key={snapshot.day} className={snapshot.status} title={`D${snapshot.day}: ${snapshot.score}% · ${snapshot.status}`}>
+                <button
+                  key={snapshot.day}
+                  type="button"
+                  className={snapshot.status}
+                  disabled={snapshot.status !== "locked"}
+                  title={`D${snapshot.day}: ${snapshot.score}% · ${snapshot.status}`}
+                  onClick={() => setReviewCheckpointDay(snapshot.day)}
+                >
                   <i style={{ height: `${Math.max(10, snapshot.score)}%` }} />
                   <span>D{String(snapshot.day).padStart(2, "0")}</span>
                   <em>{snapshot.status}</em>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -17888,8 +18060,63 @@ function PromptView() {
               <span>latest archive</span>
               <strong>{masteryHistoryStats.latest ? `D${String(masteryHistoryStats.latest.day).padStart(2, "0")}` : "--"}</strong>
               <em>{masteryHistoryStats.latest ? new Date(masteryHistoryStats.latest.savedAt).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "awaiting first checkpoint"}</em>
+              {masteryHistoryStats.latest ? (
+                <button type="button" onClick={() => setReviewCheckpointDay(masteryHistoryStats.latest?.day ?? null)}>review latest</button>
+              ) : null}
             </div>
           </div>
+          {activeCheckpointReview ? (
+            <div className="prompt-checkpoint-review" aria-label="Prompt checkpoint review drawer">
+              <div className="prompt-checkpoint-review-head">
+                <div>
+                  <span>checkpoint review</span>
+                  <strong>
+                    D{String(activeCheckpointReview.checkpoint.day).padStart(2, "0")} · {activeCheckpointReview.checkpoint.score}%
+                  </strong>
+                  <em>
+                    {new Date(activeCheckpointReview.checkpoint.savedAt).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {" · "}
+                    {activeCheckpointAttemptCount} saved attempts
+                  </em>
+                </div>
+                <button type="button" onClick={() => setReviewCheckpointDay(null)}>close review</button>
+              </div>
+              <div className="prompt-checkpoint-review-grid">
+                <div className="prompt-checkpoint-weak">
+                  <span>weakest signal</span>
+                  <strong>{activeCheckpointReview.weakSignal.label}</strong>
+                  <em>{activeCheckpointReview.weakSignal.score}%</em>
+                  <p>{activeCheckpointReview.weakSignal.repair}</p>
+                  <i>{activeCheckpointReview.weakSignal.scenarioLens}</i>
+                </div>
+                <div className="prompt-checkpoint-drill">
+                  <span>recommended next drill</span>
+                  <strong>{activeCheckpointReview.recommendedTask.label}</strong>
+                  <p>{activeCheckpointReview.recommendedTask.scenario.title}: {activeCheckpointReview.recommendedTask.scenario.context}</p>
+                  <div>
+                    {activeCheckpointReview.recommendedTask.scenario.evidence.slice(0, 3).map((item) => <code key={item}>{item}</code>)}
+                  </div>
+                  <button type="button" onClick={() => loadCheckpointDrill(activeCheckpointReview.recommendedTask)}>load drill into journal</button>
+                </div>
+                <div className="prompt-checkpoint-attempts">
+                  <span>saved attempts</span>
+                  {activeCheckpointReview.attempts.length ? (
+                    activeCheckpointReview.attempts.map((attempt) => (
+                      <button key={attempt.id} type="button" onClick={() => setPlaygroundPrompt(attempt.answer)}>
+                        <strong>{attempt.task.label}</strong>
+                        <em>
+                          {attempt.selfScore}/100 · {attempt.feedback ? `coach ${attempt.feedback.score}` : "coach pending"} · {new Date(attempt.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </em>
+                        <p>{attempt.note}</p>
+                      </button>
+                    ))
+                  ) : (
+                    <p>// no saved attempts for this checkpoint yet. Load the recommended drill, write one answer, then lock again.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </HudCard>
       </section>
 

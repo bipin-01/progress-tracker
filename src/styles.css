@@ -15685,12 +15685,20 @@ button.load-forecast-day:hover {
   min-height: 104px;
 }
 
-.prompt-mastery-trend div {
+.prompt-mastery-trend button {
   display: grid;
   align-items: end;
   gap: 4px;
   height: 94px;
   min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.prompt-mastery-trend button:disabled {
+  cursor: default;
 }
 
 .prompt-mastery-trend i {
@@ -15703,19 +15711,24 @@ button.load-forecast-day:hover {
   transition: height 0.24s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
-.prompt-mastery-trend div.empty i {
+.prompt-mastery-trend button.empty i {
   border-color: rgba(126, 151, 190, 0.16);
   background: rgba(126, 151, 190, 0.1);
   box-shadow: none;
 }
 
-.prompt-mastery-trend div.draft i {
+.prompt-mastery-trend button.draft i {
   border-style: dashed;
   background: linear-gradient(180deg, rgba(53, 215, 255, 0.48), rgba(53, 215, 255, 0.14));
 }
 
-.prompt-mastery-trend div.locked i {
+.prompt-mastery-trend button.locked i {
   border-color: rgba(133, 255, 94, 0.34);
+}
+
+.prompt-mastery-trend button.locked:hover i {
+  border-color: rgba(133, 255, 94, 0.62);
+  box-shadow: 0 0 18px rgba(133, 255, 94, 0.12);
 }
 
 .prompt-mastery-trend span {
@@ -15803,6 +15816,147 @@ button.load-forecast-day:hover {
   line-height: 1.45;
   text-overflow: ellipsis;
   text-transform: uppercase;
+}
+
+.prompt-mastery-archive button {
+  justify-self: start;
+  min-height: 28px;
+  border: 1px solid rgba(53, 215, 255, 0.24);
+  background: rgba(53, 215, 255, 0.06);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-checkpoint-review {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(133, 255, 94, 0.2);
+  background:
+    linear-gradient(135deg, rgba(133, 255, 94, 0.05), transparent 45%),
+    rgba(2, 7, 15, 0.32);
+  padding: 11px;
+  animation: promptPanelIn 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-checkpoint-review-head {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.prompt-checkpoint-review-head div,
+.prompt-checkpoint-weak,
+.prompt-checkpoint-drill,
+.prompt-checkpoint-attempts {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prompt-checkpoint-review-head span,
+.prompt-checkpoint-weak span,
+.prompt-checkpoint-drill span,
+.prompt-checkpoint-attempts span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-checkpoint-review-head strong,
+.prompt-checkpoint-weak strong,
+.prompt-checkpoint-drill strong,
+.prompt-checkpoint-attempts strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+
+.prompt-checkpoint-review-head em,
+.prompt-checkpoint-weak em,
+.prompt-checkpoint-drill em,
+.prompt-checkpoint-attempts em {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prompt-checkpoint-review-head button,
+.prompt-checkpoint-drill button,
+.prompt-checkpoint-attempts button {
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background: rgba(2, 7, 15, 0.36);
+  color: var(--cyan);
+}
+
+.prompt-checkpoint-review-grid {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.32fr) minmax(260px, 0.43fr) minmax(220px, 0.35fr);
+  gap: 9px;
+}
+
+.prompt-checkpoint-weak,
+.prompt-checkpoint-drill,
+.prompt-checkpoint-attempts {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.28);
+  padding: 10px;
+}
+
+.prompt-checkpoint-weak p,
+.prompt-checkpoint-drill p,
+.prompt-checkpoint-attempts p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.prompt-checkpoint-weak i {
+  color: var(--lime);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.prompt-checkpoint-drill div {
+  display: grid;
+  gap: 5px;
+}
+
+.prompt-checkpoint-drill code {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.04);
+  color: var(--ink-1);
+  padding: 6px;
+  white-space: normal;
+}
+
+.prompt-checkpoint-attempts button {
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+  padding: 8px;
+  text-align: left;
+}
+
+.prompt-checkpoint-attempts button:hover,
+.prompt-checkpoint-drill button:hover,
+.prompt-checkpoint-review-head button:hover,
+.prompt-mastery-archive button:hover {
+  border-color: rgba(53, 215, 255, 0.42);
+  background: rgba(53, 215, 255, 0.08);
 }
 
 .prompt-day-card,
@@ -16910,6 +17064,7 @@ button.load-forecast-day:hover {
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
+  .prompt-checkpoint-review-grid,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -16952,6 +17107,8 @@ button.load-forecast-day:hover {
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
+  .prompt-checkpoint-review-grid,
+  .prompt-checkpoint-review-head,
   .prompt-grade-row,
   .prompt-question-strip,
   .prompt-daily-panel-tabs,
@@ -17028,6 +17185,10 @@ button.load-forecast-day:hover {
   .zh-grade-actions,
   .zh-mini-grade {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prompt-checkpoint-review-head {
+    display: grid;
   }
 }
 

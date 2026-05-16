@@ -164,3 +164,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a checkpoint review drawer that opens any locked day and shows the exact weak signal, saved journal attempts, and recommended next drill for that day.
+
+### 2026-05-16 - Checkpoint Review Drawer
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because saved mastery history existed, but the learner could not yet inspect why a locked day scored the way it did.
+
+Problem observed:
+- Locked checkpoints showed score history, but the score did not explain the exact weakest training signal.
+- The learner could not open a locked day to see saved journal attempts or decide what to practice next.
+- UI/UX still needed a smoother path from "I see a weak day" to "load the next drill and improve it."
+
+Decision:
+- More relevant review content and a practice loop were needed. This fit the 70% rule because mastery history is only useful if each saved day becomes a coachable artifact with evidence, attempts, and a next action.
+
+Implemented:
+- Added a checkpoint review drawer for locked mastery days.
+- Locked trend bars and the latest archive can now open a day review.
+- The drawer identifies the weakest signal across task closure, journal evidence, coach score, SRS readiness, and lab score.
+- The drawer lists saved journal attempts from that day and lets the learner send any attempt back into the prompt lab.
+- Added a recommended next drill with realistic SOC scenario context, evidence snippets, and a one-click load into the daily journal.
+- Styled the drawer with quieter locked/draft/empty trend states, compact review cards, smooth entrance animation, and responsive layout behavior.
+
+Next likely upgrade:
+- Add a checkpoint comparison mode that compares two locked days, explains what improved or regressed, and generates a targeted 3-step recovery plan.
