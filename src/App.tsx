@@ -535,6 +535,19 @@ type ChineseMissedCharacterSignal = {
   reviewCardId?: string;
 };
 
+type ChineseMissDrillStepId = "decode" | "speak" | "write" | "recall";
+
+type ChineseMissDrillHistoryEntry = {
+  id: string;
+  signalId: string;
+  hanzi: string;
+  pinyin: string;
+  sources: ChineseMissLedgerSource[];
+  risk: number;
+  completedAt: string;
+  score: number;
+};
+
 type ChineseAdaptiveRepairDrill = {
   id: string;
   label: string;
@@ -690,6 +703,7 @@ type ChineseCoachEvidencePacket = {
     voiceAttempts: number;
     repairEvents: number;
     reviewGates: number;
+    missDrills: number;
     placementEvents: number;
     coachEvents: number;
   };
@@ -800,6 +814,8 @@ type ChineseMemorySnapshot = {
   placementHistory: ChinesePlacementHistoryEntry[];
   coachHistory: ChineseCoachHistoryEntry[];
   reviewUnlocks: ChineseReviewUnlockEntry[];
+  completedMissDrills: string[];
+  missDrillHistory: ChineseMissDrillHistoryEntry[];
   strokeMatrixDone: string[];
   speechAttempts: ChineseSpeechAttempt[];
 };
@@ -850,6 +866,7 @@ const CHINESE_TOTAL_HSK_CHARACTERS = 5000;
 const CHINESE_MEMORY_STORAGE_KEY = "focus-os:chinese-memory:v1";
 const CHINESE_SPEECH_HISTORY_LIMIT = 80;
 const CHINESE_COACH_HISTORY_LIMIT = 21;
+const CHINESE_MISS_DRILL_HISTORY_LIMIT = 21;
 const CHINESE_REPAIR_DRILL_XP = 4;
 
 const chineseHskPlacementBands = [
@@ -1017,6 +1034,13 @@ const chineseLessonSteps: Array<{ id: ChineseLessonStepId; title: string; detail
   { id: "build", title: "build", detail: "assemble sentence" },
   { id: "write", title: "write", detail: "trace strokes" },
   { id: "recall", title: "recall", detail: "grade memory" },
+];
+
+const chineseMissDrillSteps: Array<{ id: ChineseMissDrillStepId; title: string; detail: string; telemetry: string }> = [
+  { id: "decode", title: "decode", detail: "tone + pinyin", telemetry: "read the signal before moving" },
+  { id: "speak", title: "speak", detail: "say it aloud", telemetry: "voice gate ready" },
+  { id: "write", title: "write", detail: "trace the glyph", telemetry: "stroke memory primed" },
+  { id: "recall", title: "recall", detail: "load SRS card", telemetry: "memory card staged" },
 ];
 
 const chineseGuidedCircuitCopy: Record<
@@ -1734,6 +1758,10 @@ function isChineseCoachBriefingMode(value: unknown): value is ChineseCoachBriefi
   return value === "sample" || value === "repair" || value === "review" || value === "voice" || value === "placement" || value === "forecast" || value === "flow";
 }
 
+function isChineseMissLedgerSource(value: unknown): value is ChineseMissLedgerSource {
+  return value === "pinyin" || value === "voice" || value === "srs";
+}
+
 function isChineseLoadForecastStatus(value: unknown): value is ChineseLoadForecastStatus {
   return value === "light" || value === "steady" || value === "heavy" || value === "overload";
 }
@@ -1854,6 +1882,26 @@ function getChineseStoredReviewUnlockEntry(value: unknown): ChineseReviewUnlockE
   };
 }
 
+function getChineseStoredMissDrillHistoryEntry(value: unknown): ChineseMissDrillHistoryEntry | null {
+  if (!isChineseRecord(value)) return null;
+  const signalId = typeof value.signalId === "string" ? value.signalId : "";
+  const hanzi = typeof value.hanzi === "string" ? value.hanzi : "";
+  const pinyin = typeof value.pinyin === "string" ? value.pinyin : "";
+  if (!signalId || !hanzi || !pinyin) return null;
+  const sources = Array.isArray(value.sources) ? value.sources.filter(isChineseMissLedgerSource) : [];
+
+  return {
+    id: typeof value.id === "string" ? value.id : `${signalId}-miss-drill`,
+    signalId,
+    hanzi,
+    pinyin,
+    sources,
+    risk: getChineseClampedNumber(value.risk, 0, 0, 100),
+    completedAt: typeof value.completedAt === "string" ? value.completedAt : new Date().toISOString(),
+    score: getChineseClampedNumber(value.score, 100, 0, 100),
+  };
+}
+
 function getChineseStoredCoachHistoryEntry(value: unknown): ChineseCoachHistoryEntry | null {
   if (!isChineseRecord(value)) return null;
   const packetId = typeof value.packetId === "string" ? value.packetId : "";
@@ -1912,6 +1960,11 @@ function loadChineseMemorySnapshot(): ChineseMemorySnapshot | null {
         .map(getChineseStoredReviewUnlockEntry)
         .filter((entry): entry is ChineseReviewUnlockEntry => Boolean(entry))
         .slice(0, 21),
+      completedMissDrills: getChineseStoredStringArray(parsed.completedMissDrills),
+      missDrillHistory: (Array.isArray(parsed.missDrillHistory) ? parsed.missDrillHistory : [])
+        .map(getChineseStoredMissDrillHistoryEntry)
+        .filter((entry): entry is ChineseMissDrillHistoryEntry => Boolean(entry))
+        .slice(0, CHINESE_MISS_DRILL_HISTORY_LIMIT),
       strokeMatrixDone: getChineseStoredStringArray(parsed.strokeMatrixDone),
       speechAttempts: (Array.isArray(parsed.speechAttempts) ? parsed.speechAttempts : [])
         .map(getChineseStoredSpeechAttempt)
@@ -13780,6 +13833,9 @@ function ChineseView() {
   const [placementHistory, setPlacementHistory] = useState<ChinesePlacementHistoryEntry[]>([]);
   const [coachHistory, setCoachHistory] = useState<ChineseCoachHistoryEntry[]>([]);
   const [reviewUnlocks, setReviewUnlocks] = useState<ChineseReviewUnlockEntry[]>([]);
+  const [activeMissDrillSnapshot, setActiveMissDrillSnapshot] = useState<ChineseMissedCharacterSignal | null>(null);
+  const [missDrillDone, setMissDrillDone] = useState<Set<string>>(() => new Set());
+  const [missDrillHistory, setMissDrillHistory] = useState<ChineseMissDrillHistoryEntry[]>([]);
   const [selectedPracticeDay, setSelectedPracticeDay] = useState(CHINESE_TODAY_INDEX);
   const [memoryHydrated, setMemoryHydrated] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<ChineseMemoryStatus>("standby");
@@ -13810,6 +13866,7 @@ function ChineseView() {
   const memoryVoiceCount = speechAttempts.length;
   const memoryRepairCount = completedRepairDrills.size;
   const memoryReviewGateCount = reviewUnlocks.length;
+  const memoryMissDrillCount = missDrillHistory.length;
   const memoryPlacementCount = placementHistory.length;
   const memoryCoachCount = coachHistory.length;
   const repairHistoryStrip = repairHistory.slice(0, 7);
@@ -14028,6 +14085,16 @@ function ChineseView() {
   });
   const topMissedCharacter = missedCharacterLedger[0];
   const missedCharacterSources = Array.from(new Set(missedCharacterLedger.flatMap((signal) => signal.sources)));
+  const activeMissDrillSignal = activeMissDrillSnapshot
+    ? missedCharacterLedger.find((signal) => signal.id === activeMissDrillSnapshot.id) ?? activeMissDrillSnapshot
+    : null;
+  const activeMissDrillDoneCount = activeMissDrillSignal
+    ? chineseMissDrillSteps.filter((step) => missDrillDone.has(`${activeMissDrillSignal.id}:${step.id}`)).length
+    : 0;
+  const activeMissDrillProgress = Math.round(
+    (activeMissDrillDoneCount / Math.max(chineseMissDrillSteps.length, 1)) * 100,
+  );
+  const missDrillHistoryStrip = missDrillHistory.slice(0, 3);
   const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
   const activeVoiceToneWeakness = adaptiveRepairMission.tone;
   const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
@@ -14106,6 +14173,7 @@ function ChineseView() {
       speechAttempts.length,
       repairHistory.length,
       memoryReviewGateCount,
+      memoryMissDrillCount,
       missedCharacterLedger.length,
       topMissedCharacter?.hanzi ?? "clear",
       topMissedCharacter?.risk ?? 0,
@@ -14136,6 +14204,7 @@ function ChineseView() {
         voiceAttempts: memoryVoiceCount,
         repairEvents: repairHistory.length,
         reviewGates: memoryReviewGateCount,
+        missDrills: memoryMissDrillCount,
         placementEvents: placementHistory.length,
         coachEvents: memoryCoachCount,
       },
@@ -14208,6 +14277,7 @@ function ChineseView() {
     loadForecast.summary,
     memoryCardCount,
     memoryCoachCount,
+    memoryMissDrillCount,
     memoryReviewGateCount,
     memoryVoiceCount,
     missedCharacterLedger,
@@ -14280,6 +14350,8 @@ function ChineseView() {
       setPlacementHistory(snapshot.placementHistory);
       setCoachHistory(snapshot.coachHistory);
       setReviewUnlocks(snapshot.reviewUnlocks);
+      setMissDrillDone(new Set(snapshot.completedMissDrills));
+      setMissDrillHistory(snapshot.missDrillHistory);
       setStrokeMatrixDone(new Set(snapshot.strokeMatrixDone));
       setSpeechAttempts(snapshot.speechAttempts);
       setMemoryStatus("restored");
@@ -14302,6 +14374,8 @@ function ChineseView() {
       placementHistory: placementHistory.slice(0, 21),
       coachHistory: coachHistory.slice(0, CHINESE_COACH_HISTORY_LIMIT),
       reviewUnlocks: reviewUnlocks.slice(0, 21),
+      completedMissDrills: Array.from(missDrillDone).sort(),
+      missDrillHistory: missDrillHistory.slice(0, CHINESE_MISS_DRILL_HISTORY_LIMIT),
       strokeMatrixDone: Array.from(strokeMatrixDone).sort(),
       speechAttempts: speechAttempts.slice(0, CHINESE_SPEECH_HISTORY_LIMIT),
     });
@@ -14311,6 +14385,8 @@ function ChineseView() {
     completedRepairDrills,
     coachHistory,
     memoryHydrated,
+    missDrillDone,
+    missDrillHistory,
     placementHistory,
     repairHistory,
     reviewCombo,
@@ -14455,13 +14531,33 @@ function ChineseView() {
     setRewardMessage(`review gate loaded · ${entry.status} · ${entry.reviewedCards}/${entry.target}`);
   }
 
-  function loadMissedCharacterSignal(signal: ChineseMissedCharacterSignal) {
+  function getMissDrillReviewCard(signal: ChineseMissedCharacterSignal) {
+    return (
+      (signal.reviewCardId ? reviewCards.find((card) => card.id === signal.reviewCardId) : undefined) ??
+      reviewCards.find((card) => getChineseCardCharacters(card).includes(signal.hanzi))
+    );
+  }
+
+  function stageMissDrillSignal(signal: ChineseMissedCharacterSignal, openFocus = false) {
+    const card = getMissDrillReviewCard(signal);
+    setActiveMissDrillSnapshot(signal);
     openDictionary(signal.hanzi);
-    if (signal.reviewCardId) {
-      const card = reviewCards.find((item) => item.id === signal.reviewCardId);
-      if (card) {
-        loadReviewFirstCard(card, signal.sources.includes("srs"));
-      }
+    setCardRevealed(true);
+
+    if (card) {
+      setActiveLessonId(card.lessonId);
+      setSelectedPhraseIndex(card.exampleIndex);
+      setActiveReviewId(card.id);
+      if (openFocus) setLessonFocusActive(true);
+    }
+
+    return card;
+  }
+
+  function loadMissedCharacterSignal(signal: ChineseMissedCharacterSignal) {
+    const card = stageMissDrillSignal(signal, signal.sources.includes("srs"));
+    if (signal.reviewCardId && card) {
+      loadReviewFirstCard(card, signal.sources.includes("srs"));
     } else if (signal.sources.includes("voice")) {
       setLessonFocusActive(true);
       setActiveLessonStep("recall");
@@ -14470,6 +14566,89 @@ function ChineseView() {
       setPinyinDecoderInput("");
     }
     setRewardMessage(`miss ledger loaded · ${signal.hanzi} · ${signal.sources.join("+")}`);
+  }
+
+  function armMissDrill(signal = topMissedCharacter) {
+    if (!signal) {
+      setRewardMessage("miss drill waiting · create a pinyin, voice, or SRS miss first");
+      return;
+    }
+
+    stageMissDrillSignal(signal);
+    setActiveLessonStep("build");
+    setPinyinDecoderInput("");
+    setRewardMessage(`micro drill armed · ${signal.hanzi} · ${signal.sources.join("+")}`);
+  }
+
+  function repeatMissDrillEntry(entry: ChineseMissDrillHistoryEntry) {
+    armMissDrill({
+      id: entry.signalId,
+      hanzi: entry.hanzi,
+      pinyin: entry.pinyin,
+      sources: entry.sources,
+      risk: entry.risk,
+      count: 1,
+      detail: `${entry.score}% packet`,
+      action: "repeat micro drill",
+    });
+  }
+
+  function runMissDrillStep(stepId: ChineseMissDrillStepId) {
+    const signal = activeMissDrillSignal ?? topMissedCharacter;
+    if (!signal) {
+      setRewardMessage("micro drill waiting · no miss signal");
+      return;
+    }
+
+    const card = stageMissDrillSignal(signal);
+    const doneKey = `${signal.id}:${stepId}`;
+    const nextDone = new Set(missDrillDone).add(doneKey);
+    setMissDrillDone(nextDone);
+
+    if (stepId === "decode") {
+      setActiveLessonStep("build");
+      setPinyinDecoderInput(signal.pinyin);
+    }
+
+    if (stepId === "speak") {
+      setActiveLessonStep("recall");
+    }
+
+    if (stepId === "write") {
+      setActiveLessonStep("write");
+      openDictionary(signal.hanzi);
+    }
+
+    if (stepId === "recall") {
+      setActiveLessonStep("recall");
+      if (card) setActiveReviewId(card.id);
+    }
+
+    const nextDoneCount = chineseMissDrillSteps.filter((step) => nextDone.has(`${signal.id}:${step.id}`)).length;
+    const allDone = nextDoneCount === chineseMissDrillSteps.length;
+    if (allDone && !missDrillHistory.some((entry) => entry.signalId === signal.id)) {
+      const entry: ChineseMissDrillHistoryEntry = {
+        id: `${signal.id}:${Date.now()}`,
+        signalId: signal.id,
+        hanzi: signal.hanzi,
+        pinyin: signal.pinyin,
+        sources: signal.sources,
+        risk: signal.risk,
+        completedAt: new Date().toISOString(),
+        score: 100,
+      };
+      setMissDrillHistory((current) => [
+        entry,
+        ...current.filter((item) => item.signalId !== signal.id),
+      ].slice(0, CHINESE_MISS_DRILL_HISTORY_LIMIT));
+      setSessionXp((xp) => xp + 18);
+      setReviewCombo((combo) => combo + 1);
+      setRewardMessage(`micro drill locked · ${signal.hanzi} · +18 XP`);
+      return;
+    }
+
+    const stepCopy = chineseMissDrillSteps.find((step) => step.id === stepId);
+    setRewardMessage(`${signal.hanzi} ${stepCopy?.title ?? stepId} gate · ${nextDoneCount}/${chineseMissDrillSteps.length}`);
   }
 
   function logPlacementHistory(profile: ChinesePlacementProfile) {
@@ -15144,6 +15323,11 @@ function ChineseView() {
                   <span>miss ledger</span>
                   <strong>{topMissedCharacter ? `${topMissedCharacter.risk}%` : "--"}</strong>
                   <em>{topMissedCharacter ? topMissedCharacter.sources.join("+") : "clear"}</em>
+                  {topMissedCharacter ? (
+                    <button type="button" className="zh-miss-drill-arm" onClick={() => armMissDrill(topMissedCharacter)}>
+                      micro drill
+                    </button>
+                  ) : null}
                 </div>
                 <div>
                   {missedCharacterLedger.length ? (
@@ -15158,6 +15342,48 @@ function ChineseView() {
                   ) : (
                     <p>pinyin, voice, and SRS misses will merge here</p>
                   )}
+                  {activeMissDrillSignal ? (
+                    <div
+                      className="zh-miss-drill-packet"
+                      style={{ "--miss-drill-progress": `${activeMissDrillProgress}%` } as CSSProperties}
+                      aria-label={`Micro drill packet for ${activeMissDrillSignal.hanzi}`}
+                    >
+                      <div className="zh-miss-drill-core">
+                        <span>micro packet</span>
+                        <strong className="zh-cn">{activeMissDrillSignal.hanzi}</strong>
+                        <em className={getChineseToneClass(activeMissDrillSignal.pinyin)}>{activeMissDrillSignal.pinyin}</em>
+                        <i>{activeMissDrillDoneCount}/4 locked</i>
+                      </div>
+                      <div className="zh-miss-drill-steps">
+                        {chineseMissDrillSteps.map((step) => {
+                          const done = missDrillDone.has(`${activeMissDrillSignal.id}:${step.id}`);
+                          return (
+                            <button
+                              key={step.id}
+                              type="button"
+                              className={done ? "done" : ""}
+                              onClick={() => runMissDrillStep(step.id)}
+                            >
+                              <strong>{step.title}</strong>
+                              <span>{step.detail}</span>
+                              <em>{done ? "locked" : step.telemetry}</em>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {missDrillHistoryStrip.length ? (
+                        <div className="zh-miss-drill-history">
+                          <span>recent locks</span>
+                          {missDrillHistoryStrip.map((entry) => (
+                            <button key={entry.id} type="button" onClick={() => repeatMissDrillEntry(entry)}>
+                              <strong className="zh-cn">{entry.hanzi}</strong>
+                              <em>{entry.sources.join("+") || "drill"}</em>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -15242,7 +15468,7 @@ function ChineseView() {
                 <strong>{memoryCoreLabel}</strong>
                 <em>
                   {memoryCardCount} cards · {memoryVoiceCount} voice · {memoryRepairCount} repair · {memoryReviewGateCount} gate ·{" "}
-                  {memoryPlacementCount} placement · {memoryCoachCount} coach
+                  {memoryMissDrillCount} miss drill · {memoryPlacementCount} placement · {memoryCoachCount} coach
                 </em>
               </div>
               <div className="zh-mission-phase-signal" style={{ "--practice-progress": `${practicePhaseProgress}%` } as CSSProperties}>

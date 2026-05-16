@@ -12033,6 +12033,22 @@ button.load-forecast-day:hover {
   white-space: nowrap;
 }
 
+.zh-miss-ledger .zh-miss-drill-arm {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 22px;
+  align-items: center;
+  border-color: rgba(255, 209, 102, 0.22);
+  background: rgba(255, 209, 102, 0.04);
+  color: var(--zh-gold);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  padding: 0 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .zh-repair-history > div:last-child,
 .zh-review-gate-history > div:last-child,
 .zh-miss-ledger > div:last-child {
@@ -12134,6 +12150,83 @@ button.load-forecast-day:hover {
   align-self: center;
   color: var(--ink-2);
   text-transform: none;
+}
+
+.zh-miss-drill-packet {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.34fr) minmax(0, 1fr);
+  gap: 6px;
+  border: 1px solid rgba(255, 209, 102, 0.18);
+  background:
+    linear-gradient(90deg, rgba(255, 209, 102, 0.08) var(--miss-drill-progress), transparent var(--miss-drill-progress)),
+    rgba(2, 7, 15, 0.42);
+  padding: 6px;
+}
+
+.zh-miss-drill-core {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  border-left: 2px solid rgba(255, 209, 102, 0.72);
+  padding-left: 8px;
+}
+
+.zh-miss-drill-core strong.zh-cn {
+  color: var(--zh-gold);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: 30px;
+  line-height: 0.95;
+}
+
+.zh-miss-drill-core i {
+  color: var(--ink-2);
+  font-style: normal;
+}
+
+.zh-miss-drill-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.zh-miss-drill-steps button {
+  min-height: 58px;
+  border-color: rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.025);
+}
+
+.zh-miss-drill-steps button.done {
+  border-color: rgba(158, 255, 102, 0.34);
+  background: rgba(158, 255, 102, 0.06);
+}
+
+.zh-miss-drill-steps button.done strong {
+  color: var(--lime);
+}
+
+.zh-miss-drill-history {
+  grid-column: 1 / -1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  border-top: 1px solid rgba(255, 209, 102, 0.12);
+  padding-top: 5px;
+}
+
+.zh-miss-drill-history > span {
+  flex: 0 0 auto;
+  color: var(--ink-2);
+}
+
+.zh-miss-drill-history button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
 }
 
 .zh-repair-compare {
@@ -15211,6 +15304,8 @@ button.load-forecast-day:hover {
   .zh-repair-history > div:last-child,
   .zh-review-gate-history > div:last-child,
   .zh-miss-ledger > div:last-child,
+  .zh-miss-drill-packet,
+  .zh-miss-drill-steps,
   .zh-load-forecast-strip,
   .zh-practice-overview,
   .zh-practice-day-head,

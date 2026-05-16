@@ -48,13 +48,14 @@ Purpose: keep `/chinese` upgrades cumulative and intentional. Read this before c
 - 2026-05-15 - Added Review Gate Unlock: after enough distinct recall cards are graded, the shield switches from locked to ready, the coach command can restore the daily new-word rail, and Memory Core persists the cleared gate across refreshes.
 - 2026-05-15 - Added Review Gate Ledger: cleared review-first gates now appear beside repair history as compact behavior evidence, contribute to Memory Core counts, and export in the coach evidence packet for future AI analysis.
 - 2026-05-15 - Added Miss Ledger: pinyin decoder misses, voice hotspots, and SRS lapses now merge into one compact character repair queue with risk scoring, direct load actions, and coach evidence export.
+- 2026-05-15 - Added Miss Ledger Micro Drill: the top weak character now opens a four-step decode, speak, write, and recall packet, persists locked packets in Memory Core, rewards completion, and exports the count for future AI coaching.
 
 ## Next Upgrade Candidates
 
 - Promote Memory Core from localStorage to Supabase/IndexedDB sync so the future Mac app and web app share one Chinese review timeline.
 - Add a true Skritter canvas: pointer/touch handwriting capture, stroke direction checking, and replay.
 - Expand the dictionary into a real local mini-Pleco with search, variants, measure words, and related grammar notes.
-- Let the Miss Ledger generate a one-click micro-drill packet that sequences decode, speak, write, and recall for the top weak character.
+- Convert Miss Ledger micro drills into timed follow-up reviews so completed packets return automatically if the same character keeps failing.
 
 ## Design Rules For Future Passes
 
