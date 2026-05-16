@@ -17270,7 +17270,31 @@ type PromptPortfolioExportPacket = {
   markdown: string;
 };
 
-type PromptPortfolioGalleryItem = {
+type PromptPortfolioDefenseGateCheck = {
+  questionId: string;
+  label: string;
+  attempts: number;
+  bestScore: number;
+  latestScore: number;
+  passed: boolean;
+  status: string;
+  recoveryCue: string;
+};
+
+type PromptPortfolioDefenseGate = {
+  threshold: number;
+  total: number;
+  passedCount: number;
+  readinessScore: number;
+  unlocked: boolean;
+  verdict: string;
+  reviewScenario: string;
+  action: string;
+  missingLabels: string[];
+  checks: PromptPortfolioDefenseGateCheck[];
+};
+
+type PromptPortfolioGallerySeed = {
   id: string;
   source: "active" | "archived";
   taskId: string;
@@ -17284,12 +17308,20 @@ type PromptPortfolioGalleryItem = {
   markdown: string;
 };
 
+type PromptPortfolioGalleryItem = PromptPortfolioGallerySeed & {
+  defenseGate: PromptPortfolioDefenseGate;
+  showcaseReady: boolean;
+  showcaseScore: number;
+  showcaseLabel: string;
+};
+
 type PromptPortfolioGallery = {
   items: PromptPortfolioGalleryItem[];
   best: PromptPortfolioGalleryItem;
   polishTarget: PromptPortfolioGalleryItem;
   averageScore: number;
   readyCount: number;
+  defenseGatedCount: number;
 };
 
 type PromptPortfolioPolishStep = {
@@ -19007,21 +19039,101 @@ function getPromptGalleryPolishAction(score: number, weakness: string) {
   return "Complete the remediation checklist, rerun the report review gate, and save a cleaner case study.";
 }
 
+const promptMentorDefenseGateQuestions = [
+  { id: "evidence-boundary", label: "Evidence Boundary" },
+  { id: "red-team-proof", label: "Red-Team Proof" },
+  { id: "output-contract", label: "Output Contract" },
+  { id: "tradeoffs", label: "Tradeoffs" },
+  { id: "improvement", label: "Next Improvement" },
+];
+
+const PROMPT_MENTOR_DEFENSE_GATE_THRESHOLD = 78;
+
+function buildPromptPortfolioDefenseGate(
+  item: PromptPortfolioGallerySeed,
+  rehearsals: PromptMentorRehearsalAttempt[],
+): PromptPortfolioDefenseGate {
+  const targetAttempts = rehearsals.filter((attempt) => attempt.targetId === item.id);
+  const checks = promptMentorDefenseGateQuestions.map((question): PromptPortfolioDefenseGateCheck => {
+    const attempts = targetAttempts
+      .filter((attempt) => attempt.questionId === question.id)
+      .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    const bestScore = attempts.reduce((best, attempt) => Math.max(best, attempt.selfScore), 0);
+    const latestScore = attempts[0]?.selfScore ?? 0;
+    const passed = bestScore >= PROMPT_MENTOR_DEFENSE_GATE_THRESHOLD;
+    return {
+      questionId: question.id,
+      label: question.label,
+      attempts: attempts.length,
+      bestScore,
+      latestScore,
+      passed,
+      status: passed ? "cleared" : attempts.length ? "below gate" : "not rehearsed",
+      recoveryCue: attempts.length
+        ? `Raise ${question.label} above ${PROMPT_MENTOR_DEFENSE_GATE_THRESHOLD}/100 before this artifact can be called showcase-ready.`
+        : `Record one timed ${question.label} answer before portfolio review.`,
+    };
+  });
+  const passedCount = checks.filter((check) => check.passed).length;
+  const missingLabels = checks.filter((check) => !check.passed).map((check) => check.label);
+  const readinessScore = Math.round((passedCount / Math.max(checks.length, 1)) * 100);
+  const unlocked = passedCount === checks.length;
+  const verdict = unlocked
+    ? "showcase defense cleared"
+    : `${missingLabels.length} defense gate${missingLabels.length === 1 ? "" : "s"} blocking showcase`;
+
+  return {
+    threshold: PROMPT_MENTOR_DEFENSE_GATE_THRESHOLD,
+    total: checks.length,
+    passedCount,
+    readinessScore,
+    unlocked,
+    verdict,
+    reviewScenario: `A mentor can choose any defense question for ${item.title}; the artifact is not showcase-ready until every answer has one timed pass above threshold.`,
+    action: unlocked
+      ? "Archive the strongest spoken answers with the final case study."
+      : `Rehearse ${missingLabels[0] ?? "the weakest answer"} next, then save the timed attempt.`,
+    missingLabels,
+    checks,
+  };
+}
+
+function attachPromptPortfolioDefenseGate(
+  item: PromptPortfolioGallerySeed,
+  rehearsals: PromptMentorRehearsalAttempt[],
+): PromptPortfolioGalleryItem {
+  const defenseGate = buildPromptPortfolioDefenseGate(item, rehearsals);
+  const showcaseReady = item.score >= 90 && defenseGate.unlocked;
+  const showcaseScore = showcaseReady ? item.score : Math.min(item.score, defenseGate.unlocked ? 89 : 74 + Math.round(defenseGate.readinessScore * 0.15));
+  const showcaseLabel = showcaseReady ? "showcase-ready" : defenseGate.unlocked ? "report-ready, needs polish" : "defense-gated";
+  return {
+    ...item,
+    polishAction: defenseGate.unlocked ? item.polishAction : defenseGate.action,
+    verdict: showcaseReady ? item.verdict : `${showcaseLabel}: ${item.verdict}`,
+    defenseGate,
+    showcaseReady,
+    showcaseScore,
+    showcaseLabel,
+  };
+}
+
 function buildPromptPortfolioGallery({
   activeExport,
   activeTask,
   selectedDay,
   archive,
   review,
+  mentorRehearsals,
 }: {
   activeExport: PromptPortfolioExportPacket;
   activeTask: PromptDailyTask;
   selectedDay: number;
   archive: PromptIncidentReportArchiveEntry[];
   review: PromptReportPortfolioReview;
+  mentorRehearsals: PromptMentorRehearsalAttempt[];
 }): PromptPortfolioGallery {
   const activeWeakness = review.checklist[0] ?? review.reviewerBrief;
-  const activeItem: PromptPortfolioGalleryItem = {
+  const activeItem: PromptPortfolioGallerySeed = {
     id: `${activeExport.exportId}-active-gallery`,
     source: "active",
     taskId: activeTask.id,
@@ -19034,7 +19146,7 @@ function buildPromptPortfolioGallery({
     polishAction: getPromptGalleryPolishAction(activeExport.readinessScore, activeWeakness),
     markdown: activeExport.markdown,
   };
-  const archivedItems = archive.map((entry): PromptPortfolioGalleryItem => {
+  const archivedItems = archive.map((entry): PromptPortfolioGallerySeed => {
     const task = getPromptTaskByArchiveEntry(entry);
     const movementScore = Math.min(100, Math.max(45, 72 + entry.replayMovement * 3));
     const hasCaseStudy = /portfolio case study/i.test(entry.markdown);
@@ -19056,21 +19168,26 @@ function buildPromptPortfolioGallery({
       markdown: entry.markdown,
     };
   });
-  const deduped = [activeItem, ...archivedItems].filter((item, index, items) => items.findIndex((candidate) => candidate.taskId === item.taskId && candidate.markdown === item.markdown) === index);
-  const items = deduped.sort((a, b) => b.score - a.score).slice(0, 9);
-  const best = items[0] ?? activeItem;
+  const deduped = [activeItem, ...archivedItems]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.taskId === item.taskId && candidate.markdown === item.markdown) === index)
+    .map((item) => attachPromptPortfolioDefenseGate(item, mentorRehearsals));
+  const items = deduped.sort((a, b) => b.showcaseScore - a.showcaseScore || b.score - a.score).slice(0, 9);
+  const best = items[0] ?? attachPromptPortfolioDefenseGate(activeItem, mentorRehearsals);
   const polishTarget = [...items].sort((a, b) => {
+    const aNeedsDefense = a.defenseGate.unlocked ? 1 : 0;
+    const bNeedsDefense = b.defenseGate.unlocked ? 1 : 0;
     const aNeedsPolish = a.score >= 62 && a.score < 90 ? 0 : 1;
     const bNeedsPolish = b.score >= 62 && b.score < 90 ? 0 : 1;
-    return aNeedsPolish - bNeedsPolish || a.score - b.score;
-  })[0] ?? activeItem;
+    return aNeedsDefense - bNeedsDefense || aNeedsPolish - bNeedsPolish || a.showcaseScore - b.showcaseScore;
+  })[0] ?? attachPromptPortfolioDefenseGate(activeItem, mentorRehearsals);
 
   return {
     items,
     best,
     polishTarget,
-    averageScore: average(items.map((item) => item.score)),
-    readyCount: items.filter((item) => item.score >= 90).length,
+    averageScore: average(items.map((item) => item.showcaseScore)),
+    readyCount: items.filter((item) => item.showcaseReady).length,
+    defenseGatedCount: items.filter((item) => !item.defenseGate.unlocked).length,
   };
 }
 
@@ -19957,8 +20074,9 @@ function PromptView() {
       selectedDay,
       archive: incidentReportArchive,
       review: activeReportReview,
+      mentorRehearsals,
     }),
-    [activeDailyTask, activePortfolioExport, activeReportReview, incidentReportArchive, selectedDay],
+    [activeDailyTask, activePortfolioExport, activeReportReview, incidentReportArchive, mentorRehearsals, selectedDay],
   );
   const selectedPortfolioPolishTarget = useMemo(
     () => portfolioGallery.items.find((item) => item.id === selectedPortfolioPolishId) ?? portfolioGallery.polishTarget,
@@ -20408,6 +20526,40 @@ function PromptView() {
     setActiveDailyTaskId(item.taskId);
     setActiveDailyPanel("packet");
     setPlaygroundStatus(`polish workflow opened: ${item.title}`);
+  }
+
+  function loadPortfolioDefenseGateDrill(item: PromptPortfolioGalleryItem) {
+    const missingCheck = item.defenseGate.checks.find((check) => !check.passed) ?? item.defenseGate.checks[0];
+    const recoveryAnswer = [
+      `Defense gate drill: ${missingCheck.label}`,
+      `Artifact: ${item.title}`,
+      `Scenario: ${item.defenseGate.reviewScenario}`,
+      "",
+      "Answer frame:",
+      "1. Case detail I can prove:",
+      "2. Missing detail I must not invent:",
+      "3. Human or output gate:",
+      "4. Measurable next action:",
+      "",
+      `Recovery cue: ${missingCheck.recoveryCue}`,
+    ].join("\n");
+
+    queuedDefenseRehearsalRef.current = {
+      questionId: missingCheck.questionId,
+      answer: recoveryAnswer,
+      seconds: 90,
+      score: Math.max(62, missingCheck.latestScore || item.showcaseScore),
+    };
+    setSelectedPortfolioPolishId(item.id);
+    setActiveDefenseQuestionId(missingCheck.questionId);
+    setDefenseRehearsalRunning(false);
+    setDefenseRehearsalSeconds(90);
+    setDefenseRehearsalAnswer(recoveryAnswer);
+    setDefenseRehearsalSelfScore(Math.max(62, missingCheck.latestScore || item.showcaseScore));
+    setSelectedDay(item.day);
+    setActiveDailyTaskId(item.taskId);
+    setActiveDailyPanel("packet");
+    setPlaygroundStatus(`defense gate drill loaded: ${missingCheck.label}`);
   }
 
   function loadPortfolioPolishWorkflow() {
@@ -21433,22 +21585,28 @@ function PromptView() {
               <div>
                 <span>portfolio gallery</span>
                 <strong>{portfolioGallery.items.length} case studies</strong>
-                <em>{portfolioGallery.readyCount} showcase-ready · avg {portfolioGallery.averageScore}/100</em>
+                <em>{portfolioGallery.readyCount} showcase-ready · {portfolioGallery.defenseGatedCount} defense-gated · avg {portfolioGallery.averageScore}/100</em>
               </div>
               <p>Ranks active and archived prompt case studies across the bootcamp so the best artifacts and highest-impact polish targets are visible without digging through task journals.</p>
             </div>
             <div className="prompt-portfolio-gallery-summary">
               <div>
                 <span>best artifact</span>
-                <strong>{portfolioGallery.best.score}/100</strong>
+                <strong>{portfolioGallery.best.showcaseScore}/100</strong>
                 <p>{portfolioGallery.best.title}: {portfolioGallery.best.verdict}</p>
                 <button type="button" onClick={() => openPortfolioGalleryItem(portfolioGallery.best)}>open best</button>
               </div>
               <div>
                 <span>polish first</span>
-                <strong>{portfolioGallery.polishTarget.score}/100</strong>
+                <strong>{portfolioGallery.polishTarget.showcaseScore}/100</strong>
                 <p>{portfolioGallery.polishTarget.polishAction}</p>
                 <button type="button" onClick={() => polishPortfolioGalleryItem(portfolioGallery.polishTarget)}>open workflow</button>
+              </div>
+              <div>
+                <span>defense gate</span>
+                <strong>{portfolioGallery.polishTarget.defenseGate.passedCount}/{portfolioGallery.polishTarget.defenseGate.total}</strong>
+                <p>{portfolioGallery.polishTarget.defenseGate.reviewScenario}</p>
+                <button type="button" onClick={() => loadPortfolioDefenseGateDrill(portfolioGallery.polishTarget)}>load gate drill</button>
               </div>
             </div>
             <div className="prompt-portfolio-polish" aria-label="Case study polish workflow">
@@ -21664,18 +21822,29 @@ function PromptView() {
             </div>
             <div className="prompt-portfolio-gallery-list">
               {portfolioGallery.items.map((item) => (
-                <div key={item.id} className={item.source}>
+                <div key={item.id} className={`${item.source} ${item.showcaseReady ? "showcase-ready" : "defense-gated"}`}>
                   <div>
                     <span>D{String(item.day).padStart(2, "0")} · {item.source}</span>
-                    <strong>{item.score}/100</strong>
+                    <strong>{item.showcaseScore}/100</strong>
                   </div>
                   <p>{item.title}</p>
-                  <em>{item.scenarioTitle}</em>
+                  <em>{item.showcaseLabel} · report {item.score}/100 · {item.defenseGate.passedCount}/{item.defenseGate.total} defense</em>
                   <i>{item.primaryWeakness}</i>
+                  <div className="prompt-portfolio-gallery-gate">
+                    <span>{item.defenseGate.verdict}</span>
+                    {item.defenseGate.checks.map((check) => (
+                      <em key={check.questionId} className={check.passed ? "ready" : ""}>
+                        {check.label}: {check.bestScore || 0}
+                      </em>
+                    ))}
+                  </div>
                   <div>
                     <button type="button" onClick={() => openPortfolioGalleryItem(item)}>open</button>
                     <button type="button" onClick={() => stagePortfolioGalleryItem(item)}>stage</button>
                     <button type="button" onClick={() => polishPortfolioGalleryItem(item)}>polish</button>
+                    {!item.defenseGate.unlocked ? (
+                      <button type="button" onClick={() => loadPortfolioDefenseGateDrill(item)}>gate</button>
+                    ) : null}
                   </div>
                 </div>
               ))}

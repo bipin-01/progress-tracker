@@ -15873,7 +15873,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-portfolio-gallery-summary {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .prompt-portfolio-gallery-list {
@@ -16149,9 +16149,45 @@ button.load-forecast-day:hover {
   white-space: nowrap;
 }
 
+.prompt-portfolio-gallery-gate {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  border: 1px solid rgba(255, 181, 74, 0.12);
+  background: rgba(255, 181, 74, 0.025);
+  padding: 7px;
+}
+
+.prompt-portfolio-gallery-gate span {
+  grid-column: 1 / -1;
+  color: var(--zh-gold);
+}
+
+.prompt-portfolio-gallery-gate em {
+  border: 1px solid rgba(255, 181, 74, 0.14);
+  background: rgba(2, 7, 15, 0.24);
+  padding: 4px 5px;
+}
+
+.prompt-portfolio-gallery-gate em.ready {
+  border-color: rgba(158, 255, 102, 0.18);
+  color: var(--green);
+}
+
 .prompt-portfolio-gallery-list > div.active {
   border-color: rgba(53, 215, 255, 0.2);
   background: rgba(53, 215, 255, 0.045);
+}
+
+.prompt-portfolio-gallery-list > div.showcase-ready {
+  border-color: rgba(158, 255, 102, 0.24);
+  background:
+    linear-gradient(135deg, rgba(158, 255, 102, 0.04), transparent 50%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-gallery-list > div.defense-gated {
+  border-color: rgba(255, 181, 74, 0.16);
 }
 
 .prompt-portfolio-gallery-list > div.archived {

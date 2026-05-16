@@ -595,3 +595,29 @@ Implemented:
 
 Next likely upgrade:
 - Add mentor-defense readiness gates to the portfolio gallery so artifacts cannot be marked showcase-ready until every defense question has at least one timed answer above a threshold.
+
+### 2026-05-16 - Portfolio Defense Readiness Gates
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the gallery could rank case studies, but "showcase-ready" still depended too much on report score and not enough on whether the learner could defend the artifact aloud.
+
+Problem observed:
+- Portfolio artifacts could look ready while having no timed answers for evidence boundary, red-team proof, output contract, tradeoffs, or next improvement.
+- The gallery did not block showcase readiness when the learner had not rehearsed under mentor-style pressure.
+- UI/UX needed a clearer bridge from a blocked portfolio artifact to the exact defense drill that would unlock it.
+
+Decision:
+- More realistic review gating was needed. This fit the 70% rule because a serious prompt engineering bootcamp should model the real moment where a mentor asks, "Can you defend this case study without the app helping you?"
+
+Implemented:
+- Added defense gate scoring to every portfolio gallery item.
+- Showcase readiness now requires both a strong artifact score and all five defense questions to have a timed rehearsal above the threshold.
+- Added gate checks for Evidence Boundary, Red-Team Proof, Output Contract, Tradeoffs, and Next Improvement with best score, attempt count, status, and recovery cue.
+- Updated gallery ranking to use showcase score instead of raw report score, so undefended artifacts are visibly held back.
+- Added defense-gated counts to the gallery header and a dedicated gate summary card.
+- Added gate drill actions on the summary and blocked gallery cards; loading one switches to the weakest defense question and prepares a focused answer scaffold.
+- Styled gate status with compact amber/green chips and quiet card states so the extra rigor does not make the gallery noisy.
+
+Next likely upgrade:
+- Add a portfolio review queue that lists only defense-gated artifacts, orders them by fastest path to unlock, and schedules which defense answer to rehearse next.
