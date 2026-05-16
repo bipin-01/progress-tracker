@@ -16960,6 +16960,16 @@ type PromptTaskJournalEntry = {
   selfScore: number;
   versionNote: string;
   savedAt: string;
+  feedback?: PromptTaskFeedback;
+};
+
+type PromptTaskFeedback = {
+  score: number;
+  detected: string[];
+  missing: string[];
+  readiness: string;
+  nextRevision: string;
+  automationGate: string;
 };
 
 type PromptTaskJournal = {
@@ -16968,6 +16978,7 @@ type PromptTaskJournal = {
   selfScore: number;
   versionNote: string;
   savedAt: string;
+  lastFeedback?: PromptTaskFeedback;
   history: PromptTaskJournalEntry[];
 };
 
@@ -17105,6 +17116,35 @@ function analyzePromptText(prompt: string) {
   };
 }
 
+function buildTaskJournalFeedback(answer: string, taskLabel: string): PromptTaskFeedback {
+  const analysis = analyzePromptText(answer);
+  const readiness =
+    analysis.score >= 86
+      ? "production candidate"
+      : analysis.score >= 68
+        ? "strong draft"
+        : analysis.score >= 48
+          ? "needs constraints"
+          : "training draft";
+  const nextRevision = analysis.missing.length
+    ? `Next revision: add ${analysis.missing.slice(0, 2).join(" + ")} and connect it to the ${taskLabel.toLowerCase()} deliverable.`
+    : `Next revision: add a scenario-specific failure test and explain why this prompt should survive it.`;
+  const automationGate =
+    analysis.score >= 86
+      ? "human-review ready"
+      : analysis.score >= 68
+        ? "lab-only until one more eval"
+        : "not automation-safe";
+  return {
+    score: analysis.score,
+    detected: analysis.found,
+    missing: analysis.missing,
+    readiness,
+    nextRevision,
+    automationGate,
+  };
+}
+
 function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
   const analysis = analyzePromptText(prompt);
   const verdict = analysis.score >= 86 ? "production candidate" : analysis.score >= 68 ? "strong draft" : analysis.score >= 48 ? "needs constraints" : "unsafe draft";
@@ -17163,6 +17203,10 @@ function PromptView() {
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
   const activeDailyTask = dailyTasks.find((task) => task.id === activeDailyTaskId) ?? dailyTasks[0];
   const activeTaskJournal = taskJournals[activeDailyTask.id] ?? getEmptyPromptTaskJournal(activeDailyTask.id);
+  const activeTaskFeedback = useMemo(
+    () => buildTaskJournalFeedback(activeTaskJournal.answer, activeDailyTask.label),
+    [activeDailyTask.label, activeTaskJournal.answer],
+  );
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
   const activeMistake = promptMistakePatterns.find((mistake) => mistake.id === activeMistakeId) ?? promptMistakePatterns[0];
@@ -17234,12 +17278,14 @@ function PromptView() {
     const answer = existing.answer.trim();
     const versionNote = existing.versionNote.trim();
     if (!answer && !versionNote) return;
+    const feedback = buildTaskJournalFeedback(answer, activeDailyTask.label);
     const entry: PromptTaskJournalEntry = {
       id: `${taskId}-${Date.now()}`,
       answer,
       selfScore: existing.selfScore,
       versionNote,
       savedAt: new Date().toISOString(),
+      feedback,
     };
     setTaskJournals((current) => ({
       ...current,
@@ -17247,6 +17293,7 @@ function PromptView() {
         ...existing,
         taskId,
         savedAt: entry.savedAt,
+        lastFeedback: feedback,
         history: [entry, ...existing.history].slice(0, 6),
       },
     }));
@@ -17486,6 +17533,26 @@ function PromptView() {
                       onChange={(event) => updateTaskJournal({ answer: event.target.value })}
                       placeholder="Write your actual task answer here: prompt draft, reasoning, evidence split, or rubric result..."
                     />
+                    <div className="prompt-task-feedback">
+                      <div className="prompt-task-feedback-score">
+                        <span>coach scan</span>
+                        <strong>{activeTaskFeedback.score}/100</strong>
+                        <em>{activeTaskFeedback.readiness}</em>
+                      </div>
+                      <div>
+                        <span>detected controls</span>
+                        {(activeTaskFeedback.detected.length ? activeTaskFeedback.detected : ["none yet"]).map((item) => <em key={item}>{item}</em>)}
+                      </div>
+                      <div>
+                        <span>missing controls</span>
+                        {(activeTaskFeedback.missing.length ? activeTaskFeedback.missing : ["clear"]).map((item) => <em key={item}>{item}</em>)}
+                      </div>
+                      <div className="prompt-task-feedback-next">
+                        <span>next revision</span>
+                        <p>{activeTaskFeedback.nextRevision}</p>
+                        <strong>{activeTaskFeedback.automationGate}</strong>
+                      </div>
+                    </div>
                     <div className="prompt-task-journal-controls">
                       <label>
                         <span>self-score</span>
@@ -17519,6 +17586,7 @@ function PromptView() {
                         <button key={entry.id} type="button" onClick={() => setPlaygroundPrompt(entry.answer)}>
                           <span>{new Date(entry.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {entry.selfScore}/100</span>
                           <strong>{entry.versionNote || "Saved task attempt"}</strong>
+                          <i>{entry.feedback ? `coach ${entry.feedback.score}/100 · ${entry.feedback.readiness}` : "coach scan pending"}</i>
                           <em>{entry.answer.slice(0, 150)}</em>
                         </button>
                       ))

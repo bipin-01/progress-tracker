@@ -16010,6 +16010,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-task-journal-head span,
+.prompt-task-feedback span,
 .prompt-task-journal-controls span,
 .prompt-task-journal-history span {
   color: var(--ink-2);
@@ -16020,12 +16021,65 @@ button.load-forecast-day:hover {
 }
 
 .prompt-task-journal-head strong,
+.prompt-task-feedback-score strong,
+.prompt-task-feedback-next strong,
 .prompt-task-journal-history strong {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.prompt-task-feedback {
+  display: grid;
+  grid-template-columns: 0.8fr 1fr 1fr;
+  gap: 7px;
+  animation: prompt-panel-enter 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-task-feedback > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 8px;
+}
+
+.prompt-task-feedback-score {
+  border-color: rgba(170, 114, 255, 0.2) !important;
+  background: rgba(170, 114, 255, 0.04) !important;
+}
+
+.prompt-task-feedback-score em,
+.prompt-task-feedback em,
+.prompt-task-journal-history i {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.45;
+  text-transform: none;
+}
+
+.prompt-task-feedback-next {
+  grid-column: 1 / -1;
+  border-color: rgba(158, 255, 102, 0.18) !important;
+  background: rgba(158, 255, 102, 0.035) !important;
+}
+
+.prompt-task-feedback-next p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 11px;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.prompt-task-feedback-next strong {
+  color: var(--lime);
+  font-size: 10px;
 }
 
 .prompt-task-journal textarea {
@@ -16088,6 +16142,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-task-journal-history em,
+.prompt-task-journal-history i,
 .prompt-task-journal-history p {
   margin: 0;
   color: var(--ink-2);
@@ -16639,6 +16694,7 @@ button.load-forecast-day:hover {
   .prompt-daily-actions,
   .prompt-task-journal-controls,
   .prompt-task-journal-actions,
+  .prompt-task-feedback,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,

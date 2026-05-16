@@ -90,3 +90,27 @@ Implemented:
 
 Next likely upgrade:
 - Add automatic task feedback: when a journal attempt is saved, run the local prompt analyzer against it and attach detected controls, missing controls, and a suggested next revision directly to the saved attempt.
+
+### 2026-05-16 - Automatic Journal Coach Scan
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the journal made tasks trackable, but did not yet teach from the saved attempt.
+
+Problem observed:
+- Journal attempts were saved, but the learner still had to judge quality manually.
+- The app had enough static task content, but the saved work did not receive immediate coaching about missing prompt controls.
+- The future-facing idea of telemetry/evals was visible in copy, but not reflected in the task workflow.
+
+Decision:
+- More relevant, scenario-based feedback infrastructure was needed. This fit the 70% rule because serious prompt training should turn each saved attempt into evidence for the next revision.
+
+Implemented:
+- Added automatic coach feedback for daily task journal attempts using the local prompt analyzer.
+- Each saved attempt now stores detected controls, missing controls, coach score, readiness label, automation gate, and next revision guidance.
+- Added a live Coach Scan inside the Journal panel so the learner sees feedback before saving.
+- Added saved-attempt feedback summaries in journal history.
+- Styled feedback as a quiet cyber scan with smoother transitions and readable control chips.
+
+Next likely upgrade:
+- Add a day-level mastery ledger that aggregates journal feedback, completed tasks, SRS results, and playground scores into a daily mastery score with trend history.
