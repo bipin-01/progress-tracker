@@ -16982,6 +16982,18 @@ type PromptTaskJournal = {
   history: PromptTaskJournalEntry[];
 };
 
+type PromptDayMasterySnapshot = {
+  day: number;
+  score: number;
+  label: string;
+  taskCompletion: number;
+  journalCompletion: number;
+  coachScore: number;
+  srsReadiness: number;
+  playgroundScore: number;
+  nextAction: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17145,6 +17157,78 @@ function buildTaskJournalFeedback(answer: string, taskLabel: string): PromptTask
   };
 }
 
+function average(values: number[]) {
+  return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+}
+
+function getPromptMasteryLabel(score: number) {
+  if (score >= 88) return "operator-grade";
+  if (score >= 72) return "strong training day";
+  if (score >= 54) return "building signal";
+  if (score >= 30) return "needs reps";
+  return "cold start";
+}
+
+function buildPromptDayMasterySnapshot({
+  day,
+  completedTasks,
+  taskJournals,
+  reviewStates,
+  playgroundPrompt,
+  iterations,
+}: {
+  day: number;
+  completedTasks: Set<string>;
+  taskJournals: Record<string, PromptTaskJournal>;
+  reviewStates: Record<string, PromptReviewState>;
+  playgroundPrompt: string;
+  iterations: PromptIteration[];
+}): PromptDayMasterySnapshot {
+  const tasks = getPromptDailyTasks(day);
+  const taskCompletion = Math.round((tasks.filter((task) => completedTasks.has(task.id)).length / Math.max(tasks.length, 1)) * 100);
+  const journals = tasks.map((task) => taskJournals[task.id]).filter((journal): journal is PromptTaskJournal => Boolean(journal));
+  const journalCompletion = Math.round((journals.filter((journal) => journal.answer.trim() || journal.history.length).length / Math.max(tasks.length, 1)) * 100);
+  const coachScores = tasks
+    .map((task) => {
+      const journal = taskJournals[task.id];
+      if (!journal) return null;
+      if (journal.lastFeedback) return journal.lastFeedback.score;
+      return journal.answer.trim() ? buildTaskJournalFeedback(journal.answer, task.label).score : null;
+    })
+    .filter((score): score is number => typeof score === "number");
+  const coachScore = average(coachScores);
+  const dueStates = Object.values(reviewStates).filter((state) => state.dueDay <= day);
+  const reviewedDueStates = dueStates.filter((state) => state.lastReviewedDay === day);
+  const srsReadiness = dueStates.length ? Math.round((reviewedDueStates.length / dueStates.length) * 100) : 100;
+  const iterationScore = average(iterations.slice(0, 5).map((iteration) => iteration.score));
+  const promptScore = playgroundPrompt.trim() ? analyzePromptText(playgroundPrompt).score : 0;
+  const playgroundScore = average([iterationScore, promptScore].filter((score) => score > 0));
+  const score = Math.round(taskCompletion * 0.24 + journalCompletion * 0.22 + coachScore * 0.24 + srsReadiness * 0.15 + playgroundScore * 0.15);
+  const nextAction =
+    journalCompletion < 60
+      ? "Save journal attempts for at least three daily tasks so the coach has evidence to review."
+      : coachScore < 70
+        ? "Revise the weakest journal attempt by adding the missing controls from the coach scan."
+        : taskCompletion < 100
+          ? "Mark the remaining daily drills only after each has a saved artifact."
+          : srsReadiness < 100
+            ? "Clear the due SRS queue before adding new prompt theory."
+            : playgroundScore < 75
+              ? "Run one stronger prompt through the lab and save the best version."
+              : "Lock the day with one scenario-specific failure test for tomorrow's review.";
+  return {
+    day,
+    score,
+    label: getPromptMasteryLabel(score),
+    taskCompletion,
+    journalCompletion,
+    coachScore,
+    srsReadiness,
+    playgroundScore,
+    nextAction,
+  };
+}
+
 function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
   const analysis = analyzePromptText(prompt);
   const verdict = analysis.score >= 86 ? "production candidate" : analysis.score >= 68 ? "strong draft" : analysis.score >= 48 ? "needs constraints" : "unsafe draft";
@@ -17206,6 +17290,19 @@ function PromptView() {
   const activeTaskFeedback = useMemo(
     () => buildTaskJournalFeedback(activeTaskJournal.answer, activeDailyTask.label),
     [activeDailyTask.label, activeTaskJournal.answer],
+  );
+  const dayMastery = useMemo(
+    () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
+    [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
+  );
+  const masteryTrend = useMemo(
+    () => {
+      const trendStart = Math.min(Math.max(1, selectedDay - 6), 84);
+      return Array.from({ length: 7 }, (_, index) => trendStart + index).map((day) =>
+        buildPromptDayMasterySnapshot({ day, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
+      );
+    },
+    [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
   );
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
@@ -17623,6 +17720,59 @@ function PromptView() {
               <button type="button" onClick={() => toggleDailyTask(activeDailyTask.id)}>
                 {completedTasks.has(activeDailyTask.id) ? "mark open" : "mark done"}
               </button>
+            </div>
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="prompt-mastery-ledger-grid" aria-label="Daily prompt mastery ledger">
+        <HudCard className="prompt-mastery-ledger-card">
+          <CardHeader title="Daily Mastery Ledger" meta={`D${String(selectedDay).padStart(2, "0")} · ${dayMastery.label}`} />
+          <div className="prompt-mastery-core">
+            <div className="prompt-mastery-score">
+              <span>mastery</span>
+              <strong>{dayMastery.score}%</strong>
+              <em>{dayMastery.label}</em>
+            </div>
+            <div className="prompt-mastery-next">
+              <span>next best action</span>
+              <p>{dayMastery.nextAction}</p>
+              <strong>{activeTaskFeedback.automationGate}</strong>
+            </div>
+            <div className="prompt-mastery-trend" aria-label="Seven day prompt mastery trend">
+              {masteryTrend.map((snapshot) => (
+                <div key={snapshot.day} title={`D${snapshot.day}: ${snapshot.score}%`}>
+                  <i style={{ height: `${Math.max(10, snapshot.score)}%` }} />
+                  <span>D{String(snapshot.day).padStart(2, "0")}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="prompt-mastery-signals">
+            <div>
+              <span>tasks</span>
+              <strong>{dayMastery.taskCompletion}%</strong>
+              <em>{completedToday}/{dailyTasks.length} closed</em>
+            </div>
+            <div>
+              <span>journal</span>
+              <strong>{dayMastery.journalCompletion}%</strong>
+              <em>saved artifacts</em>
+            </div>
+            <div>
+              <span>coach</span>
+              <strong>{dayMastery.coachScore}%</strong>
+              <em>feedback average</em>
+            </div>
+            <div>
+              <span>SRS</span>
+              <strong>{dayMastery.srsReadiness}%</strong>
+              <em>{dueCount} due now</em>
+            </div>
+            <div>
+              <span>lab</span>
+              <strong>{dayMastery.playgroundScore}%</strong>
+              <em>{activeIterations.length} versions</em>
             </div>
           </div>
         </HudCard>

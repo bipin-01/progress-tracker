@@ -114,3 +114,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a day-level mastery ledger that aggregates journal feedback, completed tasks, SRS results, and playground scores into a daily mastery score with trend history.
+
+### 2026-05-16 - Daily Mastery Ledger
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because task-level feedback existed, but the route still lacked a day-level answer to "am I improving?"
+
+Problem observed:
+- Daily tasks, journal attempts, coach scans, SRS, and playground work existed as separate signals.
+- The user could save artifacts, but the app did not aggregate those artifacts into a clear day-level training score.
+- UI/UX still needed a calmer way to show progress beyond raw completion percentages.
+
+Decision:
+- More relevant measurement infrastructure was needed. This fit the 70% rule because a serious bootcamp should show mastery, next action, and trend, not only content.
+
+Implemented:
+- Added a Daily Mastery Ledger to `/prompt`.
+- The ledger aggregates task completion, journal coverage, coach scan score, SRS readiness, and playground/iteration score.
+- Added a seven-day mastery trend so the route starts showing progress direction, not only today's status.
+- Fixed the trend window to show distinct bootcamp days even at the start of the course, instead of repeating D01.
+- Tightened SRS readiness so overdue cards are not treated as mastered unless reviewed on the selected day.
+- Added a next-best-action recommendation that changes based on weak signals such as missing journals, low coach score, incomplete tasks, due SRS, or weak lab score.
+- Styled the ledger as a quiet cockpit instrument with compact signal cards and animated trend bars.
+
+Next likely upgrade:
+- Add mastery history persistence by saving each day's ledger snapshot, then show real trend history instead of recomputing the last seven days from current state.

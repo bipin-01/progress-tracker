@@ -15380,6 +15380,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-command-grid,
+.prompt-mastery-ledger-grid,
 .prompt-zero-grid,
 .prompt-bootcamp-grid,
 .prompt-main-grid,
@@ -15409,11 +15410,16 @@ button.load-forecast-day:hover {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+.prompt-mastery-ledger-grid {
+  grid-template-columns: 1fr;
+}
+
 .prompt-bootcamp-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .prompt-hero-card,
+.prompt-mastery-ledger-card,
 .prompt-day-card,
 .prompt-foundation-card,
 .prompt-anatomy-card,
@@ -15532,6 +15538,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-day-card,
+.prompt-mastery-ledger-card,
 .prompt-foundation-card,
 .prompt-anatomy-card,
 .prompt-level-card,
@@ -15544,6 +15551,137 @@ button.load-forecast-day:hover {
 .prompt-scenario-card {
   display: grid;
   gap: 12px;
+}
+
+.prompt-mastery-ledger-card {
+  display: grid;
+  gap: 12px;
+}
+
+.prompt-mastery-core {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.28fr) minmax(0, 0.52fr) minmax(260px, 0.38fr);
+  gap: 10px;
+}
+
+.prompt-mastery-score,
+.prompt-mastery-next,
+.prompt-mastery-trend,
+.prompt-mastery-signals > div {
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 11px;
+}
+
+.prompt-mastery-score {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  border-color: rgba(170, 114, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.08), transparent 54%),
+    rgba(2, 7, 15, 0.44);
+}
+
+.prompt-mastery-score span,
+.prompt-mastery-next span,
+.prompt-mastery-signals span,
+.prompt-mastery-trend span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-mastery-score strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 34px;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.prompt-mastery-score em,
+.prompt-mastery-signals em {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-mastery-next {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.prompt-mastery-next p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.6;
+  text-transform: none;
+}
+
+.prompt-mastery-next strong {
+  color: var(--lime);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-mastery-trend {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  align-items: end;
+  min-height: 104px;
+}
+
+.prompt-mastery-trend div {
+  display: grid;
+  align-items: end;
+  gap: 5px;
+  height: 82px;
+  min-width: 0;
+}
+
+.prompt-mastery-trend i {
+  display: block;
+  width: 100%;
+  min-height: 8px;
+  border: 1px solid rgba(53, 215, 255, 0.24);
+  background: linear-gradient(180deg, rgba(170, 114, 255, 0.72), rgba(53, 215, 255, 0.62));
+  box-shadow: 0 0 18px rgba(53, 215, 255, 0.12);
+  transition: height 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-mastery-trend span {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+.prompt-mastery-signals {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-mastery-signals > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.prompt-mastery-signals strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.08em;
 }
 
 .prompt-day-card,
@@ -16629,6 +16767,7 @@ button.load-forecast-day:hover {
   }
 
   .prompt-command-grid,
+  .prompt-mastery-ledger-grid,
   .prompt-zero-grid,
   .prompt-bootcamp-grid,
   .prompt-main-grid,
@@ -16647,6 +16786,8 @@ button.load-forecast-day:hover {
 
   .prompt-anatomy-grid,
   .prompt-level-rail,
+  .prompt-mastery-core,
+  .prompt-mastery-signals,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -16686,6 +16827,8 @@ button.load-forecast-day:hover {
   .zh-streak-strip,
   .zh-right-col,
   .prompt-hero-metrics,
+  .prompt-mastery-core,
+  .prompt-mastery-signals,
   .prompt-grade-row,
   .prompt-question-strip,
   .prompt-daily-panel-tabs,
