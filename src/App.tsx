@@ -17030,6 +17030,26 @@ type PromptCheckpointReview = {
   attempts: PromptCheckpointAttempt[];
 };
 
+type PromptComparisonSignal = PromptWeakSignal & {
+  before: number;
+  after: number;
+  delta: number;
+  status: "improved" | "regressed" | "steady";
+};
+
+type PromptCheckpointComparison = {
+  baseline: PromptMasteryHistoryEntry;
+  target: PromptMasteryHistoryEntry;
+  scoreDelta: number;
+  verdict: string;
+  signals: PromptComparisonSignal[];
+  improved: PromptComparisonSignal[];
+  regressed: PromptComparisonSignal[];
+  focusSignal: PromptComparisonSignal;
+  recommendedTask: PromptDailyTask;
+  recoveryPlan: string[];
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17299,8 +17319,8 @@ function buildPromptDayMasterySnapshot({
   };
 }
 
-function getPromptWeakSignal(snapshot: PromptDayMasterySnapshot): PromptWeakSignal {
-  const signals: PromptWeakSignal[] = [
+function getPromptMasterySignals(snapshot: PromptDayMasterySnapshot): PromptWeakSignal[] {
+  return [
     {
       key: "taskCompletion",
       label: "Task closure",
@@ -17337,7 +17357,10 @@ function getPromptWeakSignal(snapshot: PromptDayMasterySnapshot): PromptWeakSign
       scenarioLens: "Use the scenario pressure line as the eval case for the next prompt version.",
     },
   ];
-  return signals.sort((a, b) => a.score - b.score)[0];
+}
+
+function getPromptWeakSignal(snapshot: PromptDayMasterySnapshot): PromptWeakSignal {
+  return [...getPromptMasterySignals(snapshot)].sort((a, b) => a.score - b.score)[0];
 }
 
 function getPromptRecommendedTaskForWeakSignal({
@@ -17417,6 +17440,70 @@ function buildPromptCheckpointReview({
     weakSignal,
     recommendedTask,
     attempts,
+  };
+}
+
+function buildPromptCheckpointComparison({
+  masteryHistory,
+  completedTasks,
+  taskJournals,
+}: {
+  masteryHistory: PromptMasteryHistoryEntry[];
+  completedTasks: Set<string>;
+  taskJournals: Record<string, PromptTaskJournal>;
+}): PromptCheckpointComparison | null {
+  const ordered = [...masteryHistory].sort((a, b) => a.day - b.day);
+  if (ordered.length < 2) return null;
+  const baseline = ordered[ordered.length - 2];
+  const target = ordered[ordered.length - 1];
+  const baselineSignals = new Map(getPromptMasterySignals(baseline).map((signal) => [signal.key, signal]));
+  const signals = getPromptMasterySignals(target).map((signal): PromptComparisonSignal => {
+    const before = baselineSignals.get(signal.key)?.score ?? 0;
+    const delta = signal.score - before;
+    return {
+      ...signal,
+      before,
+      after: signal.score,
+      delta,
+      status: delta > 2 ? "improved" : delta < -2 ? "regressed" : "steady",
+    };
+  });
+  const improved = signals.filter((signal) => signal.status === "improved").sort((a, b) => b.delta - a.delta);
+  const regressed = signals.filter((signal) => signal.status === "regressed").sort((a, b) => a.delta - b.delta);
+  const focusSignal = regressed[0] ?? [...signals].sort((a, b) => a.after - b.after)[0];
+  const recommendedTask = getPromptRecommendedTaskForWeakSignal({
+    day: target.day,
+    weakSignal: focusSignal,
+    tasks: getPromptDailyTasks(target.day),
+    completedTasks,
+    taskJournals,
+  });
+  const scoreDelta = target.score - baseline.score;
+  const verdict =
+    scoreDelta >= 12
+      ? "clear upward movement"
+      : scoreDelta >= 4
+        ? "small but real gain"
+        : scoreDelta <= -8
+          ? "regression needs repair"
+          : "flat training signal";
+  const recoveryPlan = [
+    `Replay D${String(target.day).padStart(2, "0")} using ${recommendedTask.scenario.title}; separate confirmed evidence from missing evidence before editing the prompt.`,
+    `Repair ${focusSignal.label.toLowerCase()} by following this rule: ${focusSignal.repair}`,
+    `Run one lab version, save the attempt with a failure note, then lock D${String(target.day).padStart(2, "0")} again to verify the signal moved.`,
+  ];
+
+  return {
+    baseline,
+    target,
+    scoreDelta,
+    verdict,
+    signals,
+    improved,
+    regressed,
+    focusSignal,
+    recommendedTask,
+    recoveryPlan,
   };
 }
 
@@ -17536,6 +17623,10 @@ function PromptView() {
     return checkpoint ? buildPromptCheckpointReview({ checkpoint, completedTasks, taskJournals }) : null;
   }, [completedTasks, masteryHistoryByDay, reviewCheckpointDay, taskJournals]);
   const activeCheckpointAttemptCount = activeCheckpointReview?.attempts.length ?? 0;
+  const checkpointComparison = useMemo(
+    () => buildPromptCheckpointComparison({ masteryHistory, completedTasks, taskJournals }),
+    [completedTasks, masteryHistory, taskJournals],
+  );
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
   const activeMistake = promptMistakePatterns.find((mistake) => mistake.id === activeMistakeId) ?? promptMistakePatterns[0];
@@ -18064,6 +18155,61 @@ function PromptView() {
                 <button type="button" onClick={() => setReviewCheckpointDay(masteryHistoryStats.latest?.day ?? null)}>review latest</button>
               ) : null}
             </div>
+          </div>
+          <div className={`prompt-checkpoint-compare ${checkpointComparison ? "ready" : "waiting"}`} aria-label="Prompt checkpoint comparison mode">
+            <div className="prompt-checkpoint-compare-head">
+              <div>
+                <span>checkpoint comparison</span>
+                <strong>
+                  {checkpointComparison
+                    ? `D${String(checkpointComparison.baseline.day).padStart(2, "0")} -> D${String(checkpointComparison.target.day).padStart(2, "0")}`
+                    : "lock two days"}
+                </strong>
+                <em>{checkpointComparison ? `${checkpointComparison.scoreDelta >= 0 ? "+" : ""}${checkpointComparison.scoreDelta}% · ${checkpointComparison.verdict}` : "needs two locked checkpoints"}</em>
+              </div>
+              {checkpointComparison ? (
+                <button type="button" onClick={() => loadCheckpointDrill(checkpointComparison.recommendedTask)}>load recovery drill</button>
+              ) : null}
+            </div>
+            {checkpointComparison ? (
+              <div className="prompt-checkpoint-compare-grid">
+                <div className="prompt-compare-signals">
+                  <span>signal delta</span>
+                  {checkpointComparison.signals.map((signal) => (
+                    <div key={signal.key} className={signal.status}>
+                      <strong>{signal.label}</strong>
+                      <em>
+                        {signal.before}% to {signal.after}%
+                      </em>
+                      <i>{signal.delta >= 0 ? "+" : ""}{signal.delta}</i>
+                    </div>
+                  ))}
+                </div>
+                <div className="prompt-compare-diagnosis">
+                  <span>{checkpointComparison.regressed.length ? "regressed" : "weakest remaining signal"}</span>
+                  <strong>{checkpointComparison.focusSignal.label}</strong>
+                  <p>{checkpointComparison.focusSignal.repair}</p>
+                  <em>
+                    improved: {checkpointComparison.improved.length ? checkpointComparison.improved.map((signal) => signal.label).join(", ") : "none yet"}
+                  </em>
+                  <em>
+                    regressed: {checkpointComparison.regressed.length ? checkpointComparison.regressed.map((signal) => signal.label).join(", ") : "no major regression"}
+                  </em>
+                </div>
+                <div className="prompt-compare-plan">
+                  <span>3-step recovery plan</span>
+                  {checkpointComparison.recoveryPlan.map((step, index) => (
+                    <p key={step}>
+                      <strong>{String(index + 1).padStart(2, "0")}</strong>
+                      {step}
+                    </p>
+                  ))}
+                  <code>{checkpointComparison.recommendedTask.scenario.pressure}</code>
+                </div>
+              </div>
+            ) : (
+              <p>// lock another bootcamp day to unlock trend comparison, regression detection, and a recovery plan.</p>
+            )}
           </div>
           {activeCheckpointReview ? (
             <div className="prompt-checkpoint-review" aria-label="Prompt checkpoint review drawer">

@@ -189,3 +189,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a checkpoint comparison mode that compares two locked days, explains what improved or regressed, and generates a targeted 3-step recovery plan.
+
+### 2026-05-16 - Checkpoint Comparison Mode
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because checkpoint review worked for one day, but the route still could not explain progress across days.
+
+Problem observed:
+- A locked checkpoint could explain its own weak signal, but the learner could not see what changed between two saved training days.
+- Score history showed movement without naming which signal improved or regressed.
+- The UI needed a smoother bridge from trend history to a concrete recovery plan.
+
+Decision:
+- More relevant comparison and scenario-based repair content was needed. This fit the 70% rule because serious bootcamp progress should compare evidence over time, name regressions, and turn them into a practice plan.
+
+Implemented:
+- Added checkpoint comparison mode inside the Daily Mastery Ledger.
+- The comparison automatically uses the latest locked day and the previous locked day.
+- Added signal deltas for task closure, journal evidence, coach score, SRS readiness, and lab score.
+- Added regression/improvement labeling, a focused diagnosis, and a targeted three-step recovery plan.
+- The recovery plan pulls in the recommended SOC drill and can load that drill directly into the daily journal.
+- Styled the comparison as a quiet analysis strip with compact deltas, calm status colors, and responsive layout behavior.
+
+Next likely upgrade:
+- Add a prompt evidence packet builder that turns any daily scenario into a reusable structured evidence block, then grades whether the learner's prompt preserved evidence, missing data, constraints, and output schema.
