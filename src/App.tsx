@@ -549,6 +549,7 @@ type ChineseMissDrillHistoryEntry = {
 };
 
 type ChineseMissFollowUpOutcomeStatus = "waiting" | "improved" | "stable" | "hot";
+type ChineseMissFollowUpResolvedStatus = Exclude<ChineseMissFollowUpOutcomeStatus, "waiting">;
 
 type ChineseMissFollowUpOutcome = {
   status: ChineseMissFollowUpOutcomeStatus;
@@ -556,6 +557,15 @@ type ChineseMissFollowUpOutcome = {
   delta: number;
   afterRisk: number;
   afterSources: ChineseMissLedgerSource[];
+};
+
+type ChineseMissFollowUpTrendPoint = {
+  id: string;
+  day: number;
+  status: ChineseMissFollowUpResolvedStatus;
+  delta: number;
+  risk: number;
+  sources: ChineseMissLedgerSource[];
 };
 
 type ChineseMissDrillFollowUpEntry = {
@@ -575,6 +585,7 @@ type ChineseMissDrillFollowUpEntry = {
   lastDelta: number;
   lastSignalRisk: number;
   lastSources: ChineseMissLedgerSource[];
+  outcomeHistory: ChineseMissFollowUpTrendPoint[];
 };
 
 type ChineseAdaptiveRepairDrill = {
@@ -762,6 +773,7 @@ type ChineseCoachEvidencePacket = {
     followUpsDue: number;
     nextFollowUp: string;
     followUpOutcome: string;
+    followUpTrend: string;
     recommendation: string;
   };
   placement: {
@@ -901,6 +913,7 @@ const CHINESE_SPEECH_HISTORY_LIMIT = 80;
 const CHINESE_COACH_HISTORY_LIMIT = 21;
 const CHINESE_MISS_DRILL_HISTORY_LIMIT = 21;
 const CHINESE_MISS_FOLLOW_UP_LIMIT = 21;
+const CHINESE_MISS_FOLLOW_UP_TREND_LIMIT = 7;
 const CHINESE_REPAIR_DRILL_XP = 4;
 
 const chineseHskPlacementBands = [
@@ -1800,6 +1813,10 @@ function isChineseMissFollowUpOutcomeStatus(value: unknown): value is ChineseMis
   return value === "waiting" || value === "improved" || value === "stable" || value === "hot";
 }
 
+function isChineseMissFollowUpResolvedStatus(value: unknown): value is ChineseMissFollowUpResolvedStatus {
+  return value === "improved" || value === "stable" || value === "hot";
+}
+
 function isChineseLoadForecastStatus(value: unknown): value is ChineseLoadForecastStatus {
   return value === "light" || value === "steady" || value === "heavy" || value === "overload";
 }
@@ -1940,6 +1957,26 @@ function getChineseStoredMissDrillHistoryEntry(value: unknown): ChineseMissDrill
   };
 }
 
+function getChineseStoredMissFollowUpTrendPoint(
+  value: unknown,
+  fallbackSignalId: string,
+): ChineseMissFollowUpTrendPoint | null {
+  if (!isChineseRecord(value)) return null;
+  if (!isChineseMissFollowUpResolvedStatus(value.status)) return null;
+
+  return {
+    id:
+      typeof value.id === "string" && value.id
+        ? value.id
+        : `${fallbackSignalId}-trend-${getChineseStoredDay(value.day)}-${value.status}`,
+    day: getChineseStoredDay(value.day),
+    status: value.status,
+    delta: Math.round(getChineseClampedNumber(value.delta, 0, -100, 100)),
+    risk: getChineseClampedNumber(value.risk, 0, 0, 100),
+    sources: Array.isArray(value.sources) ? value.sources.filter(isChineseMissLedgerSource) : [],
+  };
+}
+
 function getChineseStoredMissDrillFollowUpEntry(value: unknown): ChineseMissDrillFollowUpEntry | null {
   if (!isChineseRecord(value)) return null;
   const signalId = typeof value.signalId === "string" ? value.signalId : "";
@@ -1951,6 +1988,27 @@ function getChineseStoredMissDrillFollowUpEntry(value: unknown): ChineseMissDril
   const interval = Math.max(1, Math.trunc(getChineseClampedNumber(value.interval, 1, 1, 30)));
   const risk = getChineseClampedNumber(value.risk, 0, 0, 100);
   const baselineRisk = getChineseClampedNumber(value.baselineRisk, risk, 0, 100);
+  const lastCompletedDay = getChineseStoredDay(value.lastCompletedDay ?? createdDay);
+  const lastOutcome = isChineseMissFollowUpOutcomeStatus(value.lastOutcome) ? value.lastOutcome : "waiting";
+  const lastDelta = Math.round(getChineseClampedNumber(value.lastDelta, 0, -100, 100));
+  const lastSignalRisk = getChineseClampedNumber(value.lastSignalRisk, risk, 0, 100);
+  const lastSources = Array.isArray(value.lastSources) ? value.lastSources.filter(isChineseMissLedgerSource) : sources;
+  const storedOutcomeHistory = (Array.isArray(value.outcomeHistory) ? value.outcomeHistory : [])
+    .map((entry) => getChineseStoredMissFollowUpTrendPoint(entry, signalId))
+    .filter((entry): entry is ChineseMissFollowUpTrendPoint => Boolean(entry));
+  const migratedOutcomeHistory =
+    storedOutcomeHistory.length || !isChineseMissFollowUpResolvedStatus(lastOutcome)
+      ? storedOutcomeHistory
+      : [
+          {
+            id: `${signalId}-trend-${lastCompletedDay}-${lastOutcome}`,
+            day: lastCompletedDay,
+            status: lastOutcome,
+            delta: lastDelta,
+            risk: lastSignalRisk,
+            sources: lastSources,
+          },
+        ];
 
   return {
     id: typeof value.id === "string" ? value.id : `${signalId}-follow-up`,
@@ -1964,11 +2022,12 @@ function getChineseStoredMissDrillFollowUpEntry(value: unknown): ChineseMissDril
     dueDay: getChineseStoredDay(value.dueDay ?? createdDay + interval),
     interval,
     attempts: Math.max(0, Math.trunc(getChineseNumber(value.attempts, 0))),
-    lastCompletedDay: getChineseStoredDay(value.lastCompletedDay ?? createdDay),
-    lastOutcome: isChineseMissFollowUpOutcomeStatus(value.lastOutcome) ? value.lastOutcome : "waiting",
-    lastDelta: Math.round(getChineseClampedNumber(value.lastDelta, 0, -100, 100)),
-    lastSignalRisk: getChineseClampedNumber(value.lastSignalRisk, risk, 0, 100),
-    lastSources: Array.isArray(value.lastSources) ? value.lastSources.filter(isChineseMissLedgerSource) : sources,
+    lastCompletedDay,
+    lastOutcome,
+    lastDelta,
+    lastSignalRisk,
+    lastSources,
+    outcomeHistory: migratedOutcomeHistory.slice(0, CHINESE_MISS_FOLLOW_UP_TREND_LIMIT),
   };
 }
 
@@ -2029,6 +2088,28 @@ function getChineseMissFollowUpOutcome(
     afterRisk,
     afterSources,
   };
+}
+
+function getChineseMissFollowUpTrend(entry: ChineseMissDrillFollowUpEntry) {
+  return [...entry.outcomeHistory]
+    .slice(0, CHINESE_MISS_FOLLOW_UP_TREND_LIMIT)
+    .reverse();
+}
+
+function getChineseMissFollowUpTrendHeight(point: ChineseMissFollowUpTrendPoint) {
+  if (point.status === "improved") return Math.max(28, Math.min(100, 28 + Math.max(point.delta, 0)));
+  if (point.status === "hot") return Math.max(36, Math.min(100, point.risk));
+  return Math.max(26, Math.min(72, 42 + Math.abs(point.delta)));
+}
+
+function getChineseMissFollowUpTrendLabel(entry: ChineseMissDrillFollowUpEntry) {
+  const points = getChineseMissFollowUpTrend(entry);
+  if (!points.length) return "trend pending";
+  const improved = points.filter((point) => point.status === "improved").length;
+  const hot = points.filter((point) => point.status === "hot").length;
+  if (hot > improved) return `${hot} hot return${hot === 1 ? "" : "s"}`;
+  if (improved > hot) return `${improved} cooled return${improved === 1 ? "" : "s"}`;
+  return `${points.length} mixed return${points.length === 1 ? "" : "s"}`;
 }
 
 function getChineseStoredCoachHistoryEntry(value: unknown): ChineseCoachHistoryEntry | null {
@@ -14239,6 +14320,13 @@ function ChineseView() {
   const latestMissFollowUpOutcome = activeMissFollowUps
     .filter((entry) => entry.lastOutcome !== "waiting")
     .sort((a, b) => b.lastCompletedDay - a.lastCompletedDay || b.attempts - a.attempts)[0];
+  const missFollowUpTrendLeader = activeMissFollowUps
+    .filter((entry) => entry.outcomeHistory.length)
+    .sort(
+      (a, b) =>
+        b.outcomeHistory.length - a.outcomeHistory.length ||
+        Math.abs(b.outcomeHistory[0]?.delta ?? 0) - Math.abs(a.outcomeHistory[0]?.delta ?? 0),
+    )[0];
   const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
   const activeVoiceToneWeakness = adaptiveRepairMission.tone;
   const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
@@ -14323,6 +14411,8 @@ function ChineseView() {
       nextMissFollowUp?.dueDay ?? 0,
       latestMissFollowUpOutcome?.lastOutcome ?? "waiting",
       latestMissFollowUpOutcome?.lastDelta ?? 0,
+      missFollowUpTrendLeader?.hanzi ?? "none",
+      missFollowUpTrendLeader?.outcomeHistory.map((point) => `${point.status}:${point.delta}`).join("|") ?? "none",
       missedCharacterLedger.length,
       topMissedCharacter?.hanzi ?? "clear",
       topMissedCharacter?.risk ?? 0,
@@ -14392,6 +14482,9 @@ function ChineseView() {
               latestMissFollowUpOutcome.lastDelta,
             )}%`
           : "waiting",
+        followUpTrend: missFollowUpTrendLeader
+          ? `${missFollowUpTrendLeader.hanzi} ${getChineseMissFollowUpTrendLabel(missFollowUpTrendLeader)}`
+          : "waiting",
         recommendation: topMissedCharacter
           ? `${topMissedCharacter.hanzi} · ${topMissedCharacter.detail} · ${topMissedCharacter.action}`
           : nextMissFollowUp
@@ -14445,6 +14538,7 @@ function ChineseView() {
     memoryMissDrillCount,
     memoryReviewGateCount,
     memoryVoiceCount,
+    missFollowUpTrendLeader,
     missedCharacterLedger,
     missedCharacterSources,
     nextMissFollowUp,
@@ -14792,6 +14886,20 @@ function ChineseView() {
           }
         : signal;
       const interval = getChineseMissFollowUpInterval(nextSignal, attempts);
+      const outcomePoint =
+        outcome && isChineseMissFollowUpResolvedStatus(outcome.status)
+          ? {
+              id: `${signal.id}-trend-${completedDay}-${attempts}`,
+              day: completedDay,
+              status: outcome.status,
+              delta: Math.round(outcome.delta),
+              risk: outcome.afterRisk,
+              sources: outcome.afterSources,
+            }
+          : null;
+      const outcomeHistory = outcomePoint
+        ? [outcomePoint, ...(existing?.outcomeHistory ?? [])].slice(0, CHINESE_MISS_FOLLOW_UP_TREND_LIMIT)
+        : (existing?.outcomeHistory ?? []);
       const nextEntry: ChineseMissDrillFollowUpEntry = {
         id: existing?.id ?? `${signal.id}-follow-up`,
         signalId: signal.id,
@@ -14809,6 +14917,7 @@ function ChineseView() {
         lastDelta: outcome?.delta ?? 0,
         lastSignalRisk: outcome?.afterRisk ?? signal.risk,
         lastSources: outcome?.afterSources ?? signal.sources,
+        outcomeHistory,
       };
 
       return [nextEntry, ...current.filter((entry) => entry.id !== nextEntry.id)]
@@ -15603,6 +15712,7 @@ function ChineseView() {
                       </div>
                       {missFollowUpStrip.map((entry) => {
                         const due = entry.dueDay <= selectedPracticeRecord.day;
+                        const trendPoints = getChineseMissFollowUpTrend(entry);
                         return (
                           <button
                             key={entry.id}
@@ -15618,6 +15728,22 @@ function ChineseView() {
                                 ? `${entry.interval}d · r${entry.attempts + 1}`
                                 : `${entry.lastOutcome} · ${entry.lastDelta >= 0 ? "-" : "+"}${Math.abs(entry.lastDelta)}%`}
                             </i>
+                            <div className="zh-miss-trend" aria-label={`${entry.hanzi} follow-up trend: ${getChineseMissFollowUpTrendLabel(entry)}`}>
+                              {trendPoints.length ? (
+                                trendPoints.map((point) => (
+                                  <span
+                                    key={point.id}
+                                    className={`status-${point.status}`}
+                                    style={{ "--trend-height": `${getChineseMissFollowUpTrendHeight(point)}%` } as CSSProperties}
+                                    title={`D${String(point.day).padStart(3, "0")} ${point.status} ${point.delta >= 0 ? "-" : "+"}${Math.abs(
+                                      point.delta,
+                                    )}% risk`}
+                                  />
+                                ))
+                              ) : (
+                                <span className="status-waiting" style={{ "--trend-height": "26%" } as CSSProperties} title="trend pending" />
+                              )}
+                            </div>
                           </button>
                         );
                       })}

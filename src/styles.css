@@ -12247,6 +12247,45 @@ button.load-forecast-day:hover {
   color: var(--red);
 }
 
+.zh-miss-trend {
+  display: flex;
+  height: 13px;
+  align-items: end;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.zh-miss-trend span {
+  display: block;
+  width: 100%;
+  min-width: 4px;
+  max-width: 12px;
+  height: var(--trend-height);
+  border: 1px solid currentColor;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  opacity: 0.54;
+}
+
+.zh-miss-trend span.status-improved {
+  color: rgba(158, 255, 102, 0.78);
+}
+
+.zh-miss-trend span.status-stable {
+  color: rgba(53, 215, 255, 0.62);
+}
+
+.zh-miss-trend span.status-hot {
+  color: rgba(255, 91, 140, 0.76);
+}
+
+.zh-miss-trend span.status-waiting {
+  border-style: dashed;
+  background: transparent;
+  color: rgba(133, 154, 191, 0.42);
+  box-shadow: none;
+}
+
 .zh-miss-drill-core {
   display: grid;
   align-content: center;
