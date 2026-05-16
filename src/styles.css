@@ -15846,6 +15846,9 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue,
 .prompt-portfolio-review-queue-head,
 .prompt-portfolio-review-queue-list,
+.prompt-portfolio-defense-calendar,
+.prompt-portfolio-defense-calendar-head,
+.prompt-portfolio-defense-calendar-grid,
 .prompt-portfolio-gallery-list,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head,
@@ -15925,6 +15928,75 @@ button.load-forecast-day:hover {
   background: rgba(158, 255, 102, 0.025);
 }
 
+.prompt-portfolio-defense-calendar {
+  border-color: rgba(170, 114, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.04), transparent 50%),
+    rgba(2, 7, 15, 0.3);
+  animation: prompt-panel-enter 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-defense-calendar-head {
+  grid-template-columns: minmax(180px, 0.3fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-defense-calendar-grid {
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+}
+
+.prompt-portfolio-defense-calendar-grid > div {
+  gap: 7px;
+  min-height: 178px;
+  border-color: rgba(170, 114, 255, 0.12);
+  background: rgba(170, 114, 255, 0.025);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.prompt-portfolio-defense-calendar-grid > div.queued {
+  border-color: rgba(255, 181, 74, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.04), transparent 52%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-defense-calendar-grid > div:hover {
+  transform: translateY(-1px);
+  border-color: rgba(170, 114, 255, 0.28);
+  background: rgba(170, 114, 255, 0.045);
+}
+
+.prompt-portfolio-defense-calendar-grid > div > div:first-child,
+.prompt-portfolio-defense-calendar-grid > div > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.prompt-portfolio-defense-calendar-grid i {
+  color: var(--zh-gold);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.prompt-portfolio-defense-calendar-grid > div > div:last-child {
+  align-items: end;
+}
+
+.prompt-portfolio-defense-calendar-grid > div > div:last-child span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.prompt-portfolio-defense-calendar-grid button {
+  min-width: max-content;
+}
+
 .prompt-portfolio-gallery-list {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
@@ -15935,6 +16007,9 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue-head > div,
 .prompt-portfolio-review-queue-list > div,
 .prompt-portfolio-review-queue-empty,
+.prompt-portfolio-defense-calendar,
+.prompt-portfolio-defense-calendar-head > div,
+.prompt-portfolio-defense-calendar-grid > div,
 .prompt-portfolio-gallery-list > div,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head > div,
@@ -16251,6 +16326,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head span,
 .prompt-portfolio-gallery-summary span,
 .prompt-portfolio-review-queue span,
+.prompt-portfolio-defense-calendar span,
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
@@ -16266,6 +16342,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head strong,
 .prompt-portfolio-gallery-summary strong,
 .prompt-portfolio-review-queue strong,
+.prompt-portfolio-defense-calendar strong,
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
@@ -16280,6 +16357,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head p,
 .prompt-portfolio-gallery-summary p,
 .prompt-portfolio-review-queue p,
+.prompt-portfolio-defense-calendar p,
 .prompt-portfolio-gallery-list p,
 .prompt-portfolio-polish p,
 .prompt-portfolio-defense p,
@@ -16294,6 +16372,7 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head em,
 .prompt-portfolio-review-queue em,
+.prompt-portfolio-defense-calendar em,
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
@@ -18469,6 +18548,8 @@ button.load-forecast-day:hover {
   .prompt-portfolio-gallery-summary,
   .prompt-portfolio-review-queue-head,
   .prompt-portfolio-review-queue-list,
+  .prompt-portfolio-defense-calendar-head,
+  .prompt-portfolio-defense-calendar-grid,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
@@ -18557,6 +18638,8 @@ button.load-forecast-day:hover {
   .prompt-portfolio-gallery-summary,
   .prompt-portfolio-review-queue-head,
   .prompt-portfolio-review-queue-list,
+  .prompt-portfolio-defense-calendar-head,
+  .prompt-portfolio-defense-calendar-grid,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,

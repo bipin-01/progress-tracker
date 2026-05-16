@@ -17327,11 +17327,28 @@ type PromptPortfolioReviewQueueItem = {
   rehearsalPlan: string[];
 };
 
+type PromptPortfolioReviewCalendarDay = {
+  id: string;
+  day: number;
+  label: string;
+  taskId: string;
+  taskLabel: string;
+  taskMode: PromptDailyTask["mode"];
+  queueItem?: PromptPortfolioReviewQueueItem;
+  title: string;
+  scenario: string;
+  action: string;
+  successMetric: string;
+  status: string;
+  minutes: number;
+};
+
 type PromptPortfolioGallery = {
   items: PromptPortfolioGalleryItem[];
   best: PromptPortfolioGalleryItem;
   polishTarget: PromptPortfolioGalleryItem;
   reviewQueue: PromptPortfolioReviewQueueItem[];
+  reviewCalendar: PromptPortfolioReviewCalendarDay[];
   averageScore: number;
   readyCount: number;
   defenseGatedCount: number;
@@ -19168,6 +19185,60 @@ function buildPromptPortfolioReviewQueue(items: PromptPortfolioGalleryItem[]): P
     }));
 }
 
+function getPromptDefenseCalendarTaskMode(questionId: string): PromptDailyTask["mode"] {
+  if (questionId === "output-contract") return "build";
+  if (questionId === "tradeoffs") return "iterate";
+  if (questionId === "improvement") return "review";
+  return "evaluate";
+}
+
+function buildPromptPortfolioReviewCalendar(
+  reviewQueue: PromptPortfolioReviewQueueItem[],
+  selectedDay: number,
+): PromptPortfolioReviewCalendarDay[] {
+  const anchorDay = Math.min(Math.max(Math.trunc(selectedDay), 1), 90);
+  return Array.from({ length: 7 }, (_, index): PromptPortfolioReviewCalendarDay => {
+    const day = Math.min(90, anchorDay + index);
+    const queueItem = reviewQueue.length ? reviewQueue[index % reviewQueue.length] : undefined;
+    const taskMode = queueItem ? getPromptDefenseCalendarTaskMode(queueItem.nextCheck.questionId) : index % 2 === 0 ? "evaluate" : "review";
+    const dayTasks = getPromptDailyTasks(day);
+    const linkedTask = dayTasks.find((task) => task.mode === taskMode) ?? dayTasks[0];
+
+    if (!queueItem) {
+      return {
+        id: `portfolio-defense-calendar-clear-${day}-${index}`,
+        day,
+        label: index === 0 ? "today" : `D+${index}`,
+        taskId: linkedTask.id,
+        taskLabel: linkedTask.label,
+        taskMode: linkedTask.mode,
+        title: "Portfolio defense maintenance",
+        scenario: "All visible portfolio gates are clear. Keep one case study warm by rehearsing a concise pitch and archiving the strongest spoken answer.",
+        action: "Open the strongest artifact, rehearse the pitch once, then lock the answer into the task journal.",
+        successMetric: "Pass when the answer names evidence, unknowns, a human gate, and one next improvement in under 90 seconds.",
+        status: "maintenance",
+        minutes: 10,
+      };
+    }
+
+    return {
+      id: `portfolio-defense-calendar-${queueItem.id}-${day}-${index}`,
+      day,
+      label: index === 0 ? "today" : `D+${index}`,
+      taskId: linkedTask.id,
+      taskLabel: linkedTask.label,
+      taskMode: linkedTask.mode,
+      queueItem,
+      title: `${queueItem.nextCheck.label} gate rehearsal`,
+      scenario: queueItem.scenario,
+      action: queueItem.rehearsalPlan[1] ?? queueItem.nextCheck.recoveryCue,
+      successMetric: `Clear the ${queueItem.nextCheck.label} gate by saving one timed answer at ${queueItem.item.defenseGate.threshold}/100 or higher.`,
+      status: queueItem.scheduleLabel,
+      minutes: queueItem.nextCheck.attempts ? 12 : 15,
+    };
+  });
+}
+
 function buildPromptPortfolioGallery({
   activeExport,
   activeTask,
@@ -19232,12 +19303,14 @@ function buildPromptPortfolioGallery({
     return aNeedsDefense - bNeedsDefense || aNeedsPolish - bNeedsPolish || a.showcaseScore - b.showcaseScore;
   })[0] ?? attachPromptPortfolioDefenseGate(activeItem, mentorRehearsals);
   const reviewQueue = buildPromptPortfolioReviewQueue(items);
+  const reviewCalendar = buildPromptPortfolioReviewCalendar(reviewQueue, selectedDay);
 
   return {
     items,
     best,
     polishTarget,
     reviewQueue,
+    reviewCalendar,
     averageScore: average(items.map((item) => item.showcaseScore)),
     readyCount: items.filter((item) => item.showcaseReady).length,
     defenseGatedCount: items.filter((item) => !item.defenseGate.unlocked).length,
@@ -20642,6 +20715,42 @@ function PromptView() {
     });
   }
 
+  function loadPortfolioReviewCalendarDay(planDay: PromptPortfolioReviewCalendarDay) {
+    if (planDay.queueItem) {
+      loadPortfolioDefenseGateDrill(planDay.queueItem.item, planDay.queueItem.nextCheck);
+    } else {
+      setSelectedDay(planDay.day);
+      setActiveDailyTaskId(planDay.taskId);
+      setActiveDailyPanel("journal");
+    }
+
+    setTaskJournals((current) => {
+      const existing = current[planDay.taskId] ?? getEmptyPromptTaskJournal(planDay.taskId);
+      return {
+        ...current,
+        [planDay.taskId]: {
+          ...existing,
+          answer: [
+            existing.answer.trim(),
+            "",
+            "---",
+            `7-day portfolio defense micro-plan: ${planDay.label} / D${String(planDay.day).padStart(2, "0")}`,
+            `${planDay.title} · linked bootcamp task: ${planDay.taskLabel}`,
+            planDay.scenario,
+            "",
+            `Action: ${planDay.action}`,
+            `Success metric: ${planDay.successMetric}`,
+            `Timebox: ${planDay.minutes} min`,
+          ].filter(Boolean).join("\n"),
+          selfScore: Math.max(existing.selfScore, planDay.queueItem?.item.showcaseScore ?? 78),
+          versionNote: `defense micro-plan ${planDay.label}`,
+          savedAt: new Date().toISOString(),
+        },
+      };
+    });
+    setPlaygroundStatus(`micro-plan scheduled: D${String(planDay.day).padStart(2, "0")} ${planDay.taskLabel}`);
+  }
+
   function loadPortfolioPolishWorkflow() {
     const currentAnswer = activeTaskJournal.answer.trim() || activePortfolioExport.markdown;
     updateTaskJournal({
@@ -21725,6 +21834,33 @@ function PromptView() {
                   <p>Archive the strongest spoken answers with the case study, then rehearse the final pitch once before sharing.</p>
                 </div>
               )}
+            </div>
+            <div className="prompt-portfolio-defense-calendar" aria-label="Portfolio defense seven day micro-plan">
+              <div className="prompt-portfolio-defense-calendar-head">
+                <div>
+                  <span>7-day defense micro-plan</span>
+                  <strong>{portfolioGallery.reviewCalendar.filter((day) => day.queueItem).length} gate drills</strong>
+                  <em>{portfolioGallery.reviewCalendar[0]?.title ?? "portfolio rehearsal"}</em>
+                </div>
+                <p>Turns the blocked review queue into scheduled bootcamp work. Each day links one defense answer to a daily task journal so portfolio practice does not float outside the 90-day system.</p>
+              </div>
+              <div className="prompt-portfolio-defense-calendar-grid">
+                {portfolioGallery.reviewCalendar.map((planDay) => (
+                  <div key={planDay.id} className={planDay.queueItem ? "queued" : "maintenance"}>
+                    <div>
+                      <span>{planDay.label} · D{String(planDay.day).padStart(2, "0")}</span>
+                      <strong>{planDay.minutes}m</strong>
+                    </div>
+                    <em>{planDay.status} · {planDay.taskMode}</em>
+                    <p>{planDay.title}</p>
+                    <i>{planDay.taskLabel}</i>
+                    <div>
+                      <span>{planDay.action}</span>
+                      <button type="button" onClick={() => loadPortfolioReviewCalendarDay(planDay)}>schedule day</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="prompt-portfolio-polish" aria-label="Case study polish workflow">
               <div className="prompt-portfolio-polish-head">

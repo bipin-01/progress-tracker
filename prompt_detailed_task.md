@@ -646,3 +646,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a defense rehearsal calendar that converts the review queue into a 7-day micro-plan and connects the scheduled answers back into the daily bootcamp tasks.
+
+### 2026-05-16 - Defense Rehearsal Calendar Micro-Plan
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the review queue could choose the next blocked artifact, but it did not yet spread defense practice across the bootcamp calendar.
+
+Problem observed:
+- The queue was useful for immediate action, but portfolio defense work still felt separate from the 90-day daily task system.
+- The learner needed a seven-day schedule that says which defense answer to rehearse, which bootcamp task it belongs to, and what success looks like.
+- UI/UX needed a smoother bridge from "schedule drill" to daily task journals so the app feels like one training system instead of separate widgets.
+
+Decision:
+- More relevant scheduling and task-linking infrastructure was needed. This fit the 70% rule because realistic mastery comes from repeated small rehearsals, not one big portfolio cleanup session.
+
+Implemented:
+- Added a 7-day portfolio defense micro-plan beneath the review queue.
+- The micro-plan converts defense-gated queue items into daily rehearsal cards with day label, minutes, linked bootcamp task, scenario, action, and success metric.
+- Each scheduled day now maps the defense question to a relevant bootcamp task mode: output contract to build, tradeoffs to iterate, improvement to review, and evidence/red-team gates to evaluation.
+- Added a schedule-day action that loads the correct gate drill into the rehearsal surface and writes the micro-plan into the linked daily task journal.
+- Added a maintenance state for when all visible artifacts have cleared defense gates.
+- Styled the calendar as a compact violet/amber seven-day strip with hover motion, responsive collapse, and quiet task-link labels.
+
+Next likely upgrade:
+- Add completion tracking for scheduled defense calendar days so the micro-plan can mark practiced days, missed days, and automatically reschedule missed rehearsals.
