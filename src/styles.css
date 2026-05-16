@@ -15843,6 +15843,9 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head,
 .prompt-portfolio-gallery-summary,
+.prompt-portfolio-review-queue,
+.prompt-portfolio-review-queue-head,
+.prompt-portfolio-review-queue-list,
 .prompt-portfolio-gallery-list,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head,
@@ -15876,12 +15879,62 @@ button.load-forecast-day:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.prompt-portfolio-review-queue {
+  border-color: rgba(255, 181, 74, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.04), transparent 48%),
+    rgba(2, 7, 15, 0.3);
+  animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-review-queue-head {
+  grid-template-columns: minmax(180px, 0.3fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-review-queue-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.prompt-portfolio-review-queue-list > div {
+  border-color: rgba(255, 181, 74, 0.14);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.035), transparent 56%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-review-queue-list > div > div:first-child,
+.prompt-portfolio-review-queue-list > div > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-portfolio-review-queue-list ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-1);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.prompt-portfolio-review-queue-empty {
+  border-color: rgba(158, 255, 102, 0.16);
+  background: rgba(158, 255, 102, 0.025);
+}
+
 .prompt-portfolio-gallery-list {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .prompt-portfolio-gallery-head > div,
 .prompt-portfolio-gallery-summary > div,
+.prompt-portfolio-review-queue,
+.prompt-portfolio-review-queue-head > div,
+.prompt-portfolio-review-queue-list > div,
+.prompt-portfolio-review-queue-empty,
 .prompt-portfolio-gallery-list > div,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head > div,
@@ -16197,6 +16250,7 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head span,
 .prompt-portfolio-gallery-summary span,
+.prompt-portfolio-review-queue span,
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
@@ -16211,6 +16265,7 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head strong,
 .prompt-portfolio-gallery-summary strong,
+.prompt-portfolio-review-queue strong,
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
@@ -16224,6 +16279,7 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-gallery-head p,
 .prompt-portfolio-gallery-summary p,
+.prompt-portfolio-review-queue p,
 .prompt-portfolio-gallery-list p,
 .prompt-portfolio-polish p,
 .prompt-portfolio-defense p,
@@ -16237,6 +16293,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-portfolio-gallery-head em,
+.prompt-portfolio-review-queue em,
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
@@ -18410,6 +18467,8 @@ button.load-forecast-day:hover {
   .prompt-mastery-archive,
   .prompt-portfolio-gallery-head,
   .prompt-portfolio-gallery-summary,
+  .prompt-portfolio-review-queue-head,
+  .prompt-portfolio-review-queue-list,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
@@ -18496,6 +18555,8 @@ button.load-forecast-day:hover {
   .prompt-mastery-archive,
   .prompt-portfolio-gallery-head,
   .prompt-portfolio-gallery-summary,
+  .prompt-portfolio-review-queue-head,
+  .prompt-portfolio-review-queue-list,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,

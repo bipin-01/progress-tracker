@@ -17315,10 +17315,23 @@ type PromptPortfolioGalleryItem = PromptPortfolioGallerySeed & {
   showcaseLabel: string;
 };
 
+type PromptPortfolioReviewQueueItem = {
+  id: string;
+  item: PromptPortfolioGalleryItem;
+  nextCheck: PromptPortfolioDefenseGateCheck;
+  missingCount: number;
+  unlockGap: number;
+  scheduleLabel: string;
+  timebox: string;
+  scenario: string;
+  rehearsalPlan: string[];
+};
+
 type PromptPortfolioGallery = {
   items: PromptPortfolioGalleryItem[];
   best: PromptPortfolioGalleryItem;
   polishTarget: PromptPortfolioGalleryItem;
+  reviewQueue: PromptPortfolioReviewQueueItem[];
   averageScore: number;
   readyCount: number;
   defenseGatedCount: number;
@@ -19117,6 +19130,44 @@ function attachPromptPortfolioDefenseGate(
   };
 }
 
+function buildPromptPortfolioReviewQueue(items: PromptPortfolioGalleryItem[]): PromptPortfolioReviewQueueItem[] {
+  return items
+    .filter((item) => !item.defenseGate.unlocked)
+    .map((item): Omit<PromptPortfolioReviewQueueItem, "scheduleLabel"> => {
+      const missingChecks = item.defenseGate.checks.filter((check) => !check.passed);
+      const nextCheck = [...missingChecks].sort((a, b) => {
+        const aGap = item.defenseGate.threshold - a.bestScore;
+        const bGap = item.defenseGate.threshold - b.bestScore;
+        const aHasAttempt = a.attempts ? 0 : 1;
+        const bHasAttempt = b.attempts ? 0 : 1;
+        return aGap - bGap || aHasAttempt - bHasAttempt || b.bestScore - a.bestScore;
+      })[0] ?? item.defenseGate.checks[0];
+      const unlockGap = Math.max(0, item.defenseGate.threshold - nextCheck.bestScore);
+      const missingCount = missingChecks.length;
+      return {
+        id: `review-queue-${item.id}-${nextCheck.questionId}`,
+        item,
+        nextCheck,
+        missingCount,
+        unlockGap,
+        timebox: nextCheck.attempts ? "90s answer + 30s repair" : "90s first answer + 60s self-score",
+        scenario: `A mentor opens ${item.title} and asks the ${nextCheck.label} question first because ${item.primaryWeakness}`,
+        rehearsalPlan: [
+          `Open with one case-specific fact from ${item.scenarioTitle}.`,
+          nextCheck.recoveryCue,
+          "State one uncertainty or human-review gate before giving the next action.",
+          `Save the timed answer above ${item.defenseGate.threshold}/100 to clear this gate.`,
+        ],
+      };
+    })
+    .sort((a, b) => a.missingCount - b.missingCount || a.unlockGap - b.unlockGap || b.item.showcaseScore - a.item.showcaseScore)
+    .slice(0, 5)
+    .map((entry, index) => ({
+      ...entry,
+      scheduleLabel: index === 0 ? "now" : index === 1 ? "next" : `queue ${index + 1}`,
+    }));
+}
+
 function buildPromptPortfolioGallery({
   activeExport,
   activeTask,
@@ -19180,11 +19231,13 @@ function buildPromptPortfolioGallery({
     const bNeedsPolish = b.score >= 62 && b.score < 90 ? 0 : 1;
     return aNeedsDefense - bNeedsDefense || aNeedsPolish - bNeedsPolish || a.showcaseScore - b.showcaseScore;
   })[0] ?? attachPromptPortfolioDefenseGate(activeItem, mentorRehearsals);
+  const reviewQueue = buildPromptPortfolioReviewQueue(items);
 
   return {
     items,
     best,
     polishTarget,
+    reviewQueue,
     averageScore: average(items.map((item) => item.showcaseScore)),
     readyCount: items.filter((item) => item.showcaseReady).length,
     defenseGatedCount: items.filter((item) => !item.defenseGate.unlocked).length,
@@ -20528,8 +20581,8 @@ function PromptView() {
     setPlaygroundStatus(`polish workflow opened: ${item.title}`);
   }
 
-  function loadPortfolioDefenseGateDrill(item: PromptPortfolioGalleryItem) {
-    const missingCheck = item.defenseGate.checks.find((check) => !check.passed) ?? item.defenseGate.checks[0];
+  function loadPortfolioDefenseGateDrill(item: PromptPortfolioGalleryItem, scheduledCheck?: PromptPortfolioDefenseGateCheck) {
+    const missingCheck = scheduledCheck ?? item.defenseGate.checks.find((check) => !check.passed) ?? item.defenseGate.checks[0];
     const recoveryAnswer = [
       `Defense gate drill: ${missingCheck.label}`,
       `Artifact: ${item.title}`,
@@ -20560,6 +20613,33 @@ function PromptView() {
     setActiveDailyTaskId(item.taskId);
     setActiveDailyPanel("packet");
     setPlaygroundStatus(`defense gate drill loaded: ${missingCheck.label}`);
+  }
+
+  function loadPortfolioReviewQueueItem(queueItem: PromptPortfolioReviewQueueItem) {
+    loadPortfolioDefenseGateDrill(queueItem.item, queueItem.nextCheck);
+    setTaskJournals((current) => {
+      const existing = current[queueItem.item.taskId] ?? getEmptyPromptTaskJournal(queueItem.item.taskId);
+      return {
+        ...current,
+        [queueItem.item.taskId]: {
+          ...existing,
+          answer: [
+            existing.answer.trim(),
+            "",
+            "---",
+            `Portfolio review queue: ${queueItem.scheduleLabel.toUpperCase()} - ${queueItem.item.title}`,
+            `${queueItem.nextCheck.label} gate · gap ${queueItem.unlockGap} · ${queueItem.timebox}`,
+            queueItem.scenario,
+            "",
+            "Scheduled rehearsal:",
+            ...queueItem.rehearsalPlan.map((step) => `- ${step}`),
+          ].filter(Boolean).join("\n"),
+          selfScore: Math.max(existing.selfScore, queueItem.item.showcaseScore),
+          versionNote: `portfolio queue ${queueItem.nextCheck.label}`,
+          savedAt: new Date().toISOString(),
+        },
+      };
+    });
   }
 
   function loadPortfolioPolishWorkflow() {
@@ -21608,6 +21688,43 @@ function PromptView() {
                 <p>{portfolioGallery.polishTarget.defenseGate.reviewScenario}</p>
                 <button type="button" onClick={() => loadPortfolioDefenseGateDrill(portfolioGallery.polishTarget)}>load gate drill</button>
               </div>
+            </div>
+            <div className="prompt-portfolio-review-queue" aria-label="Portfolio defense review queue">
+              <div className="prompt-portfolio-review-queue-head">
+                <div>
+                  <span>portfolio review queue</span>
+                  <strong>{portfolioGallery.reviewQueue.length} blocked artifacts</strong>
+                  <em>{portfolioGallery.reviewQueue[0] ? `${portfolioGallery.reviewQueue[0].nextCheck.label} is next` : "all gates clear"}</em>
+                </div>
+                <p>Only defense-gated artifacts appear here. The queue favors the fastest unlock path: fewest missing gates, smallest score gap, then strongest showcase potential.</p>
+              </div>
+              {portfolioGallery.reviewQueue.length ? (
+                <div className="prompt-portfolio-review-queue-list">
+                  {portfolioGallery.reviewQueue.map((queueItem) => (
+                    <div key={queueItem.id}>
+                      <div>
+                        <span>{queueItem.scheduleLabel} · D{String(queueItem.item.day).padStart(2, "0")}</span>
+                        <strong>{queueItem.nextCheck.label}</strong>
+                        <em>{queueItem.missingCount} gates left · gap {queueItem.unlockGap}</em>
+                      </div>
+                      <p>{queueItem.scenario}</p>
+                      <ol>
+                        {queueItem.rehearsalPlan.map((step) => <li key={step}>{step}</li>)}
+                      </ol>
+                      <div>
+                        <em>{queueItem.timebox}</em>
+                        <button type="button" onClick={() => loadPortfolioReviewQueueItem(queueItem)}>schedule drill</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="prompt-portfolio-review-queue-empty">
+                  <span>review queue clear</span>
+                  <strong>Every visible artifact has cleared its defense gates.</strong>
+                  <p>Archive the strongest spoken answers with the case study, then rehearse the final pitch once before sharing.</p>
+                </div>
+              )}
             </div>
             <div className="prompt-portfolio-polish" aria-label="Case study polish workflow">
               <div className="prompt-portfolio-polish-head">

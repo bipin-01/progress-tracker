@@ -621,3 +621,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a portfolio review queue that lists only defense-gated artifacts, orders them by fastest path to unlock, and schedules which defense answer to rehearse next.
+
+### 2026-05-16 - Portfolio Defense Review Queue
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because defense gates made portfolio readiness stricter, but the learner still needed a clear queue for which blocked artifact to unlock first.
+
+Problem observed:
+- The gallery showed defense-gated artifacts, but it did not prioritize them by fastest path to showcase readiness.
+- A learner still had to inspect several cards to decide which missing defense answer to rehearse next.
+- UI/UX needed a smoother transition from "this case is blocked" to "do this exact timed rehearsal now."
+
+Decision:
+- More scenario-based scheduling infrastructure was needed. This fit the 70% rule because a serious bootcamp should behave like a coach: choose the next constrained drill, explain why, and make the action one click away.
+
+Implemented:
+- Added a portfolio defense review queue that only lists defense-gated artifacts.
+- Ordered queue items by fastest unlock path: fewest missing gates, smallest score gap, then strongest showcase potential.
+- Each queued artifact now schedules a specific next defense answer, with gap, timebox, mentor scenario, and a four-step rehearsal plan.
+- Added a schedule-drill action that opens the correct artifact, selects the correct defense question, prepares the rehearsal answer scaffold, and writes the scheduled plan into the task journal.
+- Added empty-state coaching for when all visible artifacts clear their defense gates.
+- Styled the queue as a compact amber review layer between the gallery summary and polish workflow, with responsive cards and smooth panel entry.
+
+Next likely upgrade:
+- Add a defense rehearsal calendar that converts the review queue into a 7-day micro-plan and connects the scheduled answers back into the daily bootcamp tasks.
