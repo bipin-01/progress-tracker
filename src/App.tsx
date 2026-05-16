@@ -17086,6 +17086,15 @@ function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
   ].join("\n");
 }
 
+const promptDailyPanels = [
+  { id: "mission", label: "Mission" },
+  { id: "lab", label: "Lab" },
+  { id: "rubric", label: "Rubric" },
+  { id: "future", label: "Future" },
+] as const;
+
+type PromptDailyPanel = (typeof promptDailyPanels)[number]["id"];
+
 function PromptView() {
   const initialMemory = useMemo(() => loadPromptMemorySnapshot(), []);
   const [selectedDay, setSelectedDay] = useState(initialMemory?.selectedDay ?? 1);
@@ -17097,6 +17106,7 @@ function PromptView() {
   const [hintOpen, setHintOpen] = useState(false);
   const [answerOpen, setAnswerOpen] = useState(false);
   const [activeDailyTaskId, setActiveDailyTaskId] = useState(`d${initialMemory?.selectedDay ?? 1}-read`);
+  const [activeDailyPanel, setActiveDailyPanel] = useState<PromptDailyPanel>("mission");
   const [activeConceptId, setActiveConceptId] = useState(promptFoundationConcepts[0].id);
   const [activeMistakeId, setActiveMistakeId] = useState(promptMistakePatterns[0].id);
   const [activeSkillLevel, setActiveSkillLevel] = useState(promptSkillLevels[0].level);
@@ -17146,6 +17156,10 @@ function PromptView() {
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
   }, [dailyTasks]);
+
+  useEffect(() => {
+    setActiveDailyPanel("mission");
+  }, [activeDailyTaskId]);
 
   function toggleDailyTask(taskId: string) {
     setCompletedTasks((current) => {
@@ -17268,7 +17282,10 @@ function PromptView() {
                 key={task.id}
                 type="button"
                 className={`${completedTasks.has(task.id) ? "done" : ""} ${task.id === activeDailyTask.id ? "active" : ""}`}
-                onClick={() => setActiveDailyTaskId(task.id)}
+                onClick={() => {
+                  setActiveDailyTaskId(task.id);
+                  setActiveDailyPanel("mission");
+                }}
               >
                 <span>{completedTasks.has(task.id) ? <Check /> : String(task.minutes)}</span>
                 <strong>{task.label}</strong>
@@ -17281,52 +17298,119 @@ function PromptView() {
               <span>{activeDailyTask.mode} · {activeDailyTask.minutes} min</span>
               <strong>{activeDailyTask.label}</strong>
             </div>
-            <p>{activeDailyTask.lesson}</p>
-            <div className="prompt-daily-scenario">
-              <div className="prompt-daily-scenario-copy">
-                <span>real-life scenario</span>
-                <strong>{activeDailyTask.scenario.title}</strong>
-                <p>{activeDailyTask.scenario.context}</p>
-                <em>{activeDailyTask.scenario.pressure}</em>
-              </div>
-              <div className="prompt-daily-evidence">
-                <span>evidence packet</span>
-                {activeDailyTask.scenario.evidence.map((item) => <code key={item}>{item}</code>)}
-              </div>
-            </div>
-            <div className="prompt-daily-steps">
-              {activeDailyTask.babySteps.map((step, index) => (
-                <span key={step}>{String(index + 1).padStart(2, "0")} {step}</span>
+            <div className="prompt-daily-panel-tabs" role="tablist" aria-label="Daily bootcamp task detail sections">
+              {promptDailyPanels.map((panel) => (
+                <button
+                  key={panel.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeDailyPanel === panel.id}
+                  className={activeDailyPanel === panel.id ? "active" : ""}
+                  onClick={() => setActiveDailyPanel(panel.id)}
+                >
+                  {panel.label}
+                </button>
               ))}
             </div>
-            <div className="prompt-daily-proof">
-              <div>
-                <span>SOC why</span>
-                <p>{activeDailyTask.socWhy}</p>
-              </div>
-              <div>
-                <span>example</span>
-                <code>{activeDailyTask.example}</code>
-              </div>
-            </div>
-            <div className="prompt-daily-done">
-              <span>done looks like</span>
-              {activeDailyTask.doneLooksLike.map((item) => <em key={item}>{item}</em>)}
-            </div>
-            <div className="prompt-daily-lab">
-              <div>
-                <span>practice lab</span>
-                {activeDailyTask.practiceLab.map((item) => <em key={item}>{item}</em>)}
-              </div>
-              <div>
-                <span>reflection prompts</span>
-                {activeDailyTask.reflectionQuestions.map((item) => <em key={item}>{item}</em>)}
-              </div>
-            </div>
-            <div className="prompt-daily-future">
-              <span>futuristic upgrade</span>
-              <p>{activeDailyTask.futuristicUpgrade}</p>
-              <strong>{activeDailyTask.scenario.successMove}</strong>
+
+            <div key={`${activeDailyTask.id}-${activeDailyPanel}`} className="prompt-daily-panel">
+              {activeDailyPanel === "mission" && (
+                <>
+                  <p>{activeDailyTask.lesson}</p>
+                  <div className="prompt-daily-scenario">
+                    <div className="prompt-daily-scenario-copy">
+                      <span>real-life scenario</span>
+                      <strong>{activeDailyTask.scenario.title}</strong>
+                      <p>{activeDailyTask.scenario.context}</p>
+                      <em>{activeDailyTask.scenario.pressure}</em>
+                    </div>
+                    <div className="prompt-daily-evidence">
+                      <span>evidence packet</span>
+                      {activeDailyTask.scenario.evidence.map((item) => <code key={item}>{item}</code>)}
+                    </div>
+                  </div>
+                  <div className="prompt-daily-mentor">
+                    <span>mentor walkthrough</span>
+                    {activeDailyTask.mentorScript.map((line, index) => (
+                      <em key={line}>{String(index + 1).padStart(2, "0")} {line}</em>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {activeDailyPanel === "lab" && (
+                <>
+                  <div className="prompt-daily-steps">
+                    {activeDailyTask.babySteps.map((step, index) => (
+                      <span key={step}>{String(index + 1).padStart(2, "0")} {step}</span>
+                    ))}
+                  </div>
+                  <div className="prompt-daily-lab">
+                    <div>
+                      <span>practice lab</span>
+                      {activeDailyTask.practiceLab.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                    <div>
+                      <span>anti-pattern</span>
+                      <code>{activeDailyTask.antiPattern.badPrompt}</code>
+                      <p>{activeDailyTask.antiPattern.failureMode}</p>
+                      <strong>{activeDailyTask.antiPattern.repairMove}</strong>
+                    </div>
+                  </div>
+                  <div className="prompt-daily-proof">
+                    <div>
+                      <span>SOC why</span>
+                      <p>{activeDailyTask.socWhy}</p>
+                    </div>
+                    <div>
+                      <span>example</span>
+                      <code>{activeDailyTask.example}</code>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeDailyPanel === "rubric" && (
+                <>
+                  <div className="prompt-daily-deliverable">
+                    <span>deliverable</span>
+                    <strong>{activeDailyTask.deliverable}</strong>
+                  </div>
+                  <div className="prompt-daily-rubric">
+                    {activeDailyTask.rubric.map((item) => (
+                      <div key={item.label}>
+                        <span>{item.label}</span>
+                        <p><b>Weak:</b> {item.weak}</p>
+                        <p><b>Strong:</b> {item.strong}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="prompt-daily-done">
+                    <span>done looks like</span>
+                    {activeDailyTask.doneLooksLike.map((item) => <em key={item}>{item}</em>)}
+                  </div>
+                </>
+              )}
+
+              {activeDailyPanel === "future" && (
+                <>
+                  <div className="prompt-daily-lab">
+                    <div>
+                      <span>reflection prompts</span>
+                      {activeDailyTask.reflectionQuestions.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                    <div>
+                      <span>success move</span>
+                      <p>{activeDailyTask.scenario.successMove}</p>
+                    </div>
+                  </div>
+                  <div className="prompt-daily-future">
+                    <span>futuristic upgrade</span>
+                    <p>{activeDailyTask.futuristicUpgrade}</p>
+                    <strong>Convert this into telemetry later: prompt version, evidence confidence, rubric score, analyst override, and next spaced-review date.</strong>
+                  </div>
+                </>
+              )}
             </div>
             <div className="prompt-daily-actions">
               <button type="button" onClick={() => setPlaygroundPrompt(activeDailyTask.template)}>load task template</button>

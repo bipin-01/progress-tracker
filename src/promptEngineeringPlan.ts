@@ -25,9 +25,11 @@ export type PromptDailyTask = {
   minutes: number;
   mode: "learn" | "build" | "iterate" | "evaluate" | "review";
   lesson: string;
+  mentorScript: string[];
   babySteps: string[];
   socWhy: string;
   example: string;
+  deliverable: string;
   scenario: {
     title: string;
     context: string;
@@ -35,7 +37,17 @@ export type PromptDailyTask = {
     pressure: string;
     successMove: string;
   };
+  antiPattern: {
+    badPrompt: string;
+    failureMode: string;
+    repairMove: string;
+  };
   practiceLab: string[];
+  rubric: {
+    label: string;
+    weak: string;
+    strong: string;
+  }[];
   futuristicUpgrade: string;
   reflectionQuestions: string[];
   template: string;
@@ -658,6 +670,46 @@ function indefiniteArticle(value: string) {
   return /^[aeiou]/i.test(value.trim()) ? "an" : "a";
 }
 
+function buildDailyRubric(cycle: string, mode: PromptDailyTask["mode"]): PromptDailyTask["rubric"] {
+  if (mode === "learn") {
+    return [
+      { label: "Concept clarity", weak: "I can repeat the words but not explain why they matter.", strong: `I can explain how ${cycle} changes the prompt structure in plain language.` },
+      { label: "Evidence boundary", weak: "I let the model guess context outside the scenario.", strong: "I can point to every allowed fact and every missing fact." },
+      { label: "Transfer", weak: "The lesson only works for today's card.", strong: "I can reuse the same principle on a different SOC alert." },
+    ];
+  }
+
+  if (mode === "build") {
+    return [
+      { label: "Prompt anatomy", weak: "Role, evidence, task, constraints, or output are missing.", strong: "The prompt has all five parts and each part changes model behavior." },
+      { label: "Operational safety", weak: "The model could recommend action from weak evidence.", strong: "The prompt ties recommendations to confidence and missing data." },
+      { label: "Analyst usefulness", weak: "The output sounds smart but does not say what to do next.", strong: "A tier-1 analyst can paste the result into a case and act on it." },
+    ];
+  }
+
+  if (mode === "iterate") {
+    return [
+      { label: "Revision purpose", weak: "v2 and v3 are just reworded versions.", strong: "Each version removes a named failure mode." },
+      { label: "Comparison", weak: "There is no reason to choose one version.", strong: "The winning version has a measurable advantage." },
+      { label: "Changelog", weak: "The revision history is invisible.", strong: "Every prompt change says what risk it reduces." },
+    ];
+  }
+
+  if (mode === "evaluate") {
+    return [
+      { label: "Grounding", weak: "The score is vibes-based.", strong: "Every score cites the exact evidence or missing evidence behind it." },
+      { label: "Failure detection", weak: "The eval says 'looks good' with no defect.", strong: "The eval names at least one concrete failure class." },
+      { label: "Repair loop", weak: "The rubric does not change the next prompt.", strong: "The worst failure becomes one new instruction or regression test." },
+    ];
+  }
+
+  return [
+    { label: "Recall honesty", weak: "I reveal the answer before trying.", strong: "I answer from memory, then grade based on hesitation and accuracy." },
+    { label: "Scenario link", weak: "The theory stays abstract.", strong: "I connect the theory to today's incident scenario." },
+    { label: "Review timing", weak: "Everything feels equally important.", strong: "Hard concepts come back sooner and easy concepts wait longer." },
+  ];
+}
+
 export function getPromptDailyTasks(day: number): PromptDailyTask[] {
   const safeDay = Math.min(Math.max(Math.trunc(day), 1), 90);
   const cycle = dailyCycle[(safeDay - 1) % dailyCycle.length];
@@ -673,6 +725,11 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       minutes: 15,
       mode: "learn",
       lesson: `Today starts with the smallest possible idea: a ${cycle} prompt is a set of instructions that turns messy security evidence into a safer analyst decision. Read the week's principle, then restate it in your own words before you write anything.`,
+      mentorScript: [
+        "First, do not write a prompt. Read the incident like an analyst. Ask: what is confirmed, what is missing, and what decision is being requested?",
+        `Second, connect the incident to Week ${week}: ${focus.title}. The principle is not theory; it is the reason your prompt will avoid one predictable failure.`,
+        "Third, explain the concept as if training a brand-new tier-1 analyst. If you cannot teach it simply, you do not own it yet.",
+      ],
       babySteps: [
         `Say the topic out loud: "Today I am practicing ${cycle}."`,
         `Name the week theme: ${focus.title}.`,
@@ -681,13 +738,20 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       ],
       socWhy: "SOC work punishes vague thinking. If the prompt cannot separate evidence, assumption, and next action, the analyst loses time during the exact moment clarity matters.",
       example: `Bad: "Analyze this ${cycle}." Better: "Use only the evidence below to produce a ${cycle} analyst note with ${outputSchema}."`,
+      deliverable: `A one-paragraph beginner explanation of ${cycle}, one bad prompt, one repaired prompt, and one rule you will carry into tomorrow.`,
       scenario,
+      antiPattern: {
+        badPrompt: `Explain ${cycle} and tell me what to do.`,
+        failureMode: "The model is free to invent context, skip missing evidence, and answer with generic advice instead of an analyst-ready decision.",
+        repairMove: "Name the allowed evidence, force missing_data, and ask for one output shape tied to the pressure of the scenario.",
+      },
       practiceLab: [
         "Underline the words in the scenario that are confirmed facts.",
         "Circle the missing evidence that could change the decision.",
         "Write a one-sentence prompt principle that would prevent the model from guessing.",
         `Turn the pressure line into a constraint: "${scenario.pressure}"`,
       ],
+      rubric: buildDailyRubric(cycle, "learn"),
       futuristicUpgrade: "Imagine this lesson feeding an AI coach that watches every saved prompt version, detects vague evidence boundaries, and automatically schedules a micro-drill the next morning.",
       reflectionQuestions: [
         "What did I ask the model to know that it was not actually given?",
@@ -708,6 +772,11 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       minutes: 25,
       mode: "build",
       lesson: "A production prompt is the version you would hand to a real analyst workflow. It should not depend on vibes. It should tell the model who it is, what evidence it may use, what task it must complete, what it must not invent, and what shape the answer must take.",
+      mentorScript: [
+        "Start with the job title because it narrows the model's behavior. A SOC analyst does not write like a marketer or a generic tutor.",
+        "Then write the evidence block as if it will be audited later. Do not mix facts and interpretations in the same bullet.",
+        "Finally, make the output boring and reliable. Boring structure is what makes automation possible.",
+      ],
       babySteps: [
         "Start with the role: You are a SOC analyst.",
         "Paste or describe the evidence block.",
@@ -717,13 +786,20 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       ],
       socWhy: "This turns prompt engineering from casual chat into a repeatable security control. A consistent schema lets you compare alerts, automate handoff, and audit decisions.",
       example: `Role: SOC analyst. Evidence: failed logins from unfamiliar ASN, successful MFA push, no EDR alert. Task: classify this ${cycle}. Constraint: no facts outside evidence. Output: ${outputSchema}.`,
+      deliverable: `A production-ready ${cycle} prompt that can be reused with a fresh evidence block and still produce the same answer structure.`,
       scenario,
+      antiPattern: {
+        badPrompt: `Act like a cyber expert and give me your best analysis of this ${cycle}.`,
+        failureMode: "It asks for expertise but not boundaries, so confidence can rise even when evidence is weak.",
+        repairMove: "Replace prestige language with operational instructions: role, evidence, task, constraints, output, and confidence rules.",
+      },
       practiceLab: [
         "Convert the scenario into an evidence block with one line per fact.",
         "Add one constraint for unsupported claims and one for missing data.",
         "Choose the exact output schema an analyst could paste into a case note.",
         "Write one failure case this prompt must survive.",
       ],
+      rubric: buildDailyRubric(cycle, "build"),
       futuristicUpgrade: "Add a future telemetry field named automation_ready that says whether the answer is safe to pass into a tool, safe only for human review, or unsafe.",
       reflectionQuestions: [
         "Would a tired tier-1 analyst know what to do after reading the output?",
@@ -744,6 +820,11 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       minutes: 20,
       mode: "iterate",
       lesson: "Your first prompt is never the final prompt. v2 should reduce ambiguity. v3 should make the output easier for a tired analyst to use. You are training yourself to revise systematically, not randomly.",
+      mentorScript: [
+        "Treat v1 as a prototype, not a personal achievement. The goal is not to defend it; the goal is to find where it breaks.",
+        "Make v2 stricter. Stricter means fewer unsupported claims, clearer confidence, and better missing-data behavior.",
+        "Make v3 easier to use. A good SOC prompt respects fatigue, shift handoff, and the need for immediate next action.",
+      ],
       babySteps: [
         "Copy your v1 prompt.",
         "Make v2 stricter: add evidence quotes, confidence rules, or missing-data handling.",
@@ -752,13 +833,20 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       ],
       socWhy: "Most AI failures are not solved by a bigger model. They are solved by a tighter prompt, better examples, and clearer evaluation criteria.",
       example: "v1 asks for a summary. v2 requires evidence_quotes. v3 adds 'actionable in the next 15 minutes' and separates analyst_note from executive_note.",
+      deliverable: `A v1/v2/v3 ${cycle} prompt comparison with a winner, a reason, and the failure mode each version targets.`,
       scenario,
+      antiPattern: {
+        badPrompt: "Make this prompt better.",
+        failureMode: "The model may rewrite style without reducing risk. It can sound cleaner while preserving the same failure.",
+        repairMove: "Name the failure you want reduced: unsupported claims, missing evidence, weak escalation logic, or poor analyst usability.",
+      },
       practiceLab: [
         "Find the weakest instruction in v1.",
         "Make v2 stricter by adding evidence quotes, missing-data behavior, or confidence thresholds.",
         "Make v3 more humane by adding an analyst-facing summary and a next-action clock.",
         "Write a mini changelog explaining what risk each version reduces.",
       ],
+      rubric: buildDailyRubric(cycle, "iterate"),
       futuristicUpgrade: "Treat every prompt version like code: store v1/v2/v3, attach eval scores, and later train an agent to suggest revisions based on your historical failure patterns.",
       reflectionQuestions: [
         "What changed between versions besides wording?",
@@ -779,6 +867,11 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       minutes: 15,
       mode: "evaluate",
       lesson: "Evaluation is how you stop guessing whether a prompt is good. Score the output like an analyst reviewing another analyst: Did it use evidence? Did it avoid unsupported claims? Did it produce the next useful step?",
+      mentorScript: [
+        "Do not ask whether the answer feels good. Ask whether it would survive a case review.",
+        "A score without evidence is just another hallucination. Tie every score to a line in the scenario or to a missing line.",
+        "The best eval ends with one repair. If the rubric does not change the next prompt, it is theatre.",
+      ],
       babySteps: [
         "Score grounding from 0 to 5.",
         "Score completeness from 0 to 5.",
@@ -788,13 +881,20 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       ],
       socWhy: "Security prompts need measurable reliability. A pretty answer that hides unsupported claims is more dangerous than a boring answer that admits uncertainty.",
       example: "Grounding 4/5 because it quoted the ASN and MFA push. Completeness 3/5 because it forgot prior login baseline. Safety 5/5 because it requested more evidence before containment.",
+      deliverable: `A scored ${cycle} output review with one failure class, one prompt repair, and one regression test.`,
       scenario,
+      antiPattern: {
+        badPrompt: "Rate this answer from 1 to 10.",
+        failureMode: "A numeric score alone hides the reason. It does not teach the prompt how to fail less next time.",
+        repairMove: "Use separate scores for grounding, completeness, escalation safety, and analyst usefulness, then require one repair instruction.",
+      },
       practiceLab: [
         "Score the output as if it will be reviewed in an incident postmortem.",
         "Name the single highest-risk unsupported claim.",
         "Rewrite one prompt instruction to prevent that failure.",
         "Create one regression test that should fail before the fix and pass after it.",
       ],
+      rubric: buildDailyRubric(cycle, "evaluate"),
       futuristicUpgrade: "Turn the rubric into a continuous eval dashboard: every prompt run logs grounding, escalation safety, missing-data behavior, and analyst override rate.",
       reflectionQuestions: [
         "Would this output survive a manager asking 'how do you know?'",
@@ -815,6 +915,11 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       minutes: 10,
       mode: "review",
       lesson: "Spaced repetition protects the fundamentals from fading. You do not need to reread everything. You need to answer one due question, grade yourself honestly, and let the queue decide when it returns.",
+      mentorScript: [
+        "Memory is part of operational readiness. The point is not to finish the card; the point is to have the principle available under pressure.",
+        "Answer before revealing. If you peek first, the card cannot measure retention.",
+        "Tie the theory to today's scenario so it becomes practical knowledge, not trivia.",
+      ],
       babySteps: [
         "Read the due theory question.",
         "Answer from memory before looking at the answer.",
@@ -824,13 +929,20 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
       ],
       socWhy: "In a real SOC, you do not get to pause and relearn evidence boundaries during an incident. The basics need to be instantly available.",
       example: "Question: Why force missing_data? Answer: because unknowns are safer than invented facts and tell the analyst what to collect next.",
+      deliverable: "One honest SRS grade, one scenario-linked explanation, and one new flashcard if the concept felt weak.",
       scenario,
+      antiPattern: {
+        badPrompt: "Show me the answer so I can review it.",
+        failureMode: "Recognition feels like learning, but it does not prove you can recall the concept during an incident.",
+        repairMove: "Force an answer attempt first, then reveal, grade, and connect the idea to the day's scenario.",
+      },
       practiceLab: [
         "Answer the due question before revealing the explanation.",
         "Connect the theory answer to the day's scenario in one sentence.",
         "Write one flashcard from the scenario using a question and answer.",
         "Grade honestly; the point is retention, not looking finished.",
       ],
+      rubric: buildDailyRubric(cycle, "review"),
       futuristicUpgrade: "Use future behavior analytics to detect which concepts you forget after hard days, then adapt the SRS interval and show scenario-specific review cards.",
       reflectionQuestions: [
         "Could I teach this theory to a new analyst in one minute?",

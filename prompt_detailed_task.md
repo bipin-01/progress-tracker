@@ -41,3 +41,28 @@ Implemented:
 
 Next likely upgrade:
 - Add an in-route "task journal" that lets the learner write their answer under each daily task, compare it against a rubric, and save v1/v2/v3 prompt attempts per day.
+
+### 2026-05-16 - Guided Mission Console + Rubric Depth
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and decided more content was needed because the daily task detail still lacked coaching depth, anti-pattern repair, rubric language, and progressive reveal.
+
+Problem observed:
+- The task cards had scenario content, but the learner still had to read it as one large expansion.
+- The content explained what to do, but did not teach enough like a coach: no mentor script, no explicit bad prompt, no failure mode, no repair move, and no weak-vs-strong grading rubric.
+- UI transitions existed, but the interaction did not yet feel like a guided training flow.
+
+Decision:
+- More relevant content and a more guided UI were needed. This fit the 70% rule because a serious bootcamp task should include scenario, evidence, mistake, repair, practice, rubric, and future system thinking.
+
+Implemented:
+- Added mentor walkthroughs to each daily task so the learner gets coaching before practicing.
+- Added deliverables so every task has a concrete artifact to produce.
+- Added anti-patterns with bad prompt, failure mode, and repair move for every task type.
+- Added weak-vs-strong rubrics for learning, building, iterating, evaluating, and review tasks.
+- Rebuilt the daily task detail UI into four progressive panels: Mission, Lab, Rubric, and Future.
+- Added smoother panel transitions and active tab states so switching sections feels intentional instead of jumpy.
+
+Next likely upgrade:
+- Add an in-route task journal with saved learner answers, rubric self-score, and v1/v2/v3 prompt history per day. This would make the bootcamp trackable, not just readable.
