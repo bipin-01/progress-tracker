@@ -17104,6 +17104,25 @@ type PromptEvidencePacketDiff = {
   nextAction: string;
 };
 
+type PromptEvidenceRewriteChange = {
+  id: string;
+  label: string;
+  before: string;
+  after: string;
+  reason: string;
+};
+
+type PromptEvidenceRewritePreview = {
+  beforePrompt: string;
+  afterPrompt: string;
+  beforeScore: number;
+  afterScore: number;
+  scoreDelta: number;
+  verdict: string;
+  changes: PromptEvidenceRewriteChange[];
+  repairMoves: string[];
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17612,6 +17631,114 @@ function buildPromptEvidenceDiffRepairPrompt(diff: PromptEvidencePacketDiff, pac
   ].join("\n");
 }
 
+function buildPromptPacketSafeRewrite({
+  prompt,
+  diff,
+  packet,
+  task,
+}: {
+  prompt: string;
+  diff: PromptEvidencePacketDiff;
+  packet: PromptEvidencePacket;
+  task: PromptDailyTask;
+}): PromptEvidenceRewritePreview {
+  const beforePrompt = prompt.trim() || "No learner draft yet. V1 is empty, so the preview starts from the packet scaffold.";
+  const omitted = diff.lines.filter((line) => line.status === "omitted");
+  const transformed = diff.lines.filter((line) => line.status === "transformed");
+  const invented = diff.inventedClaims;
+  const repairMoves = [
+    omitted.length
+      ? `Restore ${omitted.length} omitted packet line${omitted.length === 1 ? "" : "s"} verbatim enough to audit.`
+      : "Keep every packet line visible in the final instruction.",
+    transformed.length
+      ? `Tighten ${transformed.length} transformed line${transformed.length === 1 ? "" : "s"} into explicit requirements.`
+      : "Keep transformed language low; prefer explicit packet language.",
+    invented.length
+      ? `Remove ${invented.length} unsupported claim${invented.length === 1 ? "" : "s"} before adding conclusions.`
+      : "Keep conclusions gated behind confidence and missing-data checks.",
+  ];
+  const afterPrompt = [
+    `You are a SOC prompt engineer operating inside ${packet.scenarioTitle}.`,
+    `Training task: ${task.label}.`,
+    `Decision pressure: ${packet.decisionPressure}`,
+    "",
+    "Mission:",
+    `- Produce the ${task.mode} deliverable without inventing facts.`,
+    "- Treat the packet below as the only authority.",
+    "- If evidence is absent, mark it as unknown and request the exact missing data.",
+    "",
+    "Evidence packet:",
+    packet.block,
+    "",
+    "Rewrite requirements:",
+    "- Preserve every confirmed_evidence line as a fact, not a suggestion.",
+    "- Preserve every missing_data line as an explicit unknown or follow-up question.",
+    "- Preserve every constraint as a hard rule.",
+    "- Preserve the output_schema fields exactly enough for another analyst to reuse.",
+    "- Do not conclude compromise, malware, exfiltration, severity, or containment unless the packet supports it.",
+    "- Include confidence and a safe next_action that respects human approval.",
+    "",
+    "Return:",
+    ...packet.outputSchema.map((field) => `- ${field}: <packet-grounded value>`),
+    "",
+    "Self-check before final answer:",
+    ...packet.acceptanceTests.map((test) => `- ${test}`),
+  ].join("\n");
+  const beforeGrade = gradePromptAgainstEvidencePacket(beforePrompt, packet);
+  const beforeDiff = buildPromptEvidencePacketDiff(beforePrompt, packet);
+  const afterGrade = gradePromptAgainstEvidencePacket(afterPrompt, packet);
+  const afterDiff = buildPromptEvidencePacketDiff(afterPrompt, packet);
+  const beforeScore = Math.round(beforeGrade.score * 0.52 + beforeDiff.score * 0.48);
+  const afterScore = Math.round(afterGrade.score * 0.52 + afterDiff.score * 0.48);
+  const changes: PromptEvidenceRewriteChange[] = [
+    {
+      id: "authority",
+      label: "authority boundary",
+      before: diff.score >= 88 ? "packet boundary mostly intact" : "packet boundary can drift under pressure",
+      after: "packet is declared the only authority",
+      reason: "SOC prompts need a hard evidence boundary before the model starts reasoning.",
+    },
+    {
+      id: "missing",
+      label: "missing data handling",
+      before: omitted.some((line) => line.source === "missing") ? "missing data was omitted or buried" : "missing data was present but not locked",
+      after: "missing data becomes explicit unknowns and follow-up questions",
+      reason: "A safe analyst prompt must prefer 'unknown' over filling gaps.",
+    },
+    {
+      id: "schema",
+      label: "output contract",
+      before: omitted.some((line) => line.source === "schema") ? "schema fields were missing" : "schema was not enforced as the final shape",
+      after: "schema fields are repeated in the return contract",
+      reason: "A reusable SOC prompt needs predictable fields for review and later automation.",
+    },
+    {
+      id: "claim-gate",
+      label: "claim gate",
+      before: invented.length ? "unsupported claims appeared in the draft" : "unsupported claims were not clearly blocked",
+      after: "compromise, severity, and containment claims require packet support",
+      reason: "This prevents confident-sounding but unsafe escalation advice.",
+    },
+  ];
+  const verdict =
+    afterScore >= 90
+      ? "v2 is packet-safe enough to save"
+      : afterScore >= 75
+        ? "v2 is usable after one human review"
+        : "v2 still needs manual tightening";
+
+  return {
+    beforePrompt,
+    afterPrompt,
+    beforeScore,
+    afterScore,
+    scoreDelta: afterScore - beforeScore,
+    verdict,
+    changes,
+    repairMoves,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -17947,6 +18074,15 @@ function PromptView() {
     () => buildPromptEvidencePacketDiff(evidencePromptSource, activeEvidencePacket),
     [activeEvidencePacket, evidencePromptSource],
   );
+  const activeEvidenceRewrite = useMemo(
+    () => buildPromptPacketSafeRewrite({
+      prompt: evidencePromptSource,
+      diff: activeEvidenceDiff,
+      packet: activeEvidencePacket,
+      task: activeDailyTask,
+    }),
+    [activeDailyTask, activeEvidenceDiff, activeEvidencePacket, evidencePromptSource],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -18100,6 +18236,23 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`packet diff repair loaded: ${activeEvidencePacket.packetId}`);
+  }
+
+  function applyEvidenceRewriteToJournal() {
+    updateTaskJournal({
+      answer: activeEvidenceRewrite.afterPrompt,
+      selfScore: Math.max(activeTaskJournal.selfScore, activeEvidenceRewrite.afterScore),
+      versionNote: `packet-safe v2 ${activeEvidencePacket.packetId}`,
+    });
+    setPlaygroundPrompt(activeEvidenceRewrite.afterPrompt);
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`packet-safe rewrite applied: +${Math.max(0, activeEvidenceRewrite.scoreDelta)} signal`);
+  }
+
+  function previewEvidenceRewriteInLab() {
+    setPlaygroundPrompt(activeEvidenceRewrite.afterPrompt);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`packet-safe v2 staged: ${activeEvidencePacket.packetId}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -18403,6 +18556,42 @@ function PromptView() {
                         </div>
                       </div>
                     </div>
+                    <div className="prompt-evidence-rewrite">
+                      <div className="prompt-evidence-rewrite-head">
+                        <div>
+                          <span>packet-safe rewrite preview</span>
+                          <strong>v1 → v2</strong>
+                          <em>{activeEvidenceRewrite.verdict}</em>
+                        </div>
+                        <div className="prompt-evidence-rewrite-score">
+                          <span>rewrite lift</span>
+                          <strong>+{Math.max(0, activeEvidenceRewrite.scoreDelta)}</strong>
+                          <em>{activeEvidenceRewrite.beforeScore} → {activeEvidenceRewrite.afterScore}</em>
+                        </div>
+                      </div>
+                      <div className="prompt-evidence-rewrite-grid">
+                        <div>
+                          <span>v1 current draft</span>
+                          <pre>{activeEvidenceRewrite.beforePrompt}</pre>
+                        </div>
+                        <div>
+                          <span>v2 packet-safe prompt</span>
+                          <pre>{activeEvidenceRewrite.afterPrompt}</pre>
+                        </div>
+                      </div>
+                      <div className="prompt-evidence-rewrite-changes">
+                        {activeEvidenceRewrite.changes.map((change) => (
+                          <div key={change.id}>
+                            <span>{change.label}</span>
+                            <code>{change.before} → {change.after}</code>
+                            <p>{change.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="prompt-evidence-rewrite-moves">
+                        {activeEvidenceRewrite.repairMoves.map((move) => <em key={move}>{move}</em>)}
+                      </div>
+                    </div>
                     <div className="prompt-evidence-tests">
                       <div>
                         <span>acceptance tests</span>
@@ -18420,6 +18609,8 @@ function PromptView() {
                     <button type="button" onClick={loadEvidencePacketIntoLab}>load packet into lab</button>
                     <button type="button" onClick={loadEvidencePacketIntoJournal}>start journal from packet</button>
                     <button type="button" onClick={loadEvidenceDiffRepairIntoJournal}>load diff repair</button>
+                    <button type="button" onClick={previewEvidenceRewriteInLab}>preview v2 in lab</button>
+                    <button type="button" onClick={applyEvidenceRewriteToJournal}>apply v2 rewrite</button>
                   </div>
                 </>
               )}

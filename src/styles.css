@@ -16355,6 +16355,7 @@ button.load-forecast-day:hover {
 .prompt-daily-evidence span,
 .prompt-evidence-builder span,
 .prompt-evidence-diff span,
+.prompt-evidence-rewrite span,
 .prompt-daily-mentor span,
 .prompt-daily-proof span,
 .prompt-daily-done span,
@@ -16377,6 +16378,7 @@ button.load-forecast-day:hover {
 .prompt-daily-scenario strong,
 .prompt-evidence-builder strong,
 .prompt-evidence-diff strong,
+.prompt-evidence-rewrite strong,
 .prompt-skill-head strong,
 .prompt-bootcamp-card h2 {
   margin: 0;
@@ -16392,6 +16394,7 @@ button.load-forecast-day:hover {
 .prompt-daily-scenario em,
 .prompt-evidence-builder p,
 .prompt-evidence-diff p,
+.prompt-evidence-rewrite p,
 .prompt-daily-proof p,
 .prompt-daily-lab p,
 .prompt-daily-future p,
@@ -16418,6 +16421,7 @@ button.load-forecast-day:hover {
 .prompt-daily-evidence,
 .prompt-evidence-builder,
 .prompt-evidence-diff,
+.prompt-evidence-rewrite,
 .prompt-daily-mentor,
 .prompt-daily-deliverable,
 .prompt-daily-future {
@@ -16466,7 +16470,10 @@ button.load-forecast-day:hover {
 .prompt-evidence-tests > div,
 .prompt-evidence-grade-grid > div,
 .prompt-evidence-diff-head > div,
-.prompt-evidence-diff-board > div {
+.prompt-evidence-diff-board > div,
+.prompt-evidence-rewrite-head > div,
+.prompt-evidence-rewrite-grid > div,
+.prompt-evidence-rewrite-changes > div {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -16485,7 +16492,8 @@ button.load-forecast-day:hover {
 
 .prompt-evidence-builder em,
 .prompt-evidence-tests em,
-.prompt-evidence-diff em {
+.prompt-evidence-diff em,
+.prompt-evidence-rewrite em {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.035);
   color: var(--ink-1);
@@ -16498,7 +16506,9 @@ button.load-forecast-day:hover {
 
 .prompt-evidence-grid,
 .prompt-evidence-tests,
-.prompt-evidence-diff-board {
+.prompt-evidence-diff-board,
+.prompt-evidence-rewrite-grid,
+.prompt-evidence-rewrite-changes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -16507,7 +16517,9 @@ button.load-forecast-day:hover {
 .prompt-evidence-grid > div,
 .prompt-evidence-tests > div,
 .prompt-evidence-grade-grid > div,
-.prompt-evidence-diff-board > div {
+.prompt-evidence-diff-board > div,
+.prompt-evidence-rewrite-grid > div,
+.prompt-evidence-rewrite-changes > div {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(2, 7, 15, 0.28);
   padding: 8px;
@@ -16515,6 +16527,8 @@ button.load-forecast-day:hover {
 
 .prompt-evidence-grid code,
 .prompt-evidence-diff-board code,
+.prompt-evidence-rewrite code,
+.prompt-evidence-rewrite pre,
 .prompt-evidence-builder pre {
   display: block;
   border: 1px solid rgba(53, 215, 255, 0.12);
@@ -16575,6 +16589,61 @@ button.load-forecast-day:hover {
   background: rgba(255, 181, 74, 0.035);
 }
 
+.prompt-evidence-rewrite {
+  border-color: rgba(53, 215, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.05), transparent 38%),
+    rgba(2, 7, 15, 0.38);
+  animation: prompt-panel-enter 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-evidence-rewrite-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 0.24fr);
+  gap: 8px;
+}
+
+.prompt-evidence-rewrite-head > div,
+.prompt-evidence-rewrite-changes > div {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 9px;
+}
+
+.prompt-evidence-rewrite-score {
+  border-color: rgba(158, 255, 102, 0.2) !important;
+  background: rgba(158, 255, 102, 0.04) !important;
+}
+
+.prompt-evidence-rewrite-score strong {
+  color: var(--lime);
+  font-size: 20px;
+}
+
+.prompt-evidence-rewrite-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-evidence-rewrite-grid pre {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.prompt-evidence-rewrite-changes {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.prompt-evidence-rewrite-changes code {
+  border-color: rgba(170, 114, 255, 0.16);
+  background: rgba(170, 114, 255, 0.04);
+}
+
+.prompt-evidence-rewrite-moves {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
 .prompt-evidence-grade-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -16596,7 +16665,7 @@ button.load-forecast-day:hover {
 
 .prompt-evidence-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
   gap: 6px;
 }
 
@@ -17393,6 +17462,10 @@ button.load-forecast-day:hover {
   .prompt-evidence-tests,
   .prompt-evidence-diff-head,
   .prompt-evidence-diff-board,
+  .prompt-evidence-rewrite-head,
+  .prompt-evidence-rewrite-grid,
+  .prompt-evidence-rewrite-changes,
+  .prompt-evidence-rewrite-moves,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -17448,6 +17521,10 @@ button.load-forecast-day:hover {
   .prompt-evidence-diff-head,
   .prompt-evidence-diff-stats,
   .prompt-evidence-diff-board,
+  .prompt-evidence-rewrite-head,
+  .prompt-evidence-rewrite-grid,
+  .prompt-evidence-rewrite-changes,
+  .prompt-evidence-rewrite-moves,
   .prompt-evidence-grade-grid,
   .prompt-evidence-actions,
   .prompt-daily-steps,

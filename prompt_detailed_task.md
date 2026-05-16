@@ -264,3 +264,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a packet-safe rewrite preview that takes the diff repair checklist and generates a side-by-side v1/v2 prompt comparison before the learner saves a new attempt.
+
+### 2026-05-16 - Packet-Safe Rewrite Preview
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the diff review could identify drift, but the learner still had to imagine what a repaired prompt should look like.
+
+Problem observed:
+- The Packet panel could show omitted, transformed, and invented lines, but repair still required manual translation.
+- The journal could receive a checklist, but there was no preview of the safer v2 prompt before overwriting or saving work.
+- UI/UX needed a smoother revision loop from "diagnose" to "compare" to "apply".
+
+Decision:
+- More scenario-based repair content was needed. This fit the 70% rule because a serious prompt bootcamp should teach revision by showing before/after transformations, not only flagging errors.
+
+Implemented:
+- Added a deterministic packet-safe rewrite preview for `/prompt`.
+- The preview creates a side-by-side v1 current draft and v2 packet-safe prompt using the active SOC scenario, evidence packet, constraints, schema, and acceptance tests.
+- Added before/after scoring, rewrite lift, verdict, and four concrete change explanations: authority boundary, missing-data handling, output contract, and claim gate.
+- Added repair moves summarizing how omissions, weak transformations, and invented claims are fixed.
+- Added actions to preview v2 in the lab or apply v2 directly to the journal with an updated version note and self-score.
+- Styled the preview as a compact comparison workstation with smooth entry, scroll-safe prompt panes, quiet score lift, and responsive grids.
+
+Next likely upgrade:
+- Add a scenario stress-test harness that runs the packet-safe v2 prompt against alternate evidence packets, including missing logs, contradictory evidence, and executive-pressure wording, then reports whether the prompt stays grounded.
