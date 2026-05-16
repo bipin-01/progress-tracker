@@ -697,3 +697,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a defense calendar review summary that calculates completion rate, missed rehearsal debt, and the highest-risk recurring defense question across the last scheduled practices.
+
+### 2026-05-16 - Defense Calendar Review Summary
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because scheduled defense practice had completion state, but the learner still needed a coach-level summary of whether the cadence was working.
+
+Problem observed:
+- The calendar could show practiced, missed, and rescheduled cards, but it did not summarize the larger pattern.
+- The learner could not quickly see completion rate, missed rehearsal debt, or which defense question was recurring as the highest risk.
+- UI/UX needed a smoother path from "I missed practice" to "load the exact recovery drill that gets me back on track."
+
+Decision:
+- More coaching and scenario-based review infrastructure was needed. This fit the 70% rule because a serious bootcamp should not only record behavior; it should interpret the behavior and prescribe the next recovery action.
+
+Implemented:
+- Added a defense calendar review summary above the seven-day micro-plan.
+- The summary calculates recent scheduled practices, practiced count, completion rate, missed rehearsal debt, and cadence verdict.
+- Added recurring defense-risk detection across recent schedules, missed days, low-scored rehearsal attempts, and currently blocked review queue items.
+- Added a reviewer scenario explaining why the recurring defense question matters under mentor-style pressure.
+- Added a load-recovery action that schedules the highest-risk queue item when available and writes a recovery summary into the relevant task journal.
+- Styled the summary as a compact four-card review layer with quiet violet/amber/cyan emphasis and responsive collapse.
+
+Next likely upgrade:
+- Add a defense performance export that packages calendar cadence, recurring weakness, strongest rehearsals, and recovery history into a mentor-ready progress note.

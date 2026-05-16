@@ -17346,12 +17346,28 @@ type PromptPortfolioReviewCalendarDay = {
   missedFromDay?: number;
 };
 
+type PromptDefenseCalendarReviewSummary = {
+  scheduledCount: number;
+  practicedCount: number;
+  missedDebt: number;
+  completionRate: number;
+  recurringQuestionId: string;
+  recurringQuestionLabel: string;
+  recurringRiskCount: number;
+  verdict: string;
+  reviewerScenario: string;
+  recoveryAction: string;
+  recoverySteps: string[];
+  recommendedQueueItem?: PromptPortfolioReviewQueueItem;
+};
+
 type PromptPortfolioGallery = {
   items: PromptPortfolioGalleryItem[];
   best: PromptPortfolioGalleryItem;
   polishTarget: PromptPortfolioGalleryItem;
   reviewQueue: PromptPortfolioReviewQueueItem[];
   reviewCalendar: PromptPortfolioReviewCalendarDay[];
+  defenseCalendarReview: PromptDefenseCalendarReviewSummary;
   averageScore: number;
   readyCount: number;
   defenseGatedCount: number;
@@ -19251,6 +19267,21 @@ function isPromptDefenseSchedulePracticed(
   );
 }
 
+function getPromptDefenseScheduleAttempts(
+  schedule: PromptDefenseCalendarSchedule,
+  rehearsals: PromptMentorRehearsalAttempt[],
+) {
+  return rehearsals
+    .filter(
+      (attempt) =>
+        attempt.taskId === schedule.taskId &&
+        attempt.targetId === schedule.targetId &&
+        attempt.questionId === schedule.questionId &&
+        attempt.savedAt >= schedule.scheduledAt,
+    )
+    .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
 function findPromptDefenseScheduleForPlan(
   schedules: PromptDefenseCalendarSchedule[],
   plan: {
@@ -19295,6 +19326,90 @@ function findPromptReviewQueueForSchedule(
     reviewQueue.find((queueItem) => queueItem.item.id === schedule.targetId && queueItem.nextCheck.questionId === schedule.questionId) ??
     reviewQueue.find((queueItem) => queueItem.item.id === schedule.targetId)
   );
+}
+
+function buildPromptDefenseCalendarReviewSummary({
+  schedules,
+  rehearsals,
+  reviewQueue,
+  selectedDay,
+}: {
+  schedules: PromptDefenseCalendarSchedule[];
+  rehearsals: PromptMentorRehearsalAttempt[];
+  reviewQueue: PromptPortfolioReviewQueueItem[];
+  selectedDay: number;
+}): PromptDefenseCalendarReviewSummary {
+  const anchorDay = Math.min(Math.max(Math.trunc(selectedDay), 1), 90);
+  const recentSchedules = [...schedules]
+    .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt))
+    .slice(0, 14);
+  const practiced = recentSchedules.filter((schedule) => isPromptDefenseSchedulePracticed(schedule, rehearsals));
+  const missed = recentSchedules.filter((schedule) => schedule.day < anchorDay && !isPromptDefenseSchedulePracticed(schedule, rehearsals));
+  const riskByQuestion = new Map<string, { label: string; score: number }>();
+
+  recentSchedules.forEach((schedule) => {
+    const latestAttempt = getPromptDefenseScheduleAttempts(schedule, rehearsals)[0];
+    const isMissed = schedule.day < anchorDay && !latestAttempt && !schedule.completedAt;
+    const scoreGap = latestAttempt ? Math.max(0, PROMPT_MENTOR_DEFENSE_GATE_THRESHOLD - latestAttempt.selfScore) : 0;
+    const current = riskByQuestion.get(schedule.questionId) ?? { label: schedule.questionLabel, score: 0 };
+    riskByQuestion.set(schedule.questionId, {
+      label: schedule.questionLabel,
+      score: current.score + (isMissed ? 3 : 0) + (scoreGap ? 1 + Math.ceil(scoreGap / 8) : 0),
+    });
+  });
+
+  reviewQueue.forEach((queueItem) => {
+    const current = riskByQuestion.get(queueItem.nextCheck.questionId) ?? { label: queueItem.nextCheck.label, score: 0 };
+    riskByQuestion.set(queueItem.nextCheck.questionId, {
+      label: queueItem.nextCheck.label,
+      score: current.score + Math.max(1, queueItem.missingCount) + Math.ceil(queueItem.unlockGap / 12),
+    });
+  });
+
+  const fallbackQuestionId = reviewQueue[0]?.nextCheck.questionId ?? promptMentorDefenseGateQuestions[0]?.id ?? "evidence-boundary";
+  const fallbackQuestionLabel = reviewQueue[0]?.nextCheck.label ?? promptMentorDefenseGateQuestions[0]?.label ?? "Evidence Boundary";
+  const recurringRisk = [...riskByQuestion.entries()].sort((a, b) => b[1].score - a[1].score)[0];
+  const recurringQuestionId = recurringRisk?.[0] ?? fallbackQuestionId;
+  const recurringQuestionLabel = recurringRisk?.[1].label ?? fallbackQuestionLabel;
+  const recurringRiskCount = recurringRisk?.[1].score ?? 0;
+  const completionRate = recentSchedules.length ? Math.round((practiced.length / recentSchedules.length) * 100) : 0;
+  const recommendedQueueItem =
+    reviewQueue.find((queueItem) => queueItem.nextCheck.questionId === recurringQuestionId) ??
+    reviewQueue[0];
+  const verdict =
+    !recentSchedules.length
+      ? "no scheduled defense history"
+      : missed.length > 2
+        ? "rehearsal debt building"
+        : completionRate >= 80
+          ? "defense cadence healthy"
+          : completionRate >= 50
+            ? "cadence needs tightening"
+            : "defense practice unstable";
+
+  return {
+    scheduledCount: recentSchedules.length,
+    practicedCount: practiced.length,
+    missedDebt: missed.length,
+    completionRate,
+    recurringQuestionId,
+    recurringQuestionLabel,
+    recurringRiskCount,
+    verdict,
+    reviewerScenario: recommendedQueueItem
+      ? `A reviewer keeps pressing ${recurringQuestionLabel} on ${recommendedQueueItem.item.title}; the answer must survive without vague confidence or unsupported claims.`
+      : `A mentor asks for ${recurringQuestionLabel} across your portfolio; use one concrete case detail, one uncertainty, one gate, and one measurable next action.`,
+    recoveryAction: recommendedQueueItem
+      ? `Schedule ${recommendedQueueItem.nextCheck.label} on ${recommendedQueueItem.item.title}, then save one timed answer above ${recommendedQueueItem.item.defenseGate.threshold}/100.`
+      : `Schedule one ${recurringQuestionLabel} maintenance rehearsal and archive the strongest answer.`,
+    recoverySteps: [
+      `Open with the exact artifact and question: ${recurringQuestionLabel}.`,
+      "Name one confirmed evidence line and one missing evidence line.",
+      "State the human or output gate that prevents unsafe automation.",
+      "Save the timed rehearsal, then verify the calendar card moves to practiced.",
+    ],
+    recommendedQueueItem,
+  };
 }
 
 function buildPromptPortfolioReviewCalendar(
@@ -19429,6 +19544,12 @@ function buildPromptPortfolioGallery({
   })[0] ?? attachPromptPortfolioDefenseGate(activeItem, mentorRehearsals);
   const reviewQueue = buildPromptPortfolioReviewQueue(items);
   const reviewCalendar = buildPromptPortfolioReviewCalendar(reviewQueue, selectedDay, defenseCalendarSchedules, mentorRehearsals);
+  const defenseCalendarReview = buildPromptDefenseCalendarReviewSummary({
+    schedules: defenseCalendarSchedules,
+    rehearsals: mentorRehearsals,
+    reviewQueue,
+    selectedDay,
+  });
 
   return {
     items,
@@ -19436,6 +19557,7 @@ function buildPromptPortfolioGallery({
     polishTarget,
     reviewQueue,
     reviewCalendar,
+    defenseCalendarReview,
     averageScore: average(items.map((item) => item.showcaseScore)),
     readyCount: items.filter((item) => item.showcaseReady).length,
     defenseGatedCount: items.filter((item) => !item.defenseGate.unlocked).length,
@@ -20900,6 +21022,39 @@ function PromptView() {
     setPlaygroundStatus(`micro-plan scheduled: D${String(planDay.day).padStart(2, "0")} ${planDay.taskLabel}`);
   }
 
+  function loadDefenseCalendarReviewRecovery() {
+    const summary = portfolioGallery.defenseCalendarReview;
+    if (summary.recommendedQueueItem) {
+      loadPortfolioReviewQueueItem(summary.recommendedQueueItem);
+    }
+    const taskId = summary.recommendedQueueItem?.item.taskId ?? activeDailyTask.id;
+    setTaskJournals((current) => {
+      const existing = current[taskId] ?? getEmptyPromptTaskJournal(taskId);
+      return {
+        ...current,
+        [taskId]: {
+          ...existing,
+          answer: [
+            existing.answer.trim(),
+            "",
+            "---",
+            `Defense calendar review summary: ${summary.verdict}`,
+            `Completion: ${summary.completionRate}% · practiced ${summary.practicedCount}/${summary.scheduledCount} · missed debt ${summary.missedDebt}`,
+            `Recurring risk: ${summary.recurringQuestionLabel} (${summary.recurringRiskCount})`,
+            summary.reviewerScenario,
+            "",
+            `Recovery action: ${summary.recoveryAction}`,
+            ...summary.recoverySteps.map((step) => `- ${step}`),
+          ].filter(Boolean).join("\n"),
+          selfScore: Math.max(existing.selfScore, summary.completionRate),
+          versionNote: `defense calendar review ${summary.recurringQuestionLabel}`,
+          savedAt: new Date().toISOString(),
+        },
+      };
+    });
+    setPlaygroundStatus(`defense calendar recovery loaded: ${summary.recurringQuestionLabel}`);
+  }
+
   function loadPortfolioPolishWorkflow() {
     const currentAnswer = activeTaskJournal.answer.trim() || activePortfolioExport.markdown;
     updateTaskJournal({
@@ -22003,10 +22158,32 @@ function PromptView() {
                     {portfolioGallery.reviewCalendar.filter((day) => day.completionStatus === "practiced").length} practiced ·{" "}
                     {portfolioGallery.reviewCalendar.filter((day) => day.completionStatus === "rescheduled").length} rescheduled
                   </em>
-                </div>
-                <p>Turns the blocked review queue into scheduled bootcamp work. Each day links one defense answer to a daily task journal so portfolio practice does not float outside the 90-day system.</p>
               </div>
-              <div className="prompt-portfolio-defense-calendar-grid">
+              <p>Turns the blocked review queue into scheduled bootcamp work. Each day links one defense answer to a daily task journal so portfolio practice does not float outside the 90-day system.</p>
+            </div>
+            <div className="prompt-portfolio-defense-review-summary">
+              <div>
+                <span>completion rate</span>
+                <strong>{portfolioGallery.defenseCalendarReview.completionRate}%</strong>
+                <em>{portfolioGallery.defenseCalendarReview.practicedCount}/{portfolioGallery.defenseCalendarReview.scheduledCount} practiced</em>
+              </div>
+              <div>
+                <span>missed rehearsal debt</span>
+                <strong>{portfolioGallery.defenseCalendarReview.missedDebt}</strong>
+                <em>{portfolioGallery.defenseCalendarReview.verdict}</em>
+              </div>
+              <div>
+                <span>recurring defense risk</span>
+                <strong>{portfolioGallery.defenseCalendarReview.recurringQuestionLabel}</strong>
+                <p>{portfolioGallery.defenseCalendarReview.reviewerScenario}</p>
+              </div>
+              <div>
+                <span>recovery protocol</span>
+                <p>{portfolioGallery.defenseCalendarReview.recoveryAction}</p>
+                <button type="button" onClick={loadDefenseCalendarReviewRecovery}>load recovery</button>
+              </div>
+            </div>
+            <div className="prompt-portfolio-defense-calendar-grid">
                 {portfolioGallery.reviewCalendar.map((planDay) => (
                   <div key={planDay.id} className={`${planDay.queueItem ? "queued" : "maintenance"} ${planDay.completionStatus}`}>
                     <div>

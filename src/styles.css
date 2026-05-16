@@ -15848,6 +15848,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue-list,
 .prompt-portfolio-defense-calendar,
 .prompt-portfolio-defense-calendar-head,
+.prompt-portfolio-defense-review-summary,
 .prompt-portfolio-defense-calendar-grid,
 .prompt-portfolio-gallery-list,
 .prompt-portfolio-polish,
@@ -15938,6 +15939,30 @@ button.load-forecast-day:hover {
 
 .prompt-portfolio-defense-calendar-head {
   grid-template-columns: minmax(180px, 0.3fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-defense-review-summary {
+  grid-template-columns: minmax(130px, 0.16fr) minmax(130px, 0.16fr) minmax(260px, 0.42fr) minmax(220px, 0.26fr);
+}
+
+.prompt-portfolio-defense-review-summary > div {
+  border-color: rgba(170, 114, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.03), transparent 56%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-defense-review-summary > div:nth-child(2) {
+  border-color: rgba(255, 181, 74, 0.16);
+}
+
+.prompt-portfolio-defense-review-summary > div:nth-child(4) {
+  border-color: rgba(53, 215, 255, 0.16);
+}
+
+.prompt-portfolio-defense-review-summary button {
+  width: fit-content;
+  min-height: 28px;
 }
 
 .prompt-portfolio-defense-calendar-grid {
@@ -16031,6 +16056,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue-empty,
 .prompt-portfolio-defense-calendar,
 .prompt-portfolio-defense-calendar-head > div,
+.prompt-portfolio-defense-review-summary > div,
 .prompt-portfolio-defense-calendar-grid > div,
 .prompt-portfolio-gallery-list > div,
 .prompt-portfolio-polish,
@@ -16349,6 +16375,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-summary span,
 .prompt-portfolio-review-queue span,
 .prompt-portfolio-defense-calendar span,
+.prompt-portfolio-defense-review-summary span,
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
@@ -16365,6 +16392,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-summary strong,
 .prompt-portfolio-review-queue strong,
 .prompt-portfolio-defense-calendar strong,
+.prompt-portfolio-defense-review-summary strong,
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
@@ -16380,6 +16408,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-summary p,
 .prompt-portfolio-review-queue p,
 .prompt-portfolio-defense-calendar p,
+.prompt-portfolio-defense-review-summary p,
 .prompt-portfolio-gallery-list p,
 .prompt-portfolio-polish p,
 .prompt-portfolio-defense p,
@@ -16395,6 +16424,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head em,
 .prompt-portfolio-review-queue em,
 .prompt-portfolio-defense-calendar em,
+.prompt-portfolio-defense-review-summary em,
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
@@ -18571,6 +18601,7 @@ button.load-forecast-day:hover {
   .prompt-portfolio-review-queue-head,
   .prompt-portfolio-review-queue-list,
   .prompt-portfolio-defense-calendar-head,
+  .prompt-portfolio-defense-review-summary,
   .prompt-portfolio-defense-calendar-grid,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
@@ -18661,6 +18692,7 @@ button.load-forecast-day:hover {
   .prompt-portfolio-review-queue-head,
   .prompt-portfolio-review-queue-list,
   .prompt-portfolio-defense-calendar-head,
+  .prompt-portfolio-defense-review-summary,
   .prompt-portfolio-defense-calendar-grid,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
