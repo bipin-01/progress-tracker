@@ -15564,6 +15564,7 @@ button.load-forecast-day:hover {
 .prompt-day-control input,
 .prompt-daily-panel-tabs button,
 .prompt-daily-actions button,
+.prompt-task-journal-actions button,
 .prompt-grade-row button,
 .prompt-drill-actions button,
 .prompt-teach-card button,
@@ -15572,6 +15573,7 @@ button.load-forecast-day:hover {
 .prompt-playground-actions button,
 .prompt-playground-actions input,
 .prompt-playground-actions select,
+.prompt-task-journal-controls input,
 .prompt-reference-tabs button,
 .prompt-scenario-tabs button,
 .prompt-concept-tabs button,
@@ -15596,6 +15598,7 @@ button.load-forecast-day:hover {
 .prompt-day-control button:hover,
 .prompt-daily-panel-tabs button:hover,
 .prompt-daily-actions button:hover,
+.prompt-task-journal-actions button:hover,
 .prompt-grade-row button:hover,
 .prompt-drill-actions button:hover,
 .prompt-teach-card button:hover,
@@ -15613,7 +15616,7 @@ button.load-forecast-day:hover {
 
 .prompt-daily-panel-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -15626,7 +15629,8 @@ button.load-forecast-day:hover {
 
 .prompt-day-control input,
 .prompt-playground-actions input,
-.prompt-playground-actions select {
+.prompt-playground-actions select,
+.prompt-task-journal-controls input {
   width: 100%;
 }
 
@@ -15981,7 +15985,116 @@ button.load-forecast-day:hover {
 }
 
 .prompt-daily-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prompt-task-journal,
+.prompt-task-journal-history {
+  display: grid;
+  gap: 8px;
+}
+
+.prompt-task-journal {
+  border: 1px solid rgba(53, 215, 255, 0.15);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.055), transparent 46%),
+    rgba(2, 7, 15, 0.42);
+  padding: 10px;
+}
+
+.prompt-task-journal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prompt-task-journal-head span,
+.prompt-task-journal-controls span,
+.prompt-task-journal-history span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-task-journal-head strong,
+.prompt-task-journal-history strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-task-journal textarea {
+  min-height: 148px;
+  resize: vertical;
+  border: 1px solid rgba(53, 215, 255, 0.18);
+  background: rgba(2, 7, 15, 0.48);
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  outline: none;
+  padding: 10px;
+  transition:
+    border-color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    box-shadow 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-task-journal textarea:focus {
+  border-color: rgba(53, 215, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(53, 215, 255, 0.08);
+}
+
+.prompt-task-journal-controls,
+.prompt-task-journal-actions {
+  display: grid;
+  grid-template-columns: 0.36fr 0.64fr;
+  gap: 6px;
+}
+
+.prompt-task-journal-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prompt-task-journal-controls label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.prompt-task-journal-history button {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.025);
+  color: inherit;
+  padding: 9px;
+  text-align: left;
+  transition:
+    background 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    border-color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-task-journal-history button:hover {
+  border-color: rgba(53, 215, 255, 0.38);
+  background: rgba(53, 215, 255, 0.065);
+  transform: translateX(2px);
+}
+
+.prompt-task-journal-history em,
+.prompt-task-journal-history p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.5;
+  text-transform: none;
 }
 
 .prompt-foundation-card {
@@ -16524,6 +16637,8 @@ button.load-forecast-day:hover {
   .prompt-daily-steps,
   .prompt-daily-proof,
   .prompt-daily-actions,
+  .prompt-task-journal-controls,
+  .prompt-task-journal-actions,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,

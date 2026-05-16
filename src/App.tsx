@@ -16954,11 +16954,29 @@ type PromptIteration = {
   result: string;
 };
 
+type PromptTaskJournalEntry = {
+  id: string;
+  answer: string;
+  selfScore: number;
+  versionNote: string;
+  savedAt: string;
+};
+
+type PromptTaskJournal = {
+  taskId: string;
+  answer: string;
+  selfScore: number;
+  versionNote: string;
+  savedAt: string;
+  history: PromptTaskJournalEntry[];
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
   reviewStates: Record<string, PromptReviewState>;
   iterations: PromptIteration[];
+  taskJournals: Record<string, PromptTaskJournal>;
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -16985,6 +17003,21 @@ function getDefaultPromptReviewStates(day = 1): Record<string, PromptReviewState
   }, {});
 }
 
+function getEmptyPromptTaskJournal(taskId: string): PromptTaskJournal {
+  return {
+    taskId,
+    answer: "",
+    selfScore: 70,
+    versionNote: "",
+    savedAt: "",
+    history: [],
+  };
+}
+
+function isPromptTaskJournal(value: unknown): value is PromptTaskJournal {
+  return Boolean(value && typeof value === "object" && "taskId" in value && "answer" in value);
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17000,6 +17033,11 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
       iterations: Array.isArray(parsed.iterations)
         ? parsed.iterations.filter((item): item is PromptIteration => Boolean(item && typeof item === "object" && "id" in item))
         : [],
+      taskJournals: parsed.taskJournals && typeof parsed.taskJournals === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.taskJournals).filter((entry): entry is [string, PromptTaskJournal] => isPromptTaskJournal(entry[1])),
+          )
+        : {},
       playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
       playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
     };
@@ -17090,6 +17128,7 @@ const promptDailyPanels = [
   { id: "mission", label: "Mission" },
   { id: "lab", label: "Lab" },
   { id: "rubric", label: "Rubric" },
+  { id: "journal", label: "Journal" },
   { id: "future", label: "Future" },
 ] as const;
 
@@ -17119,9 +17158,11 @@ function PromptView() {
   const [iterationTechnique, setIterationTechnique] = useState("structured output");
   const [iterationScore, setIterationScore] = useState(70);
   const [iterations, setIterations] = useState<PromptIteration[]>(initialMemory?.iterations ?? []);
+  const [taskJournals, setTaskJournals] = useState<Record<string, PromptTaskJournal>>(initialMemory?.taskJournals ?? {});
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
   const activeDailyTask = dailyTasks.find((task) => task.id === activeDailyTaskId) ?? dailyTasks[0];
+  const activeTaskJournal = taskJournals[activeDailyTask.id] ?? getEmptyPromptTaskJournal(activeDailyTask.id);
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
   const activeMistake = promptMistakePatterns.find((mistake) => mistake.id === activeMistakeId) ?? promptMistakePatterns[0];
@@ -17147,11 +17188,12 @@ function PromptView() {
       completedTasks: Array.from(completedTasks).sort(),
       reviewStates,
       iterations: iterations.slice(0, 36),
+      taskJournals,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, iterations, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay]);
+  }, [completedTasks, iterations, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -17168,6 +17210,46 @@ function PromptView() {
       else next.add(taskId);
       return next;
     });
+  }
+
+  function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
+    const taskId = activeDailyTask.id;
+    setTaskJournals((current) => {
+      const existing = current[taskId] ?? getEmptyPromptTaskJournal(taskId);
+      return {
+        ...current,
+        [taskId]: {
+          ...existing,
+          ...updates,
+          taskId,
+          savedAt: new Date().toISOString(),
+        },
+      };
+    });
+  }
+
+  function saveTaskJournalAttempt() {
+    const taskId = activeDailyTask.id;
+    const existing = taskJournals[taskId] ?? getEmptyPromptTaskJournal(taskId);
+    const answer = existing.answer.trim();
+    const versionNote = existing.versionNote.trim();
+    if (!answer && !versionNote) return;
+    const entry: PromptTaskJournalEntry = {
+      id: `${taskId}-${Date.now()}`,
+      answer,
+      selfScore: existing.selfScore,
+      versionNote,
+      savedAt: new Date().toISOString(),
+    };
+    setTaskJournals((current) => ({
+      ...current,
+      [taskId]: {
+        ...existing,
+        taskId,
+        savedAt: entry.savedAt,
+        history: [entry, ...existing.history].slice(0, 6),
+      },
+    }));
   }
 
   function gradeTheoryQuestion(question: PromptTheoryQuestion, grade: PromptReviewGrade) {
@@ -17392,6 +17474,61 @@ function PromptView() {
                 </>
               )}
 
+              {activeDailyPanel === "journal" && (
+                <>
+                  <div className="prompt-task-journal">
+                    <div className="prompt-task-journal-head">
+                      <span>task journal</span>
+                      <strong>{activeTaskJournal.history.length} saved attempts</strong>
+                    </div>
+                    <textarea
+                      value={activeTaskJournal.answer}
+                      onChange={(event) => updateTaskJournal({ answer: event.target.value })}
+                      placeholder="Write your actual task answer here: prompt draft, reasoning, evidence split, or rubric result..."
+                    />
+                    <div className="prompt-task-journal-controls">
+                      <label>
+                        <span>self-score</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={activeTaskJournal.selfScore}
+                          onChange={(event) => updateTaskJournal({ selfScore: Math.min(100, Math.max(0, Number(event.target.value) || 0)) })}
+                        />
+                      </label>
+                      <label>
+                        <span>version note</span>
+                        <input
+                          type="text"
+                          value={activeTaskJournal.versionNote}
+                          onChange={(event) => updateTaskJournal({ versionNote: event.target.value })}
+                          placeholder="v1 evidence boundary, v2 stronger rubric..."
+                        />
+                      </label>
+                    </div>
+                    <div className="prompt-task-journal-actions">
+                      <button type="button" onClick={() => updateTaskJournal({ answer: playgroundPrompt })}>pull playground</button>
+                      <button type="button" onClick={() => setPlaygroundPrompt(activeTaskJournal.answer)}>send to lab</button>
+                      <button type="button" onClick={saveTaskJournalAttempt}>save attempt</button>
+                    </div>
+                  </div>
+                  <div className="prompt-task-journal-history">
+                    {activeTaskJournal.history.length ? (
+                      activeTaskJournal.history.map((entry) => (
+                        <button key={entry.id} type="button" onClick={() => setPlaygroundPrompt(entry.answer)}>
+                          <span>{new Date(entry.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {entry.selfScore}/100</span>
+                          <strong>{entry.versionNote || "Saved task attempt"}</strong>
+                          <em>{entry.answer.slice(0, 150)}</em>
+                        </button>
+                      ))
+                    ) : (
+                      <p>// save your first attempt to make this bootcamp measurable</p>
+                    )}
+                  </div>
+                </>
+              )}
+
               {activeDailyPanel === "future" && (
                 <>
                   <div className="prompt-daily-lab">
@@ -17414,6 +17551,7 @@ function PromptView() {
             </div>
             <div className="prompt-daily-actions">
               <button type="button" onClick={() => setPlaygroundPrompt(activeDailyTask.template)}>load task template</button>
+              <button type="button" onClick={() => setActiveDailyPanel("journal")}>open journal</button>
               <button type="button" onClick={() => toggleDailyTask(activeDailyTask.id)}>
                 {completedTasks.has(activeDailyTask.id) ? "mark open" : "mark done"}
               </button>

@@ -66,3 +66,27 @@ Implemented:
 
 Next likely upgrade:
 - Add an in-route task journal with saved learner answers, rubric self-score, and v1/v2/v3 prompt history per day. This would make the bootcamp trackable, not just readable.
+
+### 2026-05-16 - Trackable Daily Task Journal
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and decided the route needed a more relevant practice loop, not just more static explanation.
+
+Problem observed:
+- The task content was richer, but the learner still had no built-in place to do the work.
+- Daily task progress could be marked done, but the app did not capture the actual prompt attempt, self-score, or revision note.
+- The UI had progressive Mission/Lab/Rubric/Future panels, but no trackable work surface connecting those panels to the live prompt lab.
+
+Decision:
+- More task infrastructure was needed. This fit the 70% rule because serious bootcamp content should produce saved artifacts and measurable attempts, not just reading.
+
+Implemented:
+- Added a new Journal panel to every daily task.
+- Added persistent task journals to prompt academy local memory.
+- Each task journal now stores the learner answer, self-score, version note, timestamp, and the last six saved attempts.
+- Added buttons to pull the current playground prompt into the task journal, send the journal answer back to the lab, and save a versioned attempt.
+- Styled the journal as a compact workstation with smooth hover/focus states and quiet history cards.
+
+Next likely upgrade:
+- Add automatic task feedback: when a journal attempt is saved, run the local prompt analyzer against it and attach detected controls, missing controls, and a suggested next revision directly to the saved attempt.
