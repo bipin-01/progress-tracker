@@ -314,3 +314,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a prompt adversary simulator that generates malicious or misleading user instructions inside the evidence packet and tests whether the prompt resists prompt injection while still using legitimate evidence.
+
+### 2026-05-16 - Prompt Adversary Simulator
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because stress testing covered missing/conflicting evidence, but not hostile instructions embedded inside legitimate SOC artifacts.
+
+Problem observed:
+- Packet-safe and stress-hardened prompts could still treat ticket comments, copied logs, emails, or executive notes as if they were trusted instructions.
+- The route needed more realistic adversarial content where the learner must keep useful evidence while refusing malicious directives.
+- UI/UX needed a smooth progression from packet repair to stress testing to injection-resistance hardening.
+
+Decision:
+- More future-facing and real-life adversarial evaluation was needed. This fit the 70% rule because SOC prompt systems will ingest untrusted logs, tickets, emails, and retrieved text that can contain prompt injection attempts.
+
+Implemented:
+- Added a prompt adversary simulator to the Packet panel.
+- The simulator mutates the active evidence packet into three adversarial cases: Ticket Injection, Log Override, and Executive Social Pressure.
+- Each case injects hostile instructions while preserving legitimate evidence, then scores instruction isolation, schema lock, approval gate, uncertainty preservation, and legitimate evidence retention.
+- Added attacker goal, injected line, pass/fix checks, weaknesses, average adversary score, and verdict.
+- Added actions to load the weakest adversary case into the lab or apply an adversary-hardened v4 rewrite to the journal.
+- Styled the simulator as a compact red adversary layer with smooth entry, responsive cards, pass/fix badges, and injection defense rules.
+
+Next likely upgrade:
+- Add a red-team replay history that saves adversary/stress results per task attempt so the learner can compare v2, v3, and v4 resilience over time instead of only seeing the current prompt state.

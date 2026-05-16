@@ -16357,6 +16357,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff span,
 .prompt-evidence-rewrite span,
 .prompt-evidence-stress span,
+.prompt-evidence-adversary span,
 .prompt-daily-mentor span,
 .prompt-daily-proof span,
 .prompt-daily-done span,
@@ -16381,6 +16382,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff strong,
 .prompt-evidence-rewrite strong,
 .prompt-evidence-stress strong,
+.prompt-evidence-adversary strong,
 .prompt-skill-head strong,
 .prompt-bootcamp-card h2 {
   margin: 0;
@@ -16398,6 +16400,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff p,
 .prompt-evidence-rewrite p,
 .prompt-evidence-stress p,
+.prompt-evidence-adversary p,
 .prompt-daily-proof p,
 .prompt-daily-lab p,
 .prompt-daily-future p,
@@ -16426,6 +16429,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff,
 .prompt-evidence-rewrite,
 .prompt-evidence-stress,
+.prompt-evidence-adversary,
 .prompt-daily-mentor,
 .prompt-daily-deliverable,
 .prompt-daily-future {
@@ -16479,7 +16483,9 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite-grid > div,
 .prompt-evidence-rewrite-changes > div,
 .prompt-evidence-stress-head > div,
-.prompt-evidence-stress-cases > div {
+.prompt-evidence-stress-cases > div,
+.prompt-evidence-adversary-head > div,
+.prompt-evidence-adversary-cases > div {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -16501,7 +16507,10 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff em,
 .prompt-evidence-rewrite em,
 .prompt-evidence-stress em,
-.prompt-evidence-stress i {
+.prompt-evidence-stress i,
+.prompt-evidence-adversary em,
+.prompt-evidence-adversary i,
+.prompt-evidence-adversary b {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.035);
   color: var(--ink-1);
@@ -16517,7 +16526,8 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff-board,
 .prompt-evidence-rewrite-grid,
 .prompt-evidence-rewrite-changes,
-.prompt-evidence-stress-cases {
+.prompt-evidence-stress-cases,
+.prompt-evidence-adversary-cases {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
@@ -16529,7 +16539,8 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff-board > div,
 .prompt-evidence-rewrite-grid > div,
 .prompt-evidence-rewrite-changes > div,
-.prompt-evidence-stress-cases > div {
+.prompt-evidence-stress-cases > div,
+.prompt-evidence-adversary-cases > div {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(2, 7, 15, 0.28);
   padding: 8px;
@@ -16540,6 +16551,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite code,
 .prompt-evidence-rewrite pre,
 .prompt-evidence-stress code,
+.prompt-evidence-adversary code,
 .prompt-evidence-builder pre {
   display: block;
   border: 1px solid rgba(53, 215, 255, 0.12);
@@ -16719,6 +16731,85 @@ button.load-forecast-day:hover {
 }
 
 .prompt-evidence-stress-rules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.prompt-evidence-adversary {
+  border-color: rgba(255, 75, 111, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 75, 111, 0.045), transparent 42%),
+    rgba(2, 7, 15, 0.36);
+  animation: prompt-panel-enter 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-evidence-adversary-head {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.28fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.prompt-evidence-adversary-head > div {
+  border: 1px solid rgba(255, 75, 111, 0.22);
+  background: rgba(255, 75, 111, 0.04);
+  padding: 9px;
+}
+
+.prompt-evidence-adversary-head strong {
+  color: var(--red);
+  font-size: 20px;
+}
+
+.prompt-evidence-adversary-cases {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prompt-evidence-adversary-cases > div > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-evidence-adversary-cases strong {
+  color: var(--cyan);
+  font-size: 13px;
+}
+
+.prompt-evidence-adversary code {
+  border-color: rgba(255, 75, 111, 0.18);
+  background: rgba(255, 75, 111, 0.035);
+}
+
+.prompt-evidence-adversary-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.prompt-evidence-adversary-checks span {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 5px 6px;
+}
+
+.prompt-evidence-adversary-checks span.pass {
+  border-color: rgba(158, 255, 102, 0.18);
+  color: var(--lime);
+}
+
+.prompt-evidence-adversary-checks span.fail {
+  border-color: rgba(255, 75, 111, 0.24);
+  color: var(--red);
+}
+
+.prompt-evidence-adversary b {
+  color: var(--zh-gold);
+  font-weight: 400;
+}
+
+.prompt-evidence-adversary-rules {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
@@ -17549,6 +17640,9 @@ button.load-forecast-day:hover {
   .prompt-evidence-stress-head,
   .prompt-evidence-stress-cases,
   .prompt-evidence-stress-rules,
+  .prompt-evidence-adversary-head,
+  .prompt-evidence-adversary-cases,
+  .prompt-evidence-adversary-rules,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -17611,6 +17705,9 @@ button.load-forecast-day:hover {
   .prompt-evidence-stress-head,
   .prompt-evidence-stress-cases,
   .prompt-evidence-stress-rules,
+  .prompt-evidence-adversary-head,
+  .prompt-evidence-adversary-cases,
+  .prompt-evidence-adversary-rules,
   .prompt-evidence-grade-grid,
   .prompt-evidence-actions,
   .prompt-daily-steps,
