@@ -364,3 +364,28 @@ Implemented:
 
 Next likely upgrade:
 - Add an exportable prompt incident report that turns the packet, diff, rewrite, stress harness, adversary harness, and replay history into a SOC-ready markdown report for portfolio evidence.
+
+### 2026-05-16 - Exportable Prompt Incident Report
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the route had evidence, rewrite, stress, adversary, and replay layers, but no durable report artifact for later review.
+
+Problem observed:
+- The Packet panel had strong live diagnostics, but a learner still had to manually stitch together the packet, diff, rewrite score, stress findings, adversary findings, and replay history.
+- UI/UX needed a smoother path from "tested prompt" to "portfolio evidence".
+- Task content needed a real SOC-style reporting artifact so the learner practices explaining evidence boundaries, residual risk, and next reviewer action.
+
+Decision:
+- More scenario-based and future-facing content was needed. This fit the 70% rule because prompt engineering skill compounds when every attempt becomes a reviewable incident artifact, not just a transient score.
+
+Implemented:
+- Added a deterministic Prompt Incident Report generator for `/prompt`.
+- The report packages scenario pressure, confirmed evidence, missing evidence, packet grade, packet diff, packet-safe rewrite, stress harness, adversary simulator, replay history, rewrite notes, and next reviewer action into SOC-ready markdown.
+- Added readiness scoring and verdicts so the report can tell whether it is portfolio-ready, review-ready, training-only, or insufficient.
+- Added a compact report layer inside the Packet panel with score metrics, three reviewer-facing sections, and a scroll-safe markdown preview.
+- Added actions to stage the report in the lab, save it into the active task journal, or copy it to clipboard with a fallback output panel.
+- Styled the report layer to match the existing cyber interface while keeping it quieter than the diagnostic panels around it.
+
+Next likely upgrade:
+- Add a report archive and comparison drawer so exported incident reports can be searched by task, readiness score, weakness, and replay movement across the full 90-day bootcamp.

@@ -17194,6 +17194,23 @@ type PromptRedTeamReplayEntry = {
   verdict: string;
 };
 
+type PromptIncidentReportSection = {
+  id: string;
+  label: string;
+  signal: string;
+  detail: string;
+  items: string[];
+};
+
+type PromptIncidentReport = {
+  reportId: string;
+  readinessScore: number;
+  verdict: string;
+  markdown: string;
+  sections: PromptIncidentReportSection[];
+  metrics: Array<{ label: string; value: string; detail: string }>;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -18237,6 +18254,173 @@ function buildPromptRedTeamReplayEntry({
   };
 }
 
+function formatPromptReportBullets(items: string[]) {
+  return items.length ? items.map((item) => `- ${item}`).join("\n") : "- None recorded.";
+}
+
+function formatPromptReportTable(headers: string[], rows: string[][]) {
+  const cleanCell = (value: string) => value.replace(/\|/g, "\\|").replace(/\n/g, " ").trim();
+  return [
+    `| ${headers.map(cleanCell).join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...rows.map((row) => `| ${row.map(cleanCell).join(" | ")} |`),
+  ].join("\n");
+}
+
+function getPromptIncidentVerdict(score: number) {
+  if (score >= 90) return "portfolio-ready evidence report";
+  if (score >= 78) return "review-ready with minor gaps";
+  if (score >= 62) return "training report, repair before portfolio";
+  return "insufficient evidence report";
+}
+
+function buildPromptIncidentReport({
+  day,
+  task,
+  packet,
+  grade,
+  diff,
+  rewrite,
+  stress,
+  adversary,
+  replayHistory,
+  journal,
+}: {
+  day: number;
+  task: PromptDailyTask;
+  packet: PromptEvidencePacket;
+  grade: PromptEvidencePacketGrade;
+  diff: PromptEvidencePacketDiff;
+  rewrite: PromptEvidenceRewritePreview;
+  stress: PromptEvidenceStressHarness;
+  adversary: PromptEvidenceAdversaryHarness;
+  replayHistory: PromptRedTeamReplayEntry[];
+  journal: PromptTaskJournal;
+}): PromptIncidentReport {
+  const latestReplay = replayHistory[0] ?? null;
+  const replayScore = latestReplay?.combinedScore ?? Math.round((rewrite.afterScore + stress.averageScore + adversary.averageScore) / 3);
+  const readinessScore = Math.round(
+    grade.score * 0.18 +
+      diff.score * 0.18 +
+      rewrite.afterScore * 0.18 +
+      stress.averageScore * 0.18 +
+      adversary.averageScore * 0.18 +
+      replayScore * 0.1,
+  );
+  const verdict = getPromptIncidentVerdict(readinessScore);
+  const reportId = `${packet.packetId}-IR-${getPromptEvidenceChecksum(`${task.id}:${journal.savedAt}:${readinessScore}`)}`;
+  const diffRisks = [
+    ...(diff.omittedCount ? [`${diff.omittedCount} packet line${diff.omittedCount === 1 ? "" : "s"} omitted from the draft`] : []),
+    ...(diff.transformedCount ? [`${diff.transformedCount} packet line${diff.transformedCount === 1 ? "" : "s"} weakly transformed`] : []),
+    ...(diff.inventedClaims.length ? [`${diff.inventedClaims.length} unsupported claim${diff.inventedClaims.length === 1 ? "" : "s"} detected`] : []),
+  ];
+  const stressWeaknesses = stress.cases.flatMap((item) => item.weaknesses.map((weakness) => `${item.label}: ${weakness}`)).slice(0, 4);
+  const adversaryWeaknesses = adversary.cases.flatMap((item) => item.weaknesses.map((weakness) => `${item.label}: ${weakness}`)).slice(0, 4);
+  const sections: PromptIncidentReportSection[] = [
+    {
+      id: "executive-readout",
+      label: "executive readout",
+      signal: `${readinessScore}/100 · ${verdict}`,
+      detail: "A one-screen summary for a reviewer who wants the decision, the evidence boundary, and the remaining risk without reading the whole prompt.",
+      items: [
+        `Scenario: ${packet.scenarioTitle}`,
+        `Decision pressure: ${packet.decisionPressure}`,
+        `Prompt version: ${journal.versionNote || rewrite.verdict}`,
+      ],
+    },
+    {
+      id: "evidence-control",
+      label: "evidence control",
+      signal: `${grade.score}/100 · ${grade.label}`,
+      detail: "Checks whether confirmed evidence, missing evidence, constraints, and output schema survived the learner's prompt.",
+      items: grade.missing.length ? grade.missing : ["Evidence packet coverage is complete enough for review."],
+    },
+    {
+      id: "red-team",
+      label: "red-team pressure",
+      signal: `${stress.averageScore}/${adversary.averageScore}`,
+      detail: "Compares ordinary scenario drift against hostile prompt-injection pressure so the report is useful for future AI safety analysis.",
+      items: [
+        `Weakest stress case: ${stress.weakest.label} (${stress.weakest.score}/100, ${stress.weakest.status})`,
+        `Weakest adversary case: ${adversary.weakest.label} (${adversary.weakest.score}/100, ${adversary.weakest.status})`,
+      ],
+    },
+  ];
+  const metrics = [
+    { label: "packet grade", value: `${grade.score}/100`, detail: grade.label },
+    { label: "packet diff", value: `${diff.score}/100`, detail: diff.label },
+    { label: "rewrite lift", value: `+${Math.max(0, rewrite.scoreDelta)}`, detail: `${rewrite.beforeScore} to ${rewrite.afterScore}` },
+    { label: "stress avg", value: `${stress.averageScore}/100`, detail: stress.verdict },
+    { label: "adversary avg", value: `${adversary.averageScore}/100`, detail: adversary.verdict },
+    { label: "latest replay", value: latestReplay ? `${latestReplay.combinedScore}/100` : "not saved", detail: latestReplay?.verdict ?? "save replay before final review" },
+  ];
+  const validationRows = [
+    ["Packet coverage", `${grade.score}/100`, grade.label, grade.missing.length ? grade.missing.join("; ") : "All core packet elements represented"],
+    ["Packet diff", `${diff.score}/100`, diff.label, diffRisks.length ? diffRisks.join("; ") : "No omissions or invented claims detected"],
+    ["Rewrite preview", `${rewrite.afterScore}/100`, rewrite.verdict, rewrite.changes.map((change) => `${change.label}: ${change.reason}`).join("; ")],
+    ["Stress harness", `${stress.averageScore}/100`, stress.verdict, stressWeaknesses.length ? stressWeaknesses.join("; ") : "Grounding held across stress cases"],
+    ["Adversary harness", `${adversary.averageScore}/100`, adversary.verdict, adversaryWeaknesses.length ? adversaryWeaknesses.join("; ") : "Hostile instructions isolated"],
+  ];
+  const replayRows = replayHistory.length
+    ? replayHistory.slice(0, 5).map((entry) => [
+        new Date(entry.savedAt).toLocaleString(),
+        entry.versionNote,
+        `${entry.combinedScore}/100`,
+        `${entry.weakestStress}; ${entry.weakestAdversary}`,
+      ])
+    : [["Not captured", "No saved replay yet", "N/A", "Save one replay after applying v2/v3/v4 before portfolio export"]];
+  const markdown = [
+    `# Prompt Incident Report: D${String(day).padStart(2, "0")} ${task.label}`,
+    "",
+    `Report ID: ${reportId}`,
+    `Packet: ${packet.packetId}`,
+    `Generated: ${new Date().toLocaleString()}`,
+    `Readiness: ${readinessScore}/100 (${verdict})`,
+    "",
+    "## Executive Readout",
+    `The prompt was evaluated against a SOC evidence packet for ${packet.scenarioTitle}. The current artifact is ${verdict}. The main decision pressure is: ${packet.decisionPressure}`,
+    "",
+    "## Confirmed Evidence",
+    formatPromptReportBullets(packet.confirmedEvidence),
+    "",
+    "## Missing Or Unknown Evidence",
+    formatPromptReportBullets(packet.missingEvidence),
+    "",
+    "## Validation Matrix",
+    formatPromptReportTable(["Control", "Score", "Result", "Reviewer Note"], validationRows),
+    "",
+    "## Stress And Adversary Findings",
+    `Stress verdict: ${stress.verdict}. Weakest case: ${stress.weakest.label} (${stress.weakest.score}/100).`,
+    `Adversary verdict: ${adversary.verdict}. Weakest case: ${adversary.weakest.label} (${adversary.weakest.score}/100).`,
+    "",
+    "### Stress Hardening Rules",
+    formatPromptReportBullets(stress.hardeningRules),
+    "",
+    "### Adversary Defense Rules",
+    formatPromptReportBullets(adversary.defenseRules),
+    "",
+    "## Replay History",
+    formatPromptReportTable(["Saved", "Version", "Score", "Weakest Cases"], replayRows),
+    "",
+    "## Rewrite Notes",
+    formatPromptReportBullets(rewrite.repairMoves),
+    "",
+    "## Next Reviewer Action",
+    diff.inventedClaims.length || diff.omittedCount || stress.averageScore < 78 || adversary.averageScore < 78
+      ? "Repair the weakest omitted, stress, or adversary case first. Do not export this as portfolio evidence until the report can explain why the prompt stayed grounded."
+      : "Archive this as a portfolio-ready evidence packet and use it as a baseline for the next SOC prompt scenario.",
+  ].join("\n");
+
+  return {
+    reportId,
+    readinessScore,
+    verdict,
+    markdown,
+    sections,
+    metrics,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -18595,6 +18779,32 @@ function PromptView() {
     [activeDailyTask.id, redTeamReplayHistory],
   );
   const replayImprovement = activeReplayHistory.length >= 2 ? activeReplayHistory[0].combinedScore - activeReplayHistory[1].combinedScore : 0;
+  const activeIncidentReport = useMemo(
+    () => buildPromptIncidentReport({
+      day: selectedDay,
+      task: activeDailyTask,
+      packet: activeEvidencePacket,
+      grade: activeEvidenceGrade,
+      diff: activeEvidenceDiff,
+      rewrite: activeEvidenceRewrite,
+      stress: activeStressHarness,
+      adversary: activeAdversaryHarness,
+      replayHistory: activeReplayHistory,
+      journal: activeTaskJournal,
+    }),
+    [
+      activeAdversaryHarness,
+      activeDailyTask,
+      activeEvidenceDiff,
+      activeEvidenceGrade,
+      activeEvidencePacket,
+      activeEvidenceRewrite,
+      activeReplayHistory,
+      activeStressHarness,
+      activeTaskJournal,
+      selectedDay,
+    ],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -18833,6 +19043,33 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`replay repair loaded: ${entry.verdict}`);
+  }
+
+  async function copyIncidentReport() {
+    try {
+      await navigator.clipboard.writeText(activeIncidentReport.markdown);
+      setPlaygroundStatus(`incident report copied: ${activeIncidentReport.reportId}`);
+    } catch {
+      setPlaygroundOutput(activeIncidentReport.markdown);
+      setPlaygroundStatus("copy blocked; report staged in output panel");
+    }
+  }
+
+  function stageIncidentReportInLab() {
+    setPlaygroundPrompt(activeIncidentReport.markdown);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`incident report staged: ${activeIncidentReport.readinessScore}/100`);
+  }
+
+  function saveIncidentReportToJournal() {
+    const currentAnswer = activeTaskJournal.answer.trim() || activeEvidenceRewrite.afterPrompt;
+    updateTaskJournal({
+      answer: `${currentAnswer}\n\n---\n${activeIncidentReport.markdown}`,
+      selfScore: Math.max(activeTaskJournal.selfScore, activeIncidentReport.readinessScore),
+      versionNote: `incident report ${activeIncidentReport.reportId}`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`incident report journaled: ${activeIncidentReport.verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -19267,6 +19504,36 @@ function PromptView() {
                         )}
                       </div>
                     </div>
+                    <div className="prompt-evidence-report">
+                      <div className="prompt-evidence-report-head">
+                        <div>
+                          <span>exportable incident report</span>
+                          <strong>{activeIncidentReport.readinessScore}/100</strong>
+                          <em>{activeIncidentReport.verdict}</em>
+                        </div>
+                        <p>Packages packet evidence, rewrite deltas, stress cases, adversary cases, and replay history into one SOC-ready markdown artifact.</p>
+                      </div>
+                      <div className="prompt-evidence-report-metrics">
+                        {activeIncidentReport.metrics.map((metric) => (
+                          <div key={metric.label}>
+                            <span>{metric.label}</span>
+                            <strong>{metric.value}</strong>
+                            <em>{metric.detail}</em>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="prompt-evidence-report-sections">
+                        {activeIncidentReport.sections.map((section) => (
+                          <div key={section.id}>
+                            <span>{section.label}</span>
+                            <strong>{section.signal}</strong>
+                            <p>{section.detail}</p>
+                            {section.items.slice(0, 3).map((item) => <em key={item}>{item}</em>)}
+                          </div>
+                        ))}
+                      </div>
+                      <pre>{activeIncidentReport.markdown}</pre>
+                    </div>
                     <div className="prompt-evidence-tests">
                       <div>
                         <span>acceptance tests</span>
@@ -19291,6 +19558,9 @@ function PromptView() {
                     <button type="button" onClick={loadWeakestAdversaryCaseIntoLab}>load adversary case</button>
                     <button type="button" onClick={applyAdversaryHardenedRewriteToJournal}>apply guarded v4</button>
                     <button type="button" onClick={saveRedTeamReplay}>save replay</button>
+                    <button type="button" onClick={stageIncidentReportInLab}>stage report</button>
+                    <button type="button" onClick={saveIncidentReportToJournal}>journal report</button>
+                    <button type="button" onClick={copyIncidentReport}>copy report</button>
                   </div>
                 </>
               )}
