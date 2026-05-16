@@ -15362,9 +15362,501 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.prompt-academy-page {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 34px;
+}
+
+.prompt-command-grid,
+.prompt-main-grid,
+.prompt-lab-grid,
+.prompt-reference-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.prompt-command-grid {
+  grid-template-columns: minmax(0, 1.3fr) minmax(340px, 0.7fr);
+}
+
+.prompt-main-grid {
+  grid-template-columns: minmax(280px, 0.72fr) minmax(320px, 0.72fr) minmax(360px, 1fr);
+}
+
+.prompt-lab-grid {
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
+}
+
+.prompt-reference-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.prompt-hero-card,
+.prompt-day-card,
+.prompt-phase-card,
+.prompt-roadmap-card,
+.prompt-srs-card,
+.prompt-drill-card,
+.prompt-playground-card,
+.prompt-iteration-card,
+.prompt-reference-card,
+.prompt-scenario-card {
+  min-width: 0;
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.08), transparent 42%),
+    rgba(8, 18, 34, 0.72);
+}
+
+.prompt-hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.6fr);
+  gap: 18px;
+  align-items: end;
+  min-height: 210px;
+}
+
+.prompt-hero-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-hero-copy span,
+.prompt-phase-top span,
+.prompt-day-control,
+.prompt-daily-list em,
+.prompt-roadmap em,
+.prompt-review-card span,
+.prompt-review-card em,
+.prompt-drill-tabs span,
+.prompt-drill-brief span,
+.prompt-scenario-brief span,
+.prompt-scenario-brief em,
+.prompt-iteration-list span,
+.prompt-iteration-list em,
+.prompt-scenario-list span,
+.prompt-scenario-list em,
+.prompt-sysline {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-hero-copy strong {
+  max-width: 820px;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(32px, 5vw, 76px);
+  letter-spacing: 0.08em;
+  line-height: 0.95;
+  text-shadow: 0 0 24px rgba(53, 215, 255, 0.28);
+  text-transform: uppercase;
+}
+
+.prompt-hero-copy p,
+.prompt-phase-card p,
+.prompt-drill-brief p,
+.prompt-scenario-brief strong,
+.prompt-iteration-list p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 13px;
+  line-height: 1.7;
+  text-transform: none;
+}
+
+.prompt-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-hero-metrics div,
+.prompt-reference-body,
+.prompt-scenario-brief,
+.prompt-review-card,
+.prompt-drill-brief {
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(2, 7, 15, 0.38);
+  padding: 12px;
+}
+
+.prompt-hero-metrics span,
+.prompt-hero-metrics em,
+.prompt-phase-card em,
+.prompt-rubric span,
+.prompt-reference-body span {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-hero-metrics strong {
+  display: block;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  margin: 4px 0;
+}
+
+.prompt-day-card,
+.prompt-srs-card,
+.prompt-drill-card,
+.prompt-iteration-card,
+.prompt-reference-card,
+.prompt-scenario-card {
+  display: grid;
+  gap: 12px;
+}
+
+.prompt-day-control {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  gap: 6px;
+}
+
+.prompt-day-control button,
+.prompt-day-control input,
+.prompt-grade-row button,
+.prompt-drill-actions button,
+.prompt-playground-actions button,
+.prompt-playground-actions input,
+.prompt-playground-actions select,
+.prompt-reference-tabs button,
+.prompt-scenario-tabs button {
+  min-height: 34px;
+  border: 1px solid rgba(53, 215, 255, 0.22);
+  background: rgba(2, 7, 15, 0.42);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.prompt-day-control input,
+.prompt-playground-actions input,
+.prompt-playground-actions select {
+  width: 100%;
+}
+
+.prompt-daily-list,
+.prompt-roadmap,
+.prompt-drill-tabs,
+.prompt-iteration-list,
+.prompt-scenario-list {
+  display: grid;
+  gap: 6px;
+}
+
+.prompt-daily-list button,
+.prompt-roadmap button,
+.prompt-drill-tabs button,
+.prompt-iteration-list button,
+.prompt-scenario-list button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.025);
+  padding: 9px;
+  text-align: left;
+}
+
+.prompt-daily-list button.done {
+  border-color: rgba(158, 255, 102, 0.34);
+  background: rgba(158, 255, 102, 0.055);
+}
+
+.prompt-daily-list button > span {
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(53, 215, 255, 0.24);
+  color: var(--cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+}
+
+.prompt-daily-list svg {
+  width: 14px;
+  height: 14px;
+  color: var(--lime);
+}
+
+.prompt-daily-list strong,
+.prompt-roadmap strong,
+.prompt-drill-tabs strong,
+.prompt-review-card strong,
+.prompt-drill-brief strong,
+.prompt-iteration-list strong,
+.prompt-scenario-list strong,
+.prompt-reference-body strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+}
+
+.prompt-daily-list em,
+.prompt-roadmap em,
+.prompt-iteration-list em,
+.prompt-scenario-list em {
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-phase-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.prompt-phase-card {
+  display: grid;
+  gap: 9px;
+  border-color: rgba(53, 215, 255, 0.14);
+}
+
+.prompt-phase-card.active {
+  border-color: rgba(170, 114, 255, 0.48);
+  box-shadow: inset 0 0 30px rgba(170, 114, 255, 0.08);
+}
+
+.prompt-phase-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prompt-phase-top strong,
+.prompt-review-card em {
+  color: var(--violet);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-phase-card h2 {
+  margin: 0;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-phase-tags,
+.prompt-rubric,
+.prompt-reference-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prompt-phase-tags em,
+.prompt-rubric span,
+.prompt-reference-body span {
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background: rgba(53, 215, 255, 0.035);
+  padding: 4px 6px;
+}
+
+.prompt-roadmap button.active,
+.prompt-drill-tabs button.active,
+.prompt-reference-tabs button.active,
+.prompt-scenario-tabs button.active,
+.prompt-scenario-list button.active {
+  border-color: rgba(53, 215, 255, 0.5);
+  background: rgba(53, 215, 255, 0.085);
+}
+
+.prompt-review-card {
+  display: grid;
+  gap: 8px;
+}
+
+.prompt-review-card p {
+  margin: 0;
+  color: var(--ink-1);
+  line-height: 1.6;
+  text-transform: none;
+}
+
+.prompt-grade-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.prompt-grade-row strong {
+  display: block;
+  color: var(--cyan);
+  font-size: 10px;
+}
+
+.prompt-grade-row span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+}
+
+.prompt-question-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.prompt-question-strip i {
+  display: block;
+  height: 8px;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.prompt-question-strip i.due {
+  border-color: rgba(255, 91, 140, 0.46);
+  background: rgba(255, 91, 140, 0.22);
+}
+
+.prompt-question-strip i.soon {
+  border-color: rgba(255, 209, 102, 0.48);
+  background: rgba(255, 209, 102, 0.18);
+}
+
+.prompt-drill-brief {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-drill-actions,
+.prompt-playground-actions,
+.prompt-scenario-tabs,
+.prompt-reference-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prompt-drill-brief pre,
+.prompt-output {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid rgba(170, 114, 255, 0.18);
+  background: rgba(2, 7, 15, 0.52);
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+.prompt-playground-card {
+  display: grid;
+  gap: 10px;
+}
+
+.prompt-playground-card textarea {
+  min-height: 260px;
+  resize: vertical;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background: rgba(2, 7, 15, 0.54);
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  outline: none;
+  padding: 12px;
+}
+
+.prompt-playground-card textarea:focus,
+.prompt-playground-actions input:focus,
+.prompt-playground-actions select:focus,
+.prompt-day-control input:focus {
+  border-color: rgba(53, 215, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(53, 215, 255, 0.08);
+}
+
+.prompt-playground-actions label {
+  display: grid;
+  gap: 3px;
+  min-width: 120px;
+}
+
+.prompt-playground-actions label span {
+  color: var(--ink-2);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.prompt-output {
+  min-height: 220px;
+}
+
+.prompt-iteration-list button {
+  grid-template-columns: 1fr auto;
+}
+
+.prompt-iteration-list strong {
+  color: var(--lime);
+  text-align: right;
+}
+
+.prompt-reference-tabs button,
+.prompt-scenario-tabs button {
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.prompt-reference-body {
+  display: grid;
+  align-content: start;
+}
+
+.prompt-sysline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--muted);
+}
+
+.prompt-sysline strong {
+  color: var(--lime);
+}
+
 @media (max-width: 1280px) {
   .zh-main-grid,
   .zh-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prompt-command-grid,
+  .prompt-main-grid,
+  .prompt-lab-grid,
+  .prompt-reference-grid,
+  .prompt-hero-card,
+  .prompt-phase-grid {
     grid-template-columns: 1fr;
   }
 
@@ -15398,6 +15890,9 @@ button.load-forecast-day:hover {
   .zh-protocol-topbar,
   .zh-streak-strip,
   .zh-right-col,
+  .prompt-hero-metrics,
+  .prompt-grade-row,
+  .prompt-question-strip,
   .zh-decomp-grid,
   .zh-lesson-steps,
   .zh-guided-circuit,

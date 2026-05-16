@@ -66,6 +66,16 @@ import {
   chinesePracticeWordIndex,
   getChinesePracticeDay,
 } from "./chinesePracticePlan";
+import {
+  getPromptDailyTasks,
+  promptDrills,
+  promptMasteryPhases,
+  promptReferenceSheets,
+  promptRoadmapWeeks,
+  promptScenarios,
+  promptTheoryQuestions,
+} from "./promptEngineeringPlan";
+import type { PromptDrill, PromptTheoryQuestion } from "./promptEngineeringPlan";
 import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
@@ -3291,6 +3301,7 @@ const navItems = [
   { id: "kanban", label: "Kanban", Icon: Columns3 },
   { id: "notes", label: "Notes", Icon: NotebookText },
   { id: "chinese", label: "Chinese", Icon: Languages },
+  { id: "prompt", label: "Prompt", Icon: Code2 },
   { id: "calendar", label: "Calendar", Icon: CalendarDays },
   { id: "progress", label: "Progress", Icon: TrendingUp },
   { id: "insights", label: "Insights", Icon: Gauge },
@@ -3335,6 +3346,9 @@ const routeViewMap: Record<string, View> = {
   "/notes": "notes",
   "/chinese": "chinese",
   "/mandarin": "chinese",
+  "/prompt": "prompt",
+  "/prompts": "prompt",
+  "/prompt-engineering": "prompt",
   "/calendar": "calendar",
   "/calender": "calendar",
   "/progress": "progress",
@@ -3690,6 +3704,7 @@ function App() {
         p: "progress",
         i: "insights",
         a: "agents",
+        o: "prompt",
       };
       const nextView = shortcutMap[key];
       if (nextView) {
@@ -3746,15 +3761,17 @@ function App() {
               ? { title: "Study Notes", subtitle: "Reading library // markdown workspace" }
               : activeView === "chinese"
                 ? { title: "Chinese Lab", subtitle: "Mandarin from zero // sound to sentences" }
-                : activeView === "calendar"
-                  ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
-                  : activeView === "progress"
-                    ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
-                    : activeView === "insights"
-                      ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
-                      : activeView === "agents"
-                        ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
-                      : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+                : activeView === "prompt"
+                  ? { title: "Prompt Ops Academy", subtitle: "SOC prompt engineering // 100-level mastery" }
+                  : activeView === "calendar"
+                    ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
+                    : activeView === "progress"
+                      ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
+                      : activeView === "insights"
+                        ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
+                        : activeView === "agents"
+                          ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
+                        : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
   const appCommands: AppCommand[] = [
     { id: "quick-capture", group: "Capture", title: "Universal Quick Capture", hint: "Open Cmd+J capture and route an idea to notes, tasks, calendar, goals, or board.", action: () => openQuickCapture() },
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
@@ -3765,6 +3782,7 @@ function App() {
     { id: "nav-tasks", group: "Navigate", title: "Task Protocol", hint: "Open day-by-day task projects.", action: () => navigateTo("tasks") },
     { id: "nav-kanban", group: "Navigate", title: "Execution Board", hint: "Open Kanban workflow state.", action: () => navigateTo("kanban") },
     { id: "nav-chinese", group: "Navigate", title: "Chinese Lab", hint: "Open Mandarin lessons from sound to sentences.", action: () => navigateTo("chinese") },
+    { id: "nav-prompt", group: "Navigate", title: "Prompt Ops Academy", hint: "Open SOC prompt engineering mastery.", action: () => navigateTo("prompt") },
     { id: "nav-calendar", group: "Navigate", title: "Calendar", hint: "Open deadlines, appointments, and projects.", action: () => navigateTo("calendar") },
     { id: "nav-progress", group: "Navigate", title: "Progress Metrics", hint: "Review streak, focus, and momentum.", action: () => navigateTo("progress") },
     { id: "nav-insights", group: "Navigate", title: "Pattern Analysis", hint: "Open behavior and completion insights.", action: () => navigateTo("insights") },
@@ -4095,6 +4113,8 @@ function App() {
             <NotesView notes={studyNotes} folders={studyFolders} modeRequest={notesModeRequest} />
           ) : activeView === "chinese" ? (
             <ChineseView />
+          ) : activeView === "prompt" ? (
+            <PromptView />
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
@@ -16904,6 +16924,536 @@ function ChineseView() {
     </main>
   );
 
+}
+
+type PromptReviewGrade = "again" | "hard" | "good" | "easy";
+
+type PromptReviewState = {
+  dueDay: number;
+  interval: number;
+  ease: number;
+  reps: number;
+  lapses: number;
+  lastGrade?: PromptReviewGrade;
+  lastReviewedDay?: number;
+};
+
+type PromptIteration = {
+  id: string;
+  drillId: string;
+  version: string;
+  technique: string;
+  body: string;
+  score: number;
+  createdAt: string;
+  result: string;
+};
+
+type PromptMemorySnapshot = {
+  selectedDay: number;
+  completedTasks: string[];
+  reviewStates: Record<string, PromptReviewState>;
+  iterations: PromptIteration[];
+  playgroundPrompt: string;
+  playgroundOutput: string;
+};
+
+const PROMPT_MEMORY_STORAGE_KEY = "focus-os:prompt-academy:v1";
+const PROMPT_LAB_ENDPOINT = import.meta.env.VITE_PROMPT_LAB_ENDPOINT as string | undefined;
+const promptReviewGrades: Array<{ id: PromptReviewGrade; label: string; effect: string }> = [
+  { id: "again", label: "Again", effect: "1d" },
+  { id: "hard", label: "Hard", effect: "short" },
+  { id: "good", label: "Good", effect: "grow" },
+  { id: "easy", label: "Easy", effect: "boost" },
+];
+
+function getDefaultPromptReviewStates(day = 1): Record<string, PromptReviewState> {
+  return promptTheoryQuestions.reduce<Record<string, PromptReviewState>>((states, question, index) => {
+    states[question.id] = {
+      dueDay: index < 3 ? day : Math.min(90, day + index),
+      interval: 1,
+      ease: 2.4,
+      reps: 0,
+      lapses: 0,
+    };
+    return states;
+  }, {});
+}
+
+function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PromptMemorySnapshot>;
+    return {
+      selectedDay: Math.min(Math.max(Math.trunc(Number(parsed.selectedDay) || 1), 1), 90),
+      completedTasks: Array.isArray(parsed.completedTasks) ? parsed.completedTasks.filter((item): item is string => typeof item === "string") : [],
+      reviewStates: {
+        ...getDefaultPromptReviewStates(),
+        ...(parsed.reviewStates && typeof parsed.reviewStates === "object" ? parsed.reviewStates : {}),
+      },
+      iterations: Array.isArray(parsed.iterations)
+        ? parsed.iterations.filter((item): item is PromptIteration => Boolean(item && typeof item === "object" && "id" in item))
+        : [],
+      playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
+      playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function savePromptMemorySnapshot(snapshot: PromptMemorySnapshot) {
+  try {
+    window.localStorage.setItem(PROMPT_MEMORY_STORAGE_KEY, JSON.stringify(snapshot));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function gradePromptReviewState(state: PromptReviewState, grade: PromptReviewGrade, day: number): PromptReviewState {
+  const easeShift = grade === "again" ? -0.28 : grade === "hard" ? -0.12 : grade === "easy" ? 0.18 : 0;
+  const ease = Math.min(3.1, Math.max(1.3, state.ease + easeShift));
+  const reps = grade === "again" ? 0 : state.reps + 1;
+  const lapses = grade === "again" ? state.lapses + 1 : state.lapses;
+  const interval =
+    grade === "again"
+      ? 1
+      : grade === "hard"
+        ? Math.max(1, Math.round(state.interval * 1.25))
+        : grade === "good"
+          ? Math.max(2, Math.round((state.reps ? state.interval : 1) * ease))
+          : Math.max(3, Math.round((state.interval || 1) * ease * 1.7));
+
+  return {
+    dueDay: Math.min(90, day + interval),
+    interval,
+    ease,
+    reps,
+    lapses,
+    lastGrade: grade,
+    lastReviewedDay: day,
+  };
+}
+
+function getPromptReviewStatus(state: PromptReviewState, day: number) {
+  if (state.dueDay <= day) return "due";
+  if (state.dueDay <= day + 2) return "soon";
+  return "scheduled";
+}
+
+function analyzePromptText(prompt: string) {
+  const text = prompt.toLowerCase();
+  const checks = [
+    { id: "role", label: "analyst role", hit: /\b(act as|you are|role|soc|analyst|commander)\b/.test(text) },
+    { id: "evidence", label: "evidence boundary", hit: /\b(evidence|logs?|events?|ioc|source|provided|only)\b/.test(text) },
+    { id: "constraints", label: "constraints", hit: /\b(do not|must|constraint|only|never|avoid|assumption)\b/.test(text) },
+    { id: "format", label: "output contract", hit: /\b(json|table|schema|fields|return|format)\b/.test(text) },
+    { id: "eval", label: "quality rubric", hit: /\b(confidence|severity|score|rubric|validate|criteria)\b/.test(text) },
+    { id: "safety", label: "security safety", hit: /\b(missing|unknown|cite|ground|escalat|contain|human)\b/.test(text) },
+  ];
+  const found = checks.filter((check) => check.hit);
+  const score = Math.min(100, 18 + found.length * 13 + Math.min(4, Math.floor(prompt.length / 260)) * 3);
+  return {
+    score,
+    found: found.map((check) => check.label),
+    missing: checks.filter((check) => !check.hit).map((check) => check.label),
+  };
+}
+
+function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
+  const analysis = analyzePromptText(prompt);
+  const verdict = analysis.score >= 86 ? "production candidate" : analysis.score >= 68 ? "strong draft" : analysis.score >= 48 ? "needs constraints" : "unsafe draft";
+  return [
+    `SOC PROMPT LAB // ${verdict.toUpperCase()}`,
+    `score: ${analysis.score}/100`,
+    `scenario: ${scenario.title}`,
+    "",
+    "detected controls:",
+    ...(analysis.found.length ? analysis.found.map((item) => `- ${item}`) : ["- none"]),
+    "",
+    "missing controls:",
+    ...(analysis.missing.length ? analysis.missing.map((item) => `- ${item}`) : ["- clear"]),
+    "",
+    "next iteration:",
+    `Add ${analysis.missing.slice(0, 2).join(" + ") || "a sharper eval case"} and require the model to separate confirmed evidence from assumptions.`,
+  ].join("\n");
+}
+
+function PromptView() {
+  const initialMemory = useMemo(() => loadPromptMemorySnapshot(), []);
+  const [selectedDay, setSelectedDay] = useState(initialMemory?.selectedDay ?? 1);
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(() => new Set(initialMemory?.completedTasks ?? []));
+  const [reviewStates, setReviewStates] = useState<Record<string, PromptReviewState>>(
+    () => initialMemory?.reviewStates ?? getDefaultPromptReviewStates(1),
+  );
+  const [activeDrillId, setActiveDrillId] = useState(promptDrills[0].id);
+  const [hintOpen, setHintOpen] = useState(false);
+  const [answerOpen, setAnswerOpen] = useState(false);
+  const [activeReferenceId, setActiveReferenceId] = useState(promptReferenceSheets[0].id);
+  const [activeScenarioId, setActiveScenarioId] = useState(promptScenarios[0].id);
+  const [playgroundPrompt, setPlaygroundPrompt] = useState(initialMemory?.playgroundPrompt || promptDrills[0].modelAnswer);
+  const [playgroundOutput, setPlaygroundOutput] = useState(initialMemory?.playgroundOutput ?? "");
+  const [playgroundRunning, setPlaygroundRunning] = useState(false);
+  const [playgroundStatus, setPlaygroundStatus] = useState(PROMPT_LAB_ENDPOINT ? "endpoint linked" : "local evaluator ready");
+  const [iterationTechnique, setIterationTechnique] = useState("structured output");
+  const [iterationScore, setIterationScore] = useState(70);
+  const [iterations, setIterations] = useState<PromptIteration[]>(initialMemory?.iterations ?? []);
+
+  const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
+  const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
+  const activeReference = promptReferenceSheets.find((sheet) => sheet.id === activeReferenceId) ?? promptReferenceSheets[0];
+  const activeScenario = promptScenarios.find((scenario) => scenario.id === activeScenarioId) ?? promptScenarios[0];
+  const dueQuestions = promptTheoryQuestions
+    .map((question) => ({ question, state: reviewStates[question.id] ?? getDefaultPromptReviewStates(selectedDay)[question.id] }))
+    .sort((a, b) => a.state.dueDay - b.state.dueDay || b.question.level - a.question.level);
+  const activeReview = dueQuestions.find((item) => item.state.dueDay <= selectedDay) ?? dueQuestions[0];
+  const completedToday = dailyTasks.filter((task) => completedTasks.has(task.id)).length;
+  const dailyProgress = Math.round((completedToday / Math.max(dailyTasks.length, 1)) * 100);
+  const dueCount = dueQuestions.filter((item) => item.state.dueDay <= selectedDay).length;
+  const retainedCount = dueQuestions.filter((item) => item.state.reps >= 2 && item.state.lapses === 0).length;
+  const phaseProgress = Math.round((selectedDay / 90) * 100);
+  const activePhase = promptMasteryPhases.find((phase) => selectedDay <= phase.days) ?? promptMasteryPhases[0];
+  const activeIterations = iterations.filter((iteration) => iteration.drillId === activeDrill.id).slice(0, 3);
+  const promptEndpoint = PROMPT_LAB_ENDPOINT;
+
+  useEffect(() => {
+    const saved = savePromptMemorySnapshot({
+      selectedDay,
+      completedTasks: Array.from(completedTasks).sort(),
+      reviewStates,
+      iterations: iterations.slice(0, 36),
+      playgroundPrompt,
+      playgroundOutput,
+    });
+    if (!saved) setPlaygroundStatus("memory offline");
+  }, [completedTasks, iterations, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay]);
+
+  function toggleDailyTask(taskId: string) {
+    setCompletedTasks((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+
+  function gradeTheoryQuestion(question: PromptTheoryQuestion, grade: PromptReviewGrade) {
+    setReviewStates((current) => ({
+      ...current,
+      [question.id]: gradePromptReviewState(
+        current[question.id] ?? getDefaultPromptReviewStates(selectedDay)[question.id],
+        grade,
+        selectedDay,
+      ),
+    }));
+  }
+
+  async function runPromptLab() {
+    const prompt = playgroundPrompt.trim();
+    if (!prompt) {
+      setPlaygroundOutput("PROMPT LAB // waiting for input");
+      return;
+    }
+
+    setPlaygroundRunning(true);
+    setPlaygroundStatus(promptEndpoint ? "calling endpoint" : "running local eval");
+    try {
+      if (promptEndpoint) {
+        const response = await fetch(promptEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            scenario: activeScenario,
+            drill: activeDrill,
+          }),
+        });
+        if (!response.ok) throw new Error(`endpoint ${response.status}`);
+        const data = await response.json();
+        setPlaygroundOutput(typeof data.output === "string" ? data.output : JSON.stringify(data, null, 2));
+        setPlaygroundStatus("endpoint complete");
+      } else {
+        setPlaygroundOutput(buildPromptLabSimulation(prompt, activeDrill));
+        setPlaygroundStatus("local eval complete");
+      }
+    } catch (error) {
+      setPlaygroundOutput(`${buildPromptLabSimulation(prompt, activeDrill)}\n\nendpoint note: ${error instanceof Error ? error.message : "unknown failure"}`);
+      setPlaygroundStatus("endpoint failed - local eval used");
+    } finally {
+      setPlaygroundRunning(false);
+    }
+  }
+
+  function savePromptIteration() {
+    const prompt = playgroundPrompt.trim();
+    if (!prompt) return;
+    const analysis = analyzePromptText(prompt);
+    const entry: PromptIteration = {
+      id: `${activeDrill.id}-${Date.now()}`,
+      drillId: activeDrill.id,
+      version: `v${activeIterations.length + 1}`,
+      technique: iterationTechnique,
+      body: prompt,
+      score: iterationScore || analysis.score,
+      createdAt: new Date().toISOString(),
+      result: playgroundOutput || buildPromptLabSimulation(prompt, activeDrill),
+    };
+    setIterations((current) => [entry, ...current].slice(0, 36));
+  }
+
+  return (
+    <main className="prompt-academy-page" aria-label="SOC prompt engineering mastery cockpit">
+      <section className="prompt-command-grid">
+        <HudCard className="prompt-hero-card">
+          <div className="prompt-hero-copy">
+            <span>100-level SOC prompt engineering</span>
+            <strong>Prompt Ops Academy</strong>
+            <p>Phase 1 builds a 90-day operator base; the full track scales into a two-year autonomous defense boot camp.</p>
+          </div>
+          <div className="prompt-hero-metrics">
+            <div>
+              <span>Phase 1</span>
+              <strong>{phaseProgress}%</strong>
+              <em>D{String(selectedDay).padStart(2, "0")} / 90</em>
+            </div>
+            <div>
+              <span>SRS due</span>
+              <strong>{dueCount}</strong>
+              <em>{retainedCount}/{promptTheoryQuestions.length} retained</em>
+            </div>
+            <div>
+              <span>Daily lock</span>
+              <strong>{dailyProgress}%</strong>
+              <em>{completedToday}/{dailyTasks.length} drills</em>
+            </div>
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-day-card">
+          <CardHeader title="Daily Bootcamp" meta={`D${String(selectedDay).padStart(2, "0")}`} />
+          <div className="prompt-day-control">
+            <button type="button" onClick={() => setSelectedDay((day) => Math.max(1, day - 1))}>-</button>
+            <input
+              aria-label="Prompt bootcamp day"
+              type="number"
+              min={1}
+              max={90}
+              value={selectedDay}
+              onChange={(event) => setSelectedDay(Math.min(90, Math.max(1, Number(event.target.value) || 1)))}
+            />
+            <button type="button" onClick={() => setSelectedDay((day) => Math.min(90, day + 1))}>+</button>
+          </div>
+          <div className="prompt-daily-list">
+            {dailyTasks.map((task) => (
+              <button key={task.id} type="button" className={completedTasks.has(task.id) ? "done" : ""} onClick={() => toggleDailyTask(task.id)}>
+                <span>{completedTasks.has(task.id) ? <Check /> : String(task.minutes)}</span>
+                <strong>{task.label}</strong>
+                <em>{task.detail}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="prompt-phase-grid" aria-label="Prompt engineering mastery phases">
+        {promptMasteryPhases.map((phase) => (
+          <HudCard key={phase.id} className={`prompt-phase-card ${phase.id === activePhase.id ? "active" : ""}`}>
+            <div className="prompt-phase-top">
+              <span>{phase.label}</span>
+              <strong>Level {phase.level}</strong>
+            </div>
+            <h2>{phase.role}</h2>
+            <p>{phase.outcome}</p>
+            <div className="prompt-phase-tags">
+              {phase.focus.map((item) => <em key={item}>{item}</em>)}
+            </div>
+          </HudCard>
+        ))}
+      </section>
+
+      <section className="prompt-main-grid">
+        <HudCard className="prompt-roadmap-card">
+          <CardHeader title="12-Week Roadmap" meta="phase 1" />
+          <div className="prompt-roadmap">
+            {promptRoadmapWeeks.map((week) => (
+              <button
+                key={week.week}
+                type="button"
+                className={Math.ceil(selectedDay / 7) === week.week ? "active" : ""}
+                onClick={() => setSelectedDay(Math.min(90, Math.max(1, (week.week - 1) * 7 + 1)))}
+              >
+                <span>W{String(week.week).padStart(2, "0")}</span>
+                <strong>{week.title}</strong>
+                <em>L{week.level} · {week.deliverable}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-srs-card">
+          <CardHeader title="SRS Theory Queue" meta={`${dueCount} due`} />
+          <div className="prompt-review-card">
+            <span>{activeReview.question.tag} · level {activeReview.question.level}</span>
+            <strong>{activeReview.question.question}</strong>
+            <p>{activeReview.question.answer}</p>
+            <em>{getPromptReviewStatus(activeReview.state, selectedDay)} · due D{String(activeReview.state.dueDay).padStart(2, "0")} · {activeReview.state.reps} reps</em>
+          </div>
+          <div className="prompt-grade-row">
+            {promptReviewGrades.map((grade) => (
+              <button key={grade.id} type="button" onClick={() => gradeTheoryQuestion(activeReview.question, grade.id)}>
+                <strong>{grade.label}</strong>
+                <span>{grade.effect}</span>
+              </button>
+            ))}
+          </div>
+          <div className="prompt-question-strip">
+            {dueQuestions.slice(0, 7).map(({ question, state }) => (
+              <i key={question.id} className={getPromptReviewStatus(state, selectedDay)} title={`${question.tag} D${state.dueDay}`} />
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-drill-card">
+          <CardHeader title="Drill Deck" meta={`${promptDrills.length} drills`} />
+          <div className="prompt-drill-tabs">
+            {promptDrills.map((drill) => (
+              <button
+                key={drill.id}
+                type="button"
+                className={drill.id === activeDrill.id ? "active" : ""}
+                onClick={() => {
+                  setActiveDrillId(drill.id);
+                  setHintOpen(false);
+                  setAnswerOpen(false);
+                  setPlaygroundPrompt(drill.modelAnswer);
+                }}
+              >
+                <span>L{drill.level}</span>
+                <strong>{drill.title}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="prompt-drill-brief">
+            <span>{activeDrill.technique}</span>
+            <strong>{activeDrill.situation}</strong>
+            <div className="prompt-drill-actions">
+              <button type="button" onClick={() => setHintOpen((open) => !open)}>{hintOpen ? "hide hint" : "hint"}</button>
+              <button type="button" onClick={() => setAnswerOpen((open) => !open)}>{answerOpen ? "hide model" : "reveal"}</button>
+            </div>
+            {hintOpen && <p>{activeDrill.hint}</p>}
+            {answerOpen && <pre>{activeDrill.modelAnswer}</pre>}
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="prompt-lab-grid">
+        <HudCard className="prompt-playground-card">
+          <CardHeader title="Live Prompt Playground" meta={playgroundStatus} />
+          <div className="prompt-scenario-tabs">
+            {promptScenarios.map((scenario) => (
+              <button
+                key={scenario.id}
+                type="button"
+                className={scenario.id === activeScenario.id ? "active" : ""}
+                onClick={() => setActiveScenarioId(scenario.id)}
+              >
+                {scenario.title}
+              </button>
+            ))}
+          </div>
+          <div className="prompt-scenario-brief">
+            <span>{activeScenario.role}</span>
+            <strong>{activeScenario.incident}</strong>
+            <em>{activeScenario.constraints.join(" · ")}</em>
+          </div>
+          <textarea
+            value={playgroundPrompt}
+            onChange={(event) => setPlaygroundPrompt(event.target.value)}
+            placeholder="Write the SOC prompt you would actually ship..."
+          />
+          <div className="prompt-playground-actions">
+            <button type="button" onClick={() => void runPromptLab()} disabled={playgroundRunning}>
+              {playgroundRunning ? "running" : "run prompt"}
+            </button>
+            <button type="button" onClick={savePromptIteration}>save version</button>
+            <label>
+              <span>score</span>
+              <input type="number" min={0} max={100} value={iterationScore} onChange={(event) => setIterationScore(Number(event.target.value) || 0)} />
+            </label>
+            <label>
+              <span>technique</span>
+              <select value={iterationTechnique} onChange={(event) => setIterationTechnique(event.target.value)}>
+                <option>structured output</option>
+                <option>few-shot</option>
+                <option>RAG grounding</option>
+                <option>agent workflow</option>
+                <option>adversarial guardrail</option>
+              </select>
+            </label>
+          </div>
+          <pre className="prompt-output">{playgroundOutput || "SOC PROMPT LAB // output waiting"}</pre>
+        </HudCard>
+
+        <HudCard className="prompt-iteration-card">
+          <CardHeader title="Iteration Workspace" meta={`${activeIterations.length} saved`} />
+          <div className="prompt-iteration-list">
+            {activeIterations.length ? (
+              activeIterations.map((iteration) => (
+                <button key={iteration.id} type="button" onClick={() => setPlaygroundPrompt(iteration.body)}>
+                  <span>{iteration.version} · {iteration.technique}</span>
+                  <strong>{iteration.score}/100</strong>
+                  <em>{iteration.body.slice(0, 140)}</em>
+                </button>
+              ))
+            ) : (
+              <p>// save v1, v2, and v3 against this drill to compare technique drift</p>
+            )}
+          </div>
+          <div className="prompt-rubric">
+            {activeDrill.scoreRubric.map((item) => <span key={item}>{item}</span>)}
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="prompt-reference-grid">
+        <HudCard className="prompt-reference-card">
+          <CardHeader title="Reference Sheets" meta={`${promptReferenceSheets.length} cards`} />
+          <div className="prompt-reference-tabs">
+            {promptReferenceSheets.map((sheet) => (
+              <button key={sheet.id} type="button" className={sheet.id === activeReference.id ? "active" : ""} onClick={() => setActiveReferenceId(sheet.id)}>
+                {sheet.title}
+              </button>
+            ))}
+          </div>
+          <div className="prompt-reference-body">
+            <strong>{activeReference.signal}</strong>
+            {activeReference.rules.map((rule) => <span key={rule}>{rule}</span>)}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-scenario-card">
+          <CardHeader title="Scenario Exercises" meta={`${promptScenarios.length} cases`} />
+          <div className="prompt-scenario-list">
+            {promptScenarios.map((scenario) => (
+              <button key={scenario.id} type="button" className={scenario.id === activeScenario.id ? "active" : ""} onClick={() => setActiveScenarioId(scenario.id)}>
+                <span>{scenario.role}</span>
+                <strong>{scenario.title}</strong>
+                <em>{scenario.successCriteria.join(" · ")}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+      </section>
+
+      <footer className="prompt-sysline">
+        <span>// prompt ops academy</span>
+        <strong>Phase 1 memory synchronized</strong>
+        <span>{promptEndpoint ? "API bridge linked" : "local lab mode"}</span>
+      </footer>
+    </main>
+  );
 }
 
 function Sidebar({
