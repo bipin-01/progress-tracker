@@ -17249,6 +17249,27 @@ type PromptReportPortfolioReview = {
   reviewerBrief: string;
 };
 
+type PromptPortfolioPromptVersion = {
+  id: string;
+  label: string;
+  score: number;
+  purpose: string;
+  prompt: string;
+};
+
+type PromptPortfolioExportPacket = {
+  exportId: string;
+  title: string;
+  readinessScore: number;
+  verdict: string;
+  pitch: string;
+  metrics: Array<{ label: string; value: string; detail: string }>;
+  storySections: Array<{ label: string; detail: string; proof: string }>;
+  promptVersions: PromptPortfolioPromptVersion[];
+  remediationHistory: string[];
+  markdown: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -18685,6 +18706,156 @@ function buildPromptReportPortfolioReview({
   };
 }
 
+function buildPromptPortfolioExportPacket({
+  day,
+  task,
+  packet,
+  report,
+  review,
+  rewrite,
+  stress,
+  adversary,
+  archive,
+  journal,
+}: {
+  day: number;
+  task: PromptDailyTask;
+  packet: PromptEvidencePacket;
+  report: PromptIncidentReport;
+  review: PromptReportPortfolioReview;
+  rewrite: PromptEvidenceRewritePreview;
+  stress: PromptEvidenceStressHarness;
+  adversary: PromptEvidenceAdversaryHarness;
+  archive: PromptIncidentReportArchiveEntry[];
+  journal: PromptTaskJournal;
+}): PromptPortfolioExportPacket {
+  const exportId = `${report.reportId}-CASE-${getPromptEvidenceChecksum(`${review.score}:${archive.length}:${journal.history.length}`)}`;
+  const promptVersions: PromptPortfolioPromptVersion[] = [
+    {
+      id: "v1",
+      label: "v1 current draft",
+      score: rewrite.beforeScore,
+      purpose: "Baseline artifact before evidence repair.",
+      prompt: rewrite.beforePrompt,
+    },
+    {
+      id: "v2",
+      label: "v2 packet-safe prompt",
+      score: rewrite.afterScore,
+      purpose: "Preserves confirmed evidence, missing data, constraints, schema, and acceptance tests.",
+      prompt: rewrite.afterPrompt,
+    },
+    {
+      id: "v3",
+      label: "v3 stress-hardened prompt",
+      score: stress.averageScore,
+      purpose: "Adds controls for missing logs, contradictions, and executive pressure.",
+      prompt: buildPromptStressHardenedRewrite(rewrite, stress),
+    },
+    {
+      id: "v4",
+      label: "v4 adversary-guarded prompt",
+      score: adversary.averageScore,
+      purpose: "Adds prompt-injection resistance for tickets, copied logs, and authority pressure.",
+      prompt: buildPromptAdversaryHardenedRewrite(rewrite, adversary),
+    },
+  ];
+  const remediationHistory = [
+    ...journal.history.slice(0, 4).map((entry) => `${new Date(entry.savedAt).toLocaleDateString()} · ${entry.versionNote || "journal revision"} · ${entry.selfScore}/100`),
+    ...archive.slice(0, 4).map((entry) => `${new Date(entry.savedAt).toLocaleDateString()} · archived ${entry.readinessScore}/100 · ${entry.verdict}`),
+    ...review.checklist.slice(0, 4).map((item) => `next repair · ${item}`),
+  ].slice(0, 10);
+  const storySections = [
+    {
+      label: "Problem",
+      detail: `A SOC analyst needed a reusable ${task.mode} prompt for ${packet.scenarioTitle}.`,
+      proof: packet.decisionPressure,
+    },
+    {
+      label: "Evidence Boundary",
+      detail: "The case study separates confirmed telemetry, missing data, and safe next action before producing a recommendation.",
+      proof: report.sections.find((section) => section.id === "evidence-control")?.signal ?? `${report.readinessScore}/100 report readiness`,
+    },
+    {
+      label: "Red-Team Result",
+      detail: "The prompt was tested against incomplete telemetry, contradictions, executive pressure, and malicious embedded instructions.",
+      proof: `Stress ${stress.averageScore}/100 · adversary ${adversary.averageScore}/100 · ${review.verdict}.`,
+    },
+    {
+      label: "Portfolio Defense",
+      detail: "A reviewer can inspect the final prompt versions, rubric, remediation history, and archived reports from one packet.",
+      proof: review.shareGate,
+    },
+  ];
+  const readinessScore = Math.round(report.readinessScore * 0.36 + review.score * 0.42 + average(promptVersions.map((version) => version.score)) * 0.22);
+  const verdict =
+    readinessScore >= 90
+      ? "mentor/recruiter-ready case study"
+      : readinessScore >= 78
+        ? "case study needs one mentor pass"
+        : readinessScore >= 62
+          ? "case study needs remediation"
+          : "case study is not ready";
+  const pitch = `Built a SOC prompt engineering case study for ${packet.scenarioTitle}: evidence-bounded triage, packet-safe rewrite, stress testing, prompt-injection defense, and portfolio review in one artifact.`;
+  const metrics = [
+    { label: "report", value: `${report.readinessScore}/100`, detail: report.verdict },
+    { label: "rubric", value: `${review.score}/100`, detail: review.verdict },
+    { label: "stress", value: `${stress.averageScore}/100`, detail: stress.verdict },
+    { label: "adversary", value: `${adversary.averageScore}/100`, detail: adversary.verdict },
+    { label: "archive", value: `${archive.length}`, detail: "saved reports for this task" },
+    { label: "versions", value: `${promptVersions.length}`, detail: "baseline to guarded prompt" },
+  ];
+  const markdown = [
+    `# Portfolio Case Study: D${String(day).padStart(2, "0")} ${task.label}`,
+    "",
+    `Export ID: ${exportId}`,
+    `Scenario: ${packet.scenarioTitle}`,
+    `Readiness: ${readinessScore}/100 (${verdict})`,
+    "",
+    "## 30-Second Pitch",
+    pitch,
+    "",
+    "## Case Study Story",
+    formatPromptReportTable(["Section", "What To Say", "Proof"], storySections.map((section) => [section.label, section.detail, section.proof])),
+    "",
+    "## Portfolio Metrics",
+    formatPromptReportTable(["Metric", "Value", "Detail"], metrics.map((metric) => [metric.label, metric.value, metric.detail])),
+    "",
+    "## Final Prompt Versions",
+    formatPromptReportTable(["Version", "Score", "Purpose"], promptVersions.map((version) => [version.label, `${version.score}/100`, version.purpose])),
+    "",
+    "## Remediation History",
+    formatPromptReportBullets(remediationHistory),
+    "",
+    "## Portfolio Review Rubric",
+    formatPromptReportTable(
+      ["Criterion", "Score", "Status", "Reviewer Risk"],
+      review.criteria.map((criterion) => [criterion.label, `${criterion.score}/100`, criterion.status, criterion.reviewerRisk]),
+    ),
+    "",
+    "## Final Prompt To Discuss",
+    "```text",
+    promptVersions[promptVersions.length - 1]?.prompt ?? rewrite.afterPrompt,
+    "```",
+    "",
+    "## What I Would Improve Next",
+    formatPromptReportBullets(review.checklist),
+  ].join("\n");
+
+  return {
+    exportId,
+    title: `D${String(day).padStart(2, "0")} ${task.label}`,
+    readinessScore,
+    verdict,
+    pitch,
+    metrics,
+    storySections,
+    promptVersions,
+    remediationHistory,
+    markdown,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -19119,6 +19290,32 @@ function PromptView() {
       activeStressHarness,
     ],
   );
+  const activePortfolioExport = useMemo(
+    () => buildPromptPortfolioExportPacket({
+      day: selectedDay,
+      task: activeDailyTask,
+      packet: activeEvidencePacket,
+      report: activeIncidentReport,
+      review: activeReportReview,
+      rewrite: activeEvidenceRewrite,
+      stress: activeStressHarness,
+      adversary: activeAdversaryHarness,
+      archive: activeReportArchive,
+      journal: activeTaskJournal,
+    }),
+    [
+      activeAdversaryHarness,
+      activeDailyTask,
+      activeEvidencePacket,
+      activeEvidenceRewrite,
+      activeIncidentReport,
+      activeReportArchive,
+      activeReportReview,
+      activeStressHarness,
+      activeTaskJournal,
+      selectedDay,
+    ],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -19428,6 +19625,33 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`portfolio review checklist loaded: ${activeReportReview.verdict}`);
+  }
+
+  async function copyPortfolioCaseStudy() {
+    try {
+      await navigator.clipboard.writeText(activePortfolioExport.markdown);
+      setPlaygroundStatus(`portfolio case copied: ${activePortfolioExport.exportId}`);
+    } catch {
+      setPlaygroundOutput(activePortfolioExport.markdown);
+      setPlaygroundStatus("copy blocked; case study staged in output panel");
+    }
+  }
+
+  function stagePortfolioCaseStudy() {
+    setPlaygroundPrompt(activePortfolioExport.markdown);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`portfolio case staged: ${activePortfolioExport.readinessScore}/100`);
+  }
+
+  function savePortfolioCaseStudyToJournal() {
+    const currentAnswer = activeTaskJournal.answer.trim() || activeEvidenceRewrite.afterPrompt;
+    updateTaskJournal({
+      answer: `${currentAnswer}\n\n---\n${activePortfolioExport.markdown}`,
+      selfScore: Math.max(activeTaskJournal.selfScore, activePortfolioExport.readinessScore),
+      versionNote: `portfolio case ${activePortfolioExport.exportId}`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`portfolio case journaled: ${activePortfolioExport.verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -19957,6 +20181,53 @@ function PromptView() {
                             <button type="button" onClick={loadReportReviewChecklist}>load checklist into journal</button>
                           </div>
                         </div>
+                        <div className="prompt-evidence-portfolio">
+                          <div className="prompt-evidence-portfolio-head">
+                            <div>
+                              <span>portfolio export packet</span>
+                              <strong>{activePortfolioExport.readinessScore}/100</strong>
+                              <em>{activePortfolioExport.verdict}</em>
+                            </div>
+                            <p>{activePortfolioExport.pitch}</p>
+                          </div>
+                          <div className="prompt-evidence-portfolio-metrics">
+                            {activePortfolioExport.metrics.map((metric) => (
+                              <div key={metric.label}>
+                                <span>{metric.label}</span>
+                                <strong>{metric.value}</strong>
+                                <em>{metric.detail}</em>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="prompt-evidence-portfolio-story">
+                            {activePortfolioExport.storySections.map((section) => (
+                              <div key={section.label}>
+                                <span>{section.label}</span>
+                                <p>{section.detail}</p>
+                                <em>{section.proof}</em>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="prompt-evidence-portfolio-versions">
+                            {activePortfolioExport.promptVersions.map((version) => (
+                              <div key={version.id}>
+                                <div>
+                                  <span>{version.label}</span>
+                                  <strong>{version.score}/100</strong>
+                                </div>
+                                <p>{version.purpose}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="prompt-evidence-portfolio-remediation">
+                            <div>
+                              <span>remediation history</span>
+                              <strong>{activePortfolioExport.remediationHistory.length} notes</strong>
+                            </div>
+                            {activePortfolioExport.remediationHistory.map((item) => <em key={item}>{item}</em>)}
+                          </div>
+                          <pre>{activePortfolioExport.markdown}</pre>
+                        </div>
                         <div className="prompt-evidence-report-list">
                           {filteredIncidentReports.length ? filteredIncidentReports.map((entry) => (
                             <button key={entry.id} type="button" onClick={() => loadArchivedIncidentReport(entry)}>
@@ -20004,6 +20275,9 @@ function PromptView() {
                     <button type="button" onClick={stageIncidentReportInLab}>stage report</button>
                     <button type="button" onClick={saveIncidentReportToJournal}>journal report</button>
                     <button type="button" onClick={loadReportReviewChecklist}>review checklist</button>
+                    <button type="button" onClick={stagePortfolioCaseStudy}>stage case</button>
+                    <button type="button" onClick={savePortfolioCaseStudyToJournal}>journal case</button>
+                    <button type="button" onClick={copyPortfolioCaseStudy}>copy case</button>
                     <button type="button" onClick={copyIncidentReport}>copy report</button>
                   </div>
                 </>

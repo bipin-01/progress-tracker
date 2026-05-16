@@ -440,3 +440,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a portfolio export packet that bundles the report, review rubric, remediation history, and final prompt versions into one recruiter/mentor-ready case study view.
+
+### 2026-05-16 - Portfolio Case Study Export Packet
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the rubric could judge a report, but the route still did not package the work into a single mentor/recruiter-ready case study.
+
+Problem observed:
+- The Packet panel had an incident report, archive, and review gate, but a learner still had to manually assemble the story, final prompt versions, remediation history, and reviewer proof.
+- UI/UX needed a smoother final mile from "reviewed report" to "case study artifact".
+- Task content needed a richer professional narrative that explains what problem was solved, what evidence controlled the answer, how the prompt was red-teamed, and what the learner would improve next.
+
+Decision:
+- More future-facing and real-life portfolio content was needed. This fit the 70% rule because a strong bootcamp should produce artifacts that can be discussed with mentors, hiring reviewers, or SOC leads without requiring the app to be open.
+
+Implemented:
+- Added a deterministic portfolio case study export packet for `/prompt`.
+- The export bundles the incident report, portfolio rubric, final prompt versions, remediation history, story sections, metrics, and a recruiter/mentor-oriented markdown case study.
+- Added four prompt versions to the packet: v1 current draft, v2 packet-safe prompt, v3 stress-hardened prompt, and v4 adversary-guarded prompt.
+- Added case study story sections for Problem, Evidence Boundary, Red-Team Result, and Portfolio Defense.
+- Added remediation history drawn from journal attempts, archived reports, and the active review checklist.
+- Added a compact portfolio export panel inside the report archive with metrics, story cards, version cards, remediation notes, and scroll-safe markdown preview.
+- Added actions to stage the case study in the lab, journal it into the active task, or copy it to clipboard with output-panel fallback.
+
+Next likely upgrade:
+- Add a portfolio gallery route or panel that ranks all prompt case studies across the bootcamp and highlights the top artifacts to polish first.
