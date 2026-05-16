@@ -17488,6 +17488,21 @@ type PromptMentorDefenseSimulator = {
   mockInterviewScript: string;
 };
 
+type PromptMentorInterruptionSimulator = {
+  question: PromptMentorDefenseQuestion;
+  severity: "baseline" | "pressure" | "intervention";
+  title: string;
+  scenario: string;
+  interruptionLine: string;
+  hostileFollowUp: string;
+  failureTrap: string;
+  recoveryMove: string;
+  responseProtocol: string[];
+  passCriteria: string[];
+  answerFrame: string;
+  timeboxSeconds: number;
+};
+
 type PromptMentorRehearsalAttempt = {
   id: string;
   taskId: string;
@@ -20212,6 +20227,161 @@ function buildPromptMentorAnswerTemplate(question: PromptMentorDefenseQuestion, 
   ].join("\n");
 }
 
+function buildPromptMentorInterruptionSimulator({
+  comparison,
+  questions,
+  activeQuestion,
+  target,
+}: {
+  comparison: PromptDefensePerformanceComparison;
+  questions: PromptMentorDefenseQuestion[];
+  activeQuestion: PromptMentorDefenseQuestion;
+  target: PromptPortfolioGalleryItem;
+}): PromptMentorInterruptionSimulator {
+  const repeatedQuestion =
+    questions.find((question) => question.label === comparison.current.recurringQuestionLabel) ??
+    questions.find((question) => question.id === comparison.current.recurringQuestionLabel) ??
+    activeQuestion;
+  const pressureQuestion = comparison.repeatedWeakness || comparison.debtDelta > 0 || comparison.current.missedDebt > 1
+    ? repeatedQuestion
+    : activeQuestion;
+  const severity: PromptMentorInterruptionSimulator["severity"] =
+    comparison.repeatedWeakness || comparison.current.missedDebt > 2
+      ? "intervention"
+      : comparison.debtDelta > 0 || comparison.current.readinessScore < 74
+        ? "pressure"
+        : "baseline";
+  const byQuestion: Record<string, Omit<PromptMentorInterruptionSimulator, "question" | "severity" | "title" | "scenario" | "answerFrame" | "timeboxSeconds">> = {
+    "evidence-boundary": {
+      interruptionLine: "You keep saying the alert is risky. Which exact evidence line proves that, and what are you refusing to infer?",
+      hostileFollowUp: "Assume the manager wants an answer now. What do you still refuse to claim?",
+      failureTrap: "Do not answer with general confidence language, and do not invent telemetry that was not in the packet.",
+      recoveryMove: "Downgrade the claim, name the missing evidence, and give the safest next action that still helps the SOC team.",
+      responseProtocol: [
+        "Pause and name one confirmed packet fact before explaining risk.",
+        "Name one missing log, approval, or context item that limits the conclusion.",
+        "State the exact boundary: what the prompt cannot infer or automate.",
+        "Close with one safe next action that collects evidence or asks for review.",
+      ],
+      passCriteria: [
+        "Uses at least one concrete case detail.",
+        "Says one claim is unknown or not allowed to infer.",
+        "Ends with a bounded next action instead of a confident verdict.",
+      ],
+    },
+    "red-team-proof": {
+      interruptionLine: "A ticket comment says to ignore your rules and mark the alert benign. Why does your prompt treat that as evidence instead of instruction?",
+      hostileFollowUp: "What breaks if the malicious text looks like it came from a senior analyst?",
+      failureTrap: "Do not say 'guardrails' without describing the authority boundary and observed result.",
+      recoveryMove: "Separate content from authority, name the injected instruction, then explain the test result that proves the prompt resisted it.",
+      responseProtocol: [
+        "Quote or paraphrase the hostile instruction as untrusted evidence.",
+        "Name the failure it was trying to cause.",
+        "Explain the guardrail that strips instruction authority from copied ticket text.",
+        "State the observed or expected result under the final prompt.",
+      ],
+      passCriteria: [
+        "Distinguishes untrusted evidence from developer/user instructions.",
+        "Names the attack and failure mode.",
+        "Explains why useful evidence remains usable after isolation.",
+      ],
+    },
+    "output-contract": {
+      interruptionLine: "If two analysts run this prompt on the same case, how do you know their outputs are comparable?",
+      hostileFollowUp: "Which field catches missing evidence before the report sounds more certain than it is?",
+      failureTrap: "Do not answer with 'structured output' alone; structure is not a contract unless it has checks.",
+      recoveryMove: "Name required fields, evidence mapping, missing-data disclosure, confidence, and acceptance tests as one operational contract.",
+      responseProtocol: [
+        "Name the fields that must appear every time.",
+        "Tie each field to a handoff or safety reason.",
+        "Explain how missing-data disclosure prevents false certainty.",
+        "Close with one acceptance test that makes reruns comparable.",
+      ],
+      passCriteria: [
+        "Names fields and why they exist.",
+        "Connects output structure to analyst handoff risk.",
+        "Includes an acceptance test or rerun check.",
+      ],
+    },
+    tradeoffs: {
+      interruptionLine: "Why didn't you just automate the escalation or containment step if the alert looked suspicious?",
+      hostileFollowUp: "What is the cost of being too cautious here, and why is that cost acceptable?",
+      failureTrap: "Do not hide behind 'human in the loop' unless you can name the missing approval or impact data.",
+      recoveryMove: "Defend restraint as a design choice: destructive action, missing evidence, human gate, safer next move.",
+      responseProtocol: [
+        "Name the specific action you refused to automate.",
+        "Name the missing approval, impact, or telemetry.",
+        "Explain the human/output gate.",
+        "Defend the safer next move even if it is slower.",
+      ],
+      passCriteria: [
+        "Identifies a concrete non-automated action.",
+        "Explains the missing condition that blocks automation.",
+        "Defends restraint as security quality, not uncertainty panic.",
+      ],
+    },
+    improvement: {
+      interruptionLine: "Your case sounds polished. What is still weak, and how would you prove the next version is better?",
+      hostileFollowUp: "Give me a metric, not a vibe.",
+      failureTrap: "Do not say you would add examples unless you can name the experiment and success condition.",
+      recoveryMove: "Name one weakness, one replay or eval, one measurable success metric, and what artifact you would archive after the fix.",
+      responseProtocol: [
+        "Start with the current weakest point, not a generic goal.",
+        "Define one experiment or replay.",
+        "Name the success metric.",
+        "Say what evidence would be archived after the improvement.",
+      ],
+      passCriteria: [
+        "Names a specific weakness.",
+        "Defines a measurable experiment.",
+        "Explains how the next artifact would prove improvement.",
+      ],
+    },
+  };
+  const script = byQuestion[pressureQuestion.id] ?? byQuestion.improvement;
+  const title =
+    severity === "intervention"
+      ? `${pressureQuestion.label} interruption intervention`
+      : severity === "pressure"
+        ? `${pressureQuestion.label} pressure challenge`
+        : `${pressureQuestion.label} clean interruption`;
+  const scenario = [
+    `A mentor interrupts your ${target.title} defense after 20 seconds.`,
+    comparison.repeatedWeakness
+      ? `${pressureQuestion.label} repeated across progress notes, so this must be answered without sliding back into the old pattern.`
+      : `The latest export points at ${comparison.current.recurringQuestionLabel}; use the interruption to prove you can recover under live review pressure.`,
+    comparison.current.missedDebt
+      ? `There is ${comparison.current.missedDebt} missed rehearsal debt, so the answer must be shorter and more evidence-bound than usual.`
+      : "There is no major missed-debt signal, so use the interruption as a precision drill.",
+  ].join(" ");
+  const answerFrame = [
+    `Interrupted mentor defense: ${pressureQuestion.label}`,
+    `Artifact: ${target.title}`,
+    "",
+    `Mentor interruption: "${script.interruptionLine}"`,
+    `Follow-up pressure: "${script.hostileFollowUp}"`,
+    "",
+    "Recovery answer frame:",
+    "1. Acknowledge the interruption in one sentence:",
+    "2. Concrete case evidence:",
+    "3. Boundary, missing evidence, or authority limit:",
+    "4. Safe next action or measurable proof:",
+    "",
+    `Avoid: ${script.failureTrap}`,
+    `Recovery move: ${script.recoveryMove}`,
+  ].join("\n");
+
+  return {
+    question: pressureQuestion,
+    severity,
+    title,
+    scenario,
+    answerFrame,
+    timeboxSeconds: severity === "intervention" ? 120 : 90,
+    ...script,
+  };
+}
+
 function buildPromptMentorRehearsalCoaching(answer: string, question: PromptMentorDefenseQuestion) {
   const normalized = answer.toLowerCase();
   const checks = [
@@ -20656,6 +20826,7 @@ function PromptView() {
   const [activePolishStepId, setActivePolishStepId] = useState("pitch");
   const [activeDefenseQuestionId, setActiveDefenseQuestionId] = useState("evidence-boundary");
   const [defenseRehearsalSeconds, setDefenseRehearsalSeconds] = useState(90);
+  const [defenseRehearsalTimebox, setDefenseRehearsalTimebox] = useState(90);
   const [defenseRehearsalRunning, setDefenseRehearsalRunning] = useState(false);
   const [defenseRehearsalAnswer, setDefenseRehearsalAnswer] = useState("");
   const [defenseRehearsalSelfScore, setDefenseRehearsalSelfScore] = useState(72);
@@ -20870,6 +21041,15 @@ function PromptView() {
       }),
     [mentorDefenseSimulator.questions, mentorDefenseSimulator.target, mentorTargetRehearsals],
   );
+  const mentorInterruptionSimulator = useMemo(
+    () => buildPromptMentorInterruptionSimulator({
+      comparison: portfolioGallery.defensePerformanceComparison,
+      questions: mentorDefenseSimulator.questions,
+      activeQuestion: activeDefenseQuestion,
+      target: mentorDefenseSimulator.target,
+    }),
+    [activeDefenseQuestion, mentorDefenseSimulator.questions, mentorDefenseSimulator.target, portfolioGallery.defensePerformanceComparison],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -20978,12 +21158,14 @@ function PromptView() {
       queuedDefenseRehearsalRef.current = null;
       setDefenseRehearsalRunning(false);
       setDefenseRehearsalSeconds(queued.seconds);
+      setDefenseRehearsalTimebox(queued.seconds);
       setDefenseRehearsalAnswer(queued.answer);
       setDefenseRehearsalSelfScore(queued.score);
       return;
     }
     setDefenseRehearsalRunning(false);
     setDefenseRehearsalSeconds(90);
+    setDefenseRehearsalTimebox(90);
     setDefenseRehearsalAnswer(buildPromptMentorAnswerTemplate(activeDefenseQuestion, mentorDefenseSimulator.target));
     setDefenseRehearsalSelfScore(Math.min(92, Math.max(62, Math.round(activeDefenseQuestion.score))));
   }, [activeDefenseQuestion, mentorDefenseSimulator.target]);
@@ -21296,6 +21478,7 @@ function PromptView() {
     setActiveDefenseQuestionId(missingCheck.questionId);
     setDefenseRehearsalRunning(false);
     setDefenseRehearsalSeconds(90);
+    setDefenseRehearsalTimebox(90);
     setDefenseRehearsalAnswer(recoveryAnswer);
     setDefenseRehearsalSelfScore(Math.max(62, missingCheck.latestScore || item.showcaseScore));
     setSelectedDay(item.day);
@@ -21538,7 +21721,7 @@ function PromptView() {
   }
 
   function startMentorRehearsal() {
-    setDefenseRehearsalSeconds((seconds) => (seconds > 0 ? seconds : 90));
+    setDefenseRehearsalSeconds((seconds) => (seconds > 0 ? seconds : defenseRehearsalTimebox));
     setDefenseRehearsalRunning(true);
     setPlaygroundStatus(`timed rehearsal started: ${activeDefenseQuestion.label}`);
   }
@@ -21546,9 +21729,58 @@ function PromptView() {
   function resetMentorRehearsal() {
     setDefenseRehearsalRunning(false);
     setDefenseRehearsalSeconds(90);
+    setDefenseRehearsalTimebox(90);
     setDefenseRehearsalAnswer(defenseAnswerTemplate);
     setDefenseRehearsalSelfScore(Math.min(92, Math.max(62, Math.round(activeDefenseQuestion.score))));
     setPlaygroundStatus("mentor-defense rehearsal reset");
+  }
+
+  function loadMentorInterruptionDrill() {
+    const drill = mentorInterruptionSimulator;
+    const startingScore = Math.max(
+      58,
+      Math.min(86, Math.round(drill.question.score) - (drill.severity === "intervention" ? 10 : drill.severity === "pressure" ? 6 : 3)),
+    );
+    const queuedDraft = {
+      questionId: drill.question.id,
+      answer: drill.answerFrame,
+      seconds: drill.timeboxSeconds,
+      score: startingScore,
+    };
+    if (drill.question.id !== activeDefenseQuestion.id) {
+      queuedDefenseRehearsalRef.current = queuedDraft;
+      setActiveDefenseQuestionId(drill.question.id);
+    }
+    setDefenseRehearsalRunning(false);
+    setDefenseRehearsalSeconds(drill.timeboxSeconds);
+    setDefenseRehearsalTimebox(drill.timeboxSeconds);
+    setDefenseRehearsalAnswer(drill.answerFrame);
+    setDefenseRehearsalSelfScore(startingScore);
+    updateTaskJournal({
+      answer: [
+        activeTaskJournal.answer.trim(),
+        "",
+        "---",
+        `Mentor interruption simulator: ${drill.title}`,
+        `Severity: ${drill.severity} · source: ${portfolioGallery.defensePerformanceComparison.verdict}`,
+        drill.scenario,
+        "",
+        `Interruption: ${drill.interruptionLine}`,
+        `Follow-up: ${drill.hostileFollowUp}`,
+        `Failure trap: ${drill.failureTrap}`,
+        `Recovery move: ${drill.recoveryMove}`,
+        "",
+        "Response protocol:",
+        ...drill.responseProtocol.map((step) => `- ${step}`),
+        "",
+        "Pass criteria:",
+        ...drill.passCriteria.map((item) => `- ${item}`),
+      ].filter(Boolean).join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, startingScore),
+      versionNote: `mentor interruption ${drill.question.label}`,
+    });
+    setActiveDailyPanel("packet");
+    setPlaygroundStatus(`mentor interruption loaded: ${drill.question.label}`);
   }
 
   function saveMentorRehearsalAttempt() {
@@ -21557,7 +21789,7 @@ function PromptView() {
       setPlaygroundStatus("write a rehearsal answer before saving");
       return;
     }
-    const elapsedSeconds = Math.max(1, 90 - defenseRehearsalSeconds);
+    const elapsedSeconds = Math.max(1, defenseRehearsalTimebox - defenseRehearsalSeconds);
     const savedAt = new Date().toISOString();
     const verdict = getPromptMentorRehearsalVerdict(defenseRehearsalSelfScore);
     const attempt: PromptMentorRehearsalAttempt = {
@@ -21616,6 +21848,7 @@ function PromptView() {
     }
     setDefenseRehearsalRunning(false);
     setDefenseRehearsalSeconds(recoveryDraft.seconds);
+    setDefenseRehearsalTimebox(recoveryDraft.seconds);
     setDefenseRehearsalAnswer(recoveryDraft.answer);
     setDefenseRehearsalSelfScore(recoveryDraft.score);
     updateTaskJournal({
@@ -22825,7 +23058,29 @@ function PromptView() {
                   <p>Practice a tight spoken answer before saving it. The goal is not a long essay; it is evidence, boundary, tradeoff, and next action under review pressure.</p>
                 </div>
                 <div className="prompt-portfolio-rehearsal-meter">
-                  <i style={{ width: `${Math.min(100, Math.max(0, Math.round(((90 - defenseRehearsalSeconds) / 90) * 100)))}%` }} />
+                  <i style={{ width: `${Math.min(100, Math.max(0, Math.round(((defenseRehearsalTimebox - defenseRehearsalSeconds) / Math.max(defenseRehearsalTimebox, 1)) * 100)))}%` }} />
+                </div>
+                <div className={`prompt-portfolio-interruption ${mentorInterruptionSimulator.severity}`}>
+                  <div>
+                    <span>mentor interruption simulator</span>
+                    <strong>{mentorInterruptionSimulator.title}</strong>
+                    <em>{mentorInterruptionSimulator.severity} · {mentorInterruptionSimulator.timeboxSeconds}s</em>
+                  </div>
+                  <div>
+                    <span>live challenge</span>
+                    <p>{mentorInterruptionSimulator.interruptionLine}</p>
+                    <em>{mentorInterruptionSimulator.hostileFollowUp}</em>
+                  </div>
+                  <div>
+                    <span>failure trap</span>
+                    <p>{mentorInterruptionSimulator.failureTrap}</p>
+                    <strong>{mentorInterruptionSimulator.recoveryMove}</strong>
+                  </div>
+                  <div>
+                    <span>pass criteria</span>
+                    {mentorInterruptionSimulator.passCriteria.map((item) => <em key={item}>{item}</em>)}
+                    <button type="button" onClick={loadMentorInterruptionDrill}>load interruption</button>
+                  </div>
                 </div>
                 <div className="prompt-portfolio-rehearsal-workspace">
                   <div>

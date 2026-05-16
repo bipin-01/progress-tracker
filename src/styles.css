@@ -15870,6 +15870,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-practice,
 .prompt-portfolio-rehearsal,
 .prompt-portfolio-rehearsal-head,
+.prompt-portfolio-interruption,
 .prompt-portfolio-rehearsal-workspace,
 .prompt-portfolio-rehearsal-score,
 .prompt-portfolio-rehearsal-actions,
@@ -16172,6 +16173,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-detail > div,
 .prompt-portfolio-rehearsal,
 .prompt-portfolio-rehearsal-head > div,
+.prompt-portfolio-interruption > div,
 .prompt-portfolio-rehearsal-workspace > div,
 .prompt-portfolio-rehearsal-workspace label,
 .prompt-portfolio-rehearsal-score label,
@@ -16289,6 +16291,41 @@ button.load-forecast-day:hover {
   background: linear-gradient(90deg, var(--cyan), var(--purple));
   box-shadow: 0 0 14px rgba(170, 114, 255, 0.32);
   transition: width 0.28s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-interruption {
+  grid-template-columns: minmax(180px, 0.2fr) minmax(260px, 0.3fr) minmax(260px, 0.3fr) minmax(200px, 0.2fr);
+  border-color: rgba(255, 181, 74, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.04), transparent 52%),
+    rgba(2, 7, 15, 0.3);
+  animation: prompt-panel-enter 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-interruption.pressure {
+  border-color: rgba(255, 181, 74, 0.22);
+}
+
+.prompt-portfolio-interruption.intervention {
+  border-color: rgba(255, 93, 124, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 93, 124, 0.04), transparent 52%),
+    rgba(2, 7, 15, 0.32);
+}
+
+.prompt-portfolio-interruption > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(255, 181, 74, 0.12);
+  background: rgba(2, 7, 15, 0.28);
+  padding: 8px;
+}
+
+.prompt-portfolio-interruption button {
+  justify-self: start;
+  min-height: 28px;
 }
 
 .prompt-portfolio-rehearsal-workspace {
@@ -16487,6 +16524,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
 .prompt-portfolio-rehearsal span,
+.prompt-portfolio-interruption span,
 .prompt-portfolio-rehearsal-trend span {
   color: var(--ink-2);
   font-family: "JetBrains Mono", monospace;
@@ -16506,6 +16544,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
 .prompt-portfolio-rehearsal strong,
+.prompt-portfolio-interruption strong,
 .prompt-portfolio-rehearsal-trend strong {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
@@ -16523,6 +16562,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-polish p,
 .prompt-portfolio-defense p,
 .prompt-portfolio-rehearsal p,
+.prompt-portfolio-interruption p,
 .prompt-portfolio-rehearsal-trend p {
   margin: 0;
   color: var(--ink-1);
@@ -16542,6 +16582,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-polish em,
 .prompt-portfolio-defense em,
 .prompt-portfolio-rehearsal em,
+.prompt-portfolio-interruption em,
 .prompt-portfolio-rehearsal-trend em {
   color: var(--ink-2);
   font-size: 10px;
@@ -18729,6 +18770,7 @@ button.load-forecast-day:hover {
   .prompt-portfolio-defense-questions,
   .prompt-portfolio-defense-detail,
   .prompt-portfolio-rehearsal-head,
+  .prompt-portfolio-interruption,
   .prompt-portfolio-rehearsal-workspace,
   .prompt-portfolio-rehearsal-score,
   .prompt-portfolio-rehearsal-trend-head,
@@ -18826,6 +18868,7 @@ button.load-forecast-day:hover {
   .prompt-portfolio-defense-questions,
   .prompt-portfolio-defense-detail,
   .prompt-portfolio-rehearsal-head,
+  .prompt-portfolio-interruption,
   .prompt-portfolio-rehearsal-workspace,
   .prompt-portfolio-rehearsal-score,
   .prompt-portfolio-rehearsal-trend-head,

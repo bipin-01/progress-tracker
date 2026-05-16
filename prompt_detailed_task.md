@@ -775,3 +775,30 @@ Implemented:
 
 Next likely upgrade:
 - Add a mentor interruption simulator that uses the repeated weakness from the export comparison ledger to inject a realistic challenge into the timed defense rehearsal.
+
+### 2026-05-16 - Mentor Interruption Simulator
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the export comparison ledger could identify repeated weakness, but the timed rehearsal still behaved like a clean self-paced exercise instead of a live mentor interruption.
+
+Problem observed:
+- The learner could rehearse a defense answer, but the UI did not interrupt the answer with realistic mentor pressure.
+- Repeated weaknesses from the comparison ledger were visible, but they were not automatically converted into a harder speaking drill.
+- Task content still needed more real-life scenario pressure: hostile ticket text, missing evidence, manager urgency, reusable output contracts, tradeoff defense, and measurable improvement questions.
+
+Decision:
+- More scenario-based rehearsal infrastructure was needed. This fit the 70% rule because interview and mentor defense skill is built when the learner can recover after being challenged, not when they only recite prepared answers.
+
+Implemented:
+- Added a mentor interruption simulator model connected to the defense export comparison ledger.
+- The simulator chooses the repeated recurring weakness when one exists, otherwise it uses the active defense question or the current export risk.
+- Added pressure levels: baseline, pressure, and intervention based on repeated weakness, readiness score, and missed rehearsal debt.
+- Added rich interruption scripts for Evidence Boundary, Red-Team Proof, Output Contract, Tradeoffs, and Next Improvement.
+- Each interruption now includes a live challenge, hostile follow-up, failure trap, recovery move, response protocol, pass criteria, and a timeboxed answer frame.
+- Added a load-interruption action that switches to the relevant defense question, primes the timed rehearsal answer, adjusts the timer to 90 or 120 seconds, lowers the starting self-score under pressure, and writes the drill plan into the task journal.
+- Fixed the rehearsal progress meter so 120-second interruption drills report progress accurately instead of assuming every rehearsal is 90 seconds.
+- Styled the interruption simulator as a compact amber/red pressure layer inside the mentor-defense rehearsal area with responsive collapse and quiet motion.
+
+Next likely upgrade:
+- Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.
