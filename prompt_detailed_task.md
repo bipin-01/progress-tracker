@@ -518,3 +518,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a mentor-defense simulator that asks interview-style questions about the selected case study and scores whether the learner can defend evidence boundaries, red-team choices, and final prompt tradeoffs.
+
+### 2026-05-16 - Mentor Defense Simulator
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the case-study polish workflow made artifacts cleaner, but did not yet train the learner to defend the work under mentor or recruiter questioning.
+
+Problem observed:
+- The gallery and polish workflow helped select and improve a case study, but the learner still needed rehearsal for live review questions.
+- UI/UX needed a smoother bridge from portfolio artifact to interview-style defense.
+- Task content needed deeper, scenario-based answers around evidence boundaries, red-team decisions, output contracts, automation tradeoffs, and next improvements.
+
+Decision:
+- More relevant content and real-life review simulation was needed. This fit the 70% rule because a strong prompt engineering portfolio depends on the learner being able to explain the tradeoffs, not merely show generated markdown.
+
+Implemented:
+- Added a mentor-defense simulator to the portfolio gallery.
+- The simulator asks five interview-style questions: Evidence Boundary, Red-Team Proof, Output Contract, Tradeoffs, and Next Improvement.
+- Each question shows score, status, question text, why a mentor would ask it, weak answer, strong answer, practice prompt, and pass signal.
+- Added deterministic defense scoring from the portfolio review rubric, selected gallery target, and polish workflow.
+- Added a defense checklist and a load-defense-drill action that writes the full mock interview packet into the active task journal.
+- Styled the simulator as a compact violet rehearsal layer with responsive question cards and smooth step switching.
+
+Next likely upgrade:
+- Add spoken/timed rehearsal mode for the mentor-defense simulator with a countdown, concise answer template, and post-answer self-score capture.

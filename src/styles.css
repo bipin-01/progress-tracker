@@ -15848,7 +15848,12 @@ button.load-forecast-day:hover {
 .prompt-portfolio-polish-head,
 .prompt-portfolio-polish-steps,
 .prompt-portfolio-polish-detail,
-.prompt-portfolio-polish-checklist {
+.prompt-portfolio-polish-checklist,
+.prompt-portfolio-defense,
+.prompt-portfolio-defense-head,
+.prompt-portfolio-defense-questions,
+.prompt-portfolio-defense-detail,
+.prompt-portfolio-defense-practice {
   display: grid;
   gap: 8px;
 }
@@ -15870,7 +15875,10 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-list > div,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head > div,
-.prompt-portfolio-polish-detail > div {
+.prompt-portfolio-polish-detail > div,
+.prompt-portfolio-defense,
+.prompt-portfolio-defense-head > div,
+.prompt-portfolio-defense-detail > div {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -15918,6 +15926,44 @@ button.load-forecast-day:hover {
   padding: 8px;
 }
 
+.prompt-portfolio-defense {
+  border-color: rgba(170, 114, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.035), transparent 46%),
+    rgba(2, 7, 15, 0.28);
+}
+
+.prompt-portfolio-defense-head {
+  grid-template-columns: minmax(170px, 0.28fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-defense-questions {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.prompt-portfolio-defense-questions button {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  padding: 8px;
+  text-align: left;
+}
+
+.prompt-portfolio-defense-questions button.active {
+  border-color: rgba(170, 114, 255, 0.38);
+  background: rgba(170, 114, 255, 0.07);
+}
+
+.prompt-portfolio-defense-detail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prompt-portfolio-defense-practice {
+  border: 1px solid rgba(170, 114, 255, 0.12);
+  background: rgba(170, 114, 255, 0.025);
+  padding: 8px;
+}
+
 .prompt-portfolio-gallery-list > div.active {
   border-color: rgba(53, 215, 255, 0.2);
   background: rgba(53, 215, 255, 0.045);
@@ -15931,7 +15977,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head span,
 .prompt-portfolio-gallery-summary span,
 .prompt-portfolio-gallery-list span,
-.prompt-portfolio-polish span {
+.prompt-portfolio-polish span,
+.prompt-portfolio-defense span {
   color: var(--ink-2);
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;
@@ -15942,7 +15989,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head strong,
 .prompt-portfolio-gallery-summary strong,
 .prompt-portfolio-gallery-list strong,
-.prompt-portfolio-polish strong {
+.prompt-portfolio-polish strong,
+.prompt-portfolio-defense strong {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 14px;
@@ -15952,7 +16000,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head p,
 .prompt-portfolio-gallery-summary p,
 .prompt-portfolio-gallery-list p,
-.prompt-portfolio-polish p {
+.prompt-portfolio-polish p,
+.prompt-portfolio-defense p {
   margin: 0;
   color: var(--ink-1);
   font-size: 12px;
@@ -15963,7 +16012,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-head em,
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
-.prompt-portfolio-polish em {
+.prompt-portfolio-polish em,
+.prompt-portfolio-defense em {
   color: var(--ink-2);
   font-size: 10px;
   font-style: normal;
@@ -18135,6 +18185,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
   .prompt-portfolio-polish-detail,
+  .prompt-portfolio-defense-head,
+  .prompt-portfolio-defense-questions,
+  .prompt-portfolio-defense-detail,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-review-grid,
   .prompt-evidence-builder-head,
@@ -18212,6 +18265,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
   .prompt-portfolio-polish-detail,
+  .prompt-portfolio-defense-head,
+  .prompt-portfolio-defense-questions,
+  .prompt-portfolio-defense-detail,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-compare-head,
   .prompt-checkpoint-review-grid,

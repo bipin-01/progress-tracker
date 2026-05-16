@@ -17312,6 +17312,28 @@ type PromptPortfolioPolishWorkflow = {
   mentorScript: string;
 };
 
+type PromptMentorDefenseQuestion = {
+  id: string;
+  label: string;
+  score: number;
+  status: string;
+  question: string;
+  whyAsked: string;
+  weakAnswer: string;
+  strongAnswer: string;
+  practicePrompt: string;
+  passSignal: string;
+};
+
+type PromptMentorDefenseSimulator = {
+  target: PromptPortfolioGalleryItem;
+  score: number;
+  verdict: string;
+  questions: PromptMentorDefenseQuestion[];
+  checklist: string[];
+  mockInterviewScript: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -19071,6 +19093,117 @@ function buildPromptPortfolioPolishWorkflow({
   };
 }
 
+function getPromptDefenseQuestionStatus(score: number) {
+  if (score >= 90) return "defensible";
+  if (score >= 78) return "practice once";
+  if (score >= 62) return "needs rehearsal";
+  return "not defensible";
+}
+
+function buildPromptMentorDefenseSimulator({
+  target,
+  review,
+  polish,
+}: {
+  target: PromptPortfolioGalleryItem;
+  review: PromptReportPortfolioReview;
+  polish: PromptPortfolioPolishWorkflow;
+}): PromptMentorDefenseSimulator {
+  const evidenceScore = average([
+    getPromptReviewCriterionScore(review, "Evidence chain"),
+    getPromptReviewCriterionScore(review, "Unknown boundary"),
+  ]);
+  const reproducibleScore = getPromptReviewCriterionScore(review, "Reproducible output");
+  const redTeamScore = getPromptReviewCriterionScore(review, "Red-team resilience");
+  const storyScore = getPromptReviewCriterionScore(review, "Reviewer story");
+  const archiveScore = getPromptReviewCriterionScore(review, "Archive progression");
+  const questions: PromptMentorDefenseQuestion[] = [
+    {
+      id: "evidence-boundary",
+      label: "Evidence Boundary",
+      score: evidenceScore,
+      status: "",
+      question: `Which claims in ${target.title} are supported by evidence, and which claims did you intentionally leave unknown?`,
+      whyAsked: "Mentors and SOC leads ask this to see whether you understand the difference between useful confidence and invented certainty.",
+      weakAnswer: "The prompt looked at the alert and decided it was risky.",
+      strongAnswer: "Name two confirmed packet facts, name one missing data point, then explain how the final prompt prevents unsupported escalation.",
+      practicePrompt: "Answer in 45 seconds using: confirmed fact -> missing fact -> decision limit -> safe next action.",
+      passSignal: "You explicitly say what the prompt is not allowed to infer.",
+    },
+    {
+      id: "red-team-proof",
+      label: "Red-Team Proof",
+      score: redTeamScore,
+      status: "",
+      question: "How did you test that hostile ticket text, fake log instructions, or executive pressure could not steer the prompt?",
+      whyAsked: "This is the future-facing AI safety question: can your prompt use untrusted evidence without obeying it?",
+      weakAnswer: "I added guardrails and told it not to follow bad instructions.",
+      strongAnswer: "Describe the injected instruction, the expected failure, the guardrail that isolates it, and the observed result.",
+      practicePrompt: "Use a four-part answer: attack -> failure mode -> guardrail -> result.",
+      passSignal: "You can explain why legitimate evidence stays useful while malicious text loses authority.",
+    },
+    {
+      id: "output-contract",
+      label: "Output Contract",
+      score: reproducibleScore,
+      status: "",
+      question: "If another analyst reruns your prompt tomorrow, what guarantees the output stays comparable?",
+      whyAsked: "A reviewer wants to know whether this is a reusable system or just a one-off good answer.",
+      weakAnswer: "The prompt asks for a structured response.",
+      strongAnswer: "Point to required fields, confidence, evidence mapping, missing-data disclosure, approval gates, and acceptance tests.",
+      practicePrompt: "Name the output fields, then explain how each field reduces handoff risk.",
+      passSignal: "Your answer makes the prompt sound operationally reusable.",
+    },
+    {
+      id: "tradeoffs",
+      label: "Tradeoffs",
+      score: average([target.score, storyScore]),
+      status: "",
+      question: "What did you deliberately choose not to automate or overstate in this case study?",
+      whyAsked: "Good prompt engineers can defend restraint. In security, restraint is often the difference between safe analysis and harmful automation.",
+      weakAnswer: "I wanted it to be safe, so I kept a human in the loop.",
+      strongAnswer: "Name the destructive action, the missing approval or impact data, and the exact gate that keeps the recommendation human-reviewed.",
+      practicePrompt: "Use: I did not automate X because Y was missing; instead the prompt recommends Z.",
+      passSignal: "You can defend why a slower answer is more correct under uncertainty.",
+    },
+    {
+      id: "improvement",
+      label: "Next Improvement",
+      score: average([polish.score, archiveScore]),
+      status: "",
+      question: "What is the next weakness you would fix if you had one more iteration?",
+      whyAsked: "Interviewers often care less about perfection and more about whether you can spot the next meaningful improvement.",
+      weakAnswer: "I would make the prompt better and add more examples.",
+      strongAnswer: `Name the current weakest point: ${target.primaryWeakness}. Then propose one measurable replay or report change.`,
+      practicePrompt: "Answer with weakness -> next experiment -> success metric.",
+      passSignal: "Your improvement is measurable, not cosmetic.",
+    },
+  ].map((question) => ({ ...question, status: getPromptDefenseQuestionStatus(question.score) }));
+  const score = average(questions.map((question) => question.score));
+  const verdict =
+    score >= 90
+      ? "mentor defense ready"
+      : score >= 78
+        ? "practice before review"
+        : score >= 62
+          ? "defense needs rehearsal"
+          : "case cannot be defended yet";
+  const checklist = questions
+    .filter((question) => question.score < 86)
+    .map((question) => `${question.label}: ${question.practicePrompt}`)
+    .slice(0, 5);
+  if (!checklist.length) checklist.push("Run a timed mock interview and archive the strongest spoken answer as a note.");
+
+  return {
+    target,
+    score,
+    verdict,
+    questions,
+    checklist,
+    mockInterviewScript: `Defend ${target.title} in five questions: evidence, red-team proof, output contract, tradeoffs, and next improvement. Keep every answer tied to a concrete case detail.`,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -19388,6 +19521,7 @@ function PromptView() {
   const [reportArchiveQuery, setReportArchiveQuery] = useState("");
   const [selectedPortfolioPolishId, setSelectedPortfolioPolishId] = useState<string | null>(null);
   const [activePolishStepId, setActivePolishStepId] = useState("pitch");
+  const [activeDefenseQuestionId, setActiveDefenseQuestionId] = useState("evidence-boundary");
   const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
@@ -19555,6 +19689,15 @@ function PromptView() {
     [activeReportReview, selectedPortfolioPolishTarget],
   );
   const activePolishStep = portfolioPolishWorkflow.steps.find((step) => step.id === activePolishStepId) ?? portfolioPolishWorkflow.steps[0];
+  const mentorDefenseSimulator = useMemo(
+    () => buildPromptMentorDefenseSimulator({
+      target: selectedPortfolioPolishTarget,
+      review: activeReportReview,
+      polish: portfolioPolishWorkflow,
+    }),
+    [activeReportReview, portfolioPolishWorkflow, selectedPortfolioPolishTarget],
+  );
+  const activeDefenseQuestion = mentorDefenseSimulator.questions.find((question) => question.id === activeDefenseQuestionId) ?? mentorDefenseSimulator.questions[0];
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -19913,6 +20056,7 @@ function PromptView() {
   function polishPortfolioGalleryItem(item: PromptPortfolioGalleryItem) {
     setSelectedPortfolioPolishId(item.id);
     setActivePolishStepId("pitch");
+    setActiveDefenseQuestionId("evidence-boundary");
     setSelectedDay(item.day);
     setActiveDailyTaskId(item.taskId);
     setActiveDailyPanel("packet");
@@ -19941,6 +20085,34 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`case-study polish plan loaded: ${portfolioPolishWorkflow.verdict}`);
+  }
+
+  function loadMentorDefenseDrill() {
+    const currentAnswer = activeTaskJournal.answer.trim() || activePortfolioExport.markdown;
+    updateTaskJournal({
+      answer: [
+        currentAnswer,
+        "",
+        "---",
+        `Mentor-defense simulator: ${mentorDefenseSimulator.target.title}`,
+        `${mentorDefenseSimulator.verdict} (${mentorDefenseSimulator.score}/100)`,
+        mentorDefenseSimulator.mockInterviewScript,
+        "",
+        "Interview questions:",
+        ...mentorDefenseSimulator.questions.map((question) => [
+          `- ${question.label} (${question.score}/100): ${question.question}`,
+          `  Strong answer: ${question.strongAnswer}`,
+          `  Practice: ${question.practicePrompt}`,
+        ].join("\n")),
+        "",
+        "Defense checklist:",
+        ...mentorDefenseSimulator.checklist.map((item) => `- ${item}`),
+      ].join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, mentorDefenseSimulator.score),
+      versionNote: `mentor defense ${mentorDefenseSimulator.score}/100`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`mentor-defense drill loaded: ${mentorDefenseSimulator.verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -20884,6 +21056,57 @@ function PromptView() {
               <div className="prompt-portfolio-polish-checklist">
                 {portfolioPolishWorkflow.checklist.map((item) => <em key={item}>{item}</em>)}
                 <button type="button" onClick={loadPortfolioPolishWorkflow}>load polish plan</button>
+              </div>
+            </div>
+            <div className="prompt-portfolio-defense" aria-label="Mentor defense simulator">
+              <div className="prompt-portfolio-defense-head">
+                <div>
+                  <span>mentor-defense simulator</span>
+                  <strong>{mentorDefenseSimulator.score}/100</strong>
+                  <em>{mentorDefenseSimulator.verdict}</em>
+                </div>
+                <p>{mentorDefenseSimulator.mockInterviewScript}</p>
+              </div>
+              <div className="prompt-portfolio-defense-questions" role="tablist" aria-label="Mentor defense questions">
+                {mentorDefenseSimulator.questions.map((question) => (
+                  <button
+                    key={question.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeDefenseQuestion.id === question.id}
+                    className={activeDefenseQuestion.id === question.id ? "active" : ""}
+                    onClick={() => setActiveDefenseQuestionId(question.id)}
+                  >
+                    <span>{question.label}</span>
+                    <strong>{question.score}/100</strong>
+                    <em>{question.status}</em>
+                  </button>
+                ))}
+              </div>
+              <div className="prompt-portfolio-defense-detail">
+                <div>
+                  <span>question</span>
+                  <strong>{activeDefenseQuestion.question}</strong>
+                  <p>{activeDefenseQuestion.whyAsked}</p>
+                </div>
+                <div>
+                  <span>weak answer</span>
+                  <p>{activeDefenseQuestion.weakAnswer}</p>
+                  <em>avoid vague reassurance</em>
+                </div>
+                <div>
+                  <span>strong answer</span>
+                  <p>{activeDefenseQuestion.strongAnswer}</p>
+                  <em>{activeDefenseQuestion.passSignal}</em>
+                </div>
+              </div>
+              <div className="prompt-portfolio-defense-practice">
+                <div>
+                  <span>practice prompt</span>
+                  <strong>{activeDefenseQuestion.practicePrompt}</strong>
+                </div>
+                {mentorDefenseSimulator.checklist.map((item) => <em key={item}>{item}</em>)}
+                <button type="button" onClick={loadMentorDefenseDrill}>load defense drill</button>
               </div>
             </div>
             <div className="prompt-portfolio-gallery-list">
