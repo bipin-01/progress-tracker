@@ -543,3 +543,29 @@ Implemented:
 
 Next likely upgrade:
 - Add spoken/timed rehearsal mode for the mentor-defense simulator with a countdown, concise answer template, and post-answer self-score capture.
+
+### 2026-05-16 - Timed Mentor Defense Rehearsal
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the mentor-defense simulator had strong interview questions, but the learner still needed a timed answer loop that feels like live review pressure.
+
+Problem observed:
+- The defense simulator explained weak and strong answers, but it did not yet make the learner rehearse an answer under a clock.
+- The UI could load a full defense drill into the journal, but there was no lightweight way to capture one spoken-style answer, self-score it, and compare recent attempts for the same question.
+- Task content needed more real-life mentor/recruiter pressure: concise evidence boundary, explicit unknowns, tradeoffs, and next action.
+
+Decision:
+- More relevant practice infrastructure was needed. This fit the 70% rule because a professional prompt engineer must be able to defend the artifact verbally, not only generate portfolio markdown.
+
+Implemented:
+- Added a timed mentor-defense rehearsal module below the defense simulator.
+- Added a 90-second countdown with smooth progress meter and start/reset/save controls.
+- Added concise answer templates that change per question: evidence boundary, red-team proof, output contract, tradeoffs, and next improvement.
+- Added a rehearsal answer editor, self-score slider, live answer scan, readiness verdict, and missing-control checks.
+- Added persistent rehearsal history per task/question and clickable prior attempts to reload an answer.
+- Saving a rehearsal now stores the attempt in prompt memory and appends the spoken-answer artifact into the active task journal.
+- Styled the module as a quieter violet practice layer with responsive layout, focused textarea states, compact history, and smooth timer feedback.
+
+Next likely upgrade:
+- Add a mentor-defense score trend that compares rehearsal attempts across questions, identifies the weakest speaking pattern, and generates a two-minute recovery drill before portfolio review.

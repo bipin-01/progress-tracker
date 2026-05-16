@@ -17334,6 +17334,19 @@ type PromptMentorDefenseSimulator = {
   mockInterviewScript: string;
 };
 
+type PromptMentorRehearsalAttempt = {
+  id: string;
+  taskId: string;
+  targetId: string;
+  questionId: string;
+  questionLabel: string;
+  answer: string;
+  selfScore: number;
+  durationSeconds: number;
+  verdict: string;
+  savedAt: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17343,6 +17356,7 @@ type PromptMemorySnapshot = {
   masteryHistory: PromptMasteryHistoryEntry[];
   redTeamReplayHistory: PromptRedTeamReplayEntry[];
   incidentReportArchive: PromptIncidentReportArchiveEntry[];
+  mentorRehearsals: PromptMentorRehearsalAttempt[];
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -17465,6 +17479,31 @@ function normalizePromptIncidentReportArchiveEntry(value: unknown): PromptIncide
   };
 }
 
+function normalizePromptMentorRehearsalAttempt(value: unknown): PromptMentorRehearsalAttempt | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<PromptMentorRehearsalAttempt>;
+  const id = typeof record.id === "string" && record.id ? record.id : "";
+  const taskId = typeof record.taskId === "string" && record.taskId ? record.taskId : "";
+  const targetId = typeof record.targetId === "string" && record.targetId ? record.targetId : "";
+  const questionId = typeof record.questionId === "string" && record.questionId ? record.questionId : "";
+  const savedAt = typeof record.savedAt === "string" && record.savedAt ? record.savedAt : "";
+  const answer = typeof record.answer === "string" ? record.answer : "";
+  if (!id || !taskId || !targetId || !questionId || !savedAt || !answer.trim()) return null;
+  const selfScore = clampPromptPercent(record.selfScore);
+  return {
+    id,
+    taskId,
+    targetId,
+    questionId,
+    questionLabel: typeof record.questionLabel === "string" && record.questionLabel ? record.questionLabel : "mentor question",
+    answer,
+    selfScore,
+    durationSeconds: Math.min(600, Math.max(15, Math.trunc(Number(record.durationSeconds) || 90))),
+    verdict: typeof record.verdict === "string" && record.verdict ? record.verdict : getPromptMentorRehearsalVerdict(selfScore),
+    savedAt,
+  };
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17503,6 +17542,13 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
         ? parsed.incidentReportArchive
             .map(normalizePromptIncidentReportArchiveEntry)
             .filter((entry): entry is PromptIncidentReportArchiveEntry => Boolean(entry))
+            .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+            .slice(0, 90)
+        : [],
+      mentorRehearsals: Array.isArray(parsed.mentorRehearsals)
+        ? parsed.mentorRehearsals
+            .map(normalizePromptMentorRehearsalAttempt)
+            .filter((entry): entry is PromptMentorRehearsalAttempt => Boolean(entry))
             .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
             .slice(0, 90)
         : [],
@@ -19204,6 +19250,107 @@ function buildPromptMentorDefenseSimulator({
   };
 }
 
+function formatPromptRehearsalTime(seconds: number) {
+  const safeSeconds = Math.max(0, Math.trunc(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
+function getPromptMentorRehearsalVerdict(score: number) {
+  if (score >= 90) return "ready to say aloud";
+  if (score >= 78) return "one cleanup pass";
+  if (score >= 62) return "needs tighter evidence";
+  return "restart with the template";
+}
+
+function buildPromptMentorAnswerTemplate(question: PromptMentorDefenseQuestion, target: PromptPortfolioGalleryItem) {
+  const base = [
+    `Question: ${question.question}`,
+    "",
+    "30-second answer scaffold:",
+  ];
+
+  if (question.id === "evidence-boundary") {
+    return [
+      ...base,
+      "1. Confirmed evidence I can cite:",
+      "2. Missing evidence I must not invent:",
+      "3. Decision boundary this creates:",
+      "4. Safe next action:",
+      "",
+      `Tie it back to: ${target.primaryWeakness}`,
+    ].join("\n");
+  }
+
+  if (question.id === "red-team-proof") {
+    return [
+      ...base,
+      "1. Attack or misleading instruction tested:",
+      "2. Failure mode it was trying to cause:",
+      "3. Guardrail that isolated it:",
+      "4. Result I observed:",
+      "",
+      "Use the words untrusted evidence and authority boundary.",
+    ].join("\n");
+  }
+
+  if (question.id === "output-contract") {
+    return [
+      ...base,
+      "1. Required output fields:",
+      "2. Evidence mapping rule:",
+      "3. Missing-data disclosure rule:",
+      "4. Acceptance test that makes reruns comparable:",
+      "",
+      "Make it sound reusable, not lucky.",
+    ].join("\n");
+  }
+
+  if (question.id === "tradeoffs") {
+    return [
+      ...base,
+      "1. Action I deliberately did not automate:",
+      "2. Missing approval, impact, or telemetry:",
+      "3. Human review gate:",
+      "4. Why slower is safer here:",
+      "",
+      "Defend restraint as a security feature.",
+    ].join("\n");
+  }
+
+  return [
+    ...base,
+    "1. Current weakest point:",
+    "2. Next experiment:",
+    "3. Success metric:",
+    "4. What I would archive after the fix:",
+    "",
+    `Start with: ${target.primaryWeakness}`,
+  ].join("\n");
+}
+
+function buildPromptMentorRehearsalCoaching(answer: string, question: PromptMentorDefenseQuestion) {
+  const normalized = answer.toLowerCase();
+  const checks = [
+    { label: "names concrete evidence", ready: /evidence|confirmed|observed|log|packet|alert|ticket/.test(normalized) },
+    { label: "keeps an unknown boundary", ready: /unknown|missing|not infer|not allowed|cannot conclude|uncertain/.test(normalized) },
+    { label: "states a review gate", ready: /gate|approval|human|review|analyst|escalat/.test(normalized) },
+    { label: "defines a next action", ready: /next|recommend|action|test|measure|metric|rerun|archive/.test(normalized) },
+  ];
+  const matched = checks.filter((check) => check.ready).length;
+  const answerDepth = answer.trim().split(/\s+/).filter(Boolean).length >= 45 ? 1 : 0;
+  const estimatedScore = Math.min(100, Math.round(question.score * 0.55 + matched * 9 + answerDepth * 9));
+  const missing = checks.filter((check) => !check.ready).map((check) => check.label);
+
+  return {
+    estimatedScore,
+    verdict: getPromptMentorRehearsalVerdict(estimatedScore),
+    missing,
+    checks,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -19518,10 +19665,15 @@ function PromptView() {
   const [masteryHistory, setMasteryHistory] = useState<PromptMasteryHistoryEntry[]>(initialMemory?.masteryHistory ?? []);
   const [redTeamReplayHistory, setRedTeamReplayHistory] = useState<PromptRedTeamReplayEntry[]>(initialMemory?.redTeamReplayHistory ?? []);
   const [incidentReportArchive, setIncidentReportArchive] = useState<PromptIncidentReportArchiveEntry[]>(initialMemory?.incidentReportArchive ?? []);
+  const [mentorRehearsals, setMentorRehearsals] = useState<PromptMentorRehearsalAttempt[]>(initialMemory?.mentorRehearsals ?? []);
   const [reportArchiveQuery, setReportArchiveQuery] = useState("");
   const [selectedPortfolioPolishId, setSelectedPortfolioPolishId] = useState<string | null>(null);
   const [activePolishStepId, setActivePolishStepId] = useState("pitch");
   const [activeDefenseQuestionId, setActiveDefenseQuestionId] = useState("evidence-boundary");
+  const [defenseRehearsalSeconds, setDefenseRehearsalSeconds] = useState(90);
+  const [defenseRehearsalRunning, setDefenseRehearsalRunning] = useState(false);
+  const [defenseRehearsalAnswer, setDefenseRehearsalAnswer] = useState("");
+  const [defenseRehearsalSelfScore, setDefenseRehearsalSelfScore] = useState(72);
   const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
@@ -19698,6 +19850,21 @@ function PromptView() {
     [activeReportReview, portfolioPolishWorkflow, selectedPortfolioPolishTarget],
   );
   const activeDefenseQuestion = mentorDefenseSimulator.questions.find((question) => question.id === activeDefenseQuestionId) ?? mentorDefenseSimulator.questions[0];
+  const defenseAnswerTemplate = useMemo(
+    () => buildPromptMentorAnswerTemplate(activeDefenseQuestion, mentorDefenseSimulator.target),
+    [activeDefenseQuestion, mentorDefenseSimulator.target],
+  );
+  const defenseRehearsalCoaching = useMemo(
+    () => buildPromptMentorRehearsalCoaching(defenseRehearsalAnswer, activeDefenseQuestion),
+    [activeDefenseQuestion, defenseRehearsalAnswer],
+  );
+  const activeDefenseRehearsals = useMemo(
+    () =>
+      mentorRehearsals
+        .filter((attempt) => attempt.taskId === activeDailyTask.id && attempt.questionId === activeDefenseQuestion.id)
+        .slice(0, 3),
+    [activeDailyTask.id, activeDefenseQuestion.id, mentorRehearsals],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -19783,11 +19950,12 @@ function PromptView() {
       masteryHistory,
       redTeamReplayHistory,
       incidentReportArchive,
+      mentorRehearsals,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, incidentReportArchive, iterations, masteryHistory, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
+  }, [completedTasks, incidentReportArchive, iterations, masteryHistory, mentorRehearsals, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -19796,6 +19964,29 @@ function PromptView() {
   useEffect(() => {
     setActiveDailyPanel("mission");
   }, [activeDailyTaskId]);
+
+  useEffect(() => {
+    setDefenseRehearsalRunning(false);
+    setDefenseRehearsalSeconds(90);
+    setDefenseRehearsalAnswer(buildPromptMentorAnswerTemplate(activeDefenseQuestion, mentorDefenseSimulator.target));
+    setDefenseRehearsalSelfScore(Math.min(92, Math.max(62, Math.round(activeDefenseQuestion.score))));
+  }, [activeDefenseQuestion, mentorDefenseSimulator.target]);
+
+  useEffect(() => {
+    if (!defenseRehearsalRunning) return undefined;
+    const timer = window.setInterval(() => {
+      setDefenseRehearsalSeconds((seconds) => {
+        if (seconds <= 1) {
+          window.clearInterval(timer);
+          setDefenseRehearsalRunning(false);
+          setPlaygroundStatus("mentor-defense timer complete");
+          return 0;
+        }
+        return seconds - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [defenseRehearsalRunning]);
 
   function toggleDailyTask(taskId: string) {
     setCompletedTasks((current) => {
@@ -20113,6 +20304,61 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`mentor-defense drill loaded: ${mentorDefenseSimulator.verdict}`);
+  }
+
+  function startMentorRehearsal() {
+    setDefenseRehearsalSeconds((seconds) => (seconds > 0 ? seconds : 90));
+    setDefenseRehearsalRunning(true);
+    setPlaygroundStatus(`timed rehearsal started: ${activeDefenseQuestion.label}`);
+  }
+
+  function resetMentorRehearsal() {
+    setDefenseRehearsalRunning(false);
+    setDefenseRehearsalSeconds(90);
+    setDefenseRehearsalAnswer(defenseAnswerTemplate);
+    setDefenseRehearsalSelfScore(Math.min(92, Math.max(62, Math.round(activeDefenseQuestion.score))));
+    setPlaygroundStatus("mentor-defense rehearsal reset");
+  }
+
+  function saveMentorRehearsalAttempt() {
+    const answer = defenseRehearsalAnswer.trim();
+    if (!answer) {
+      setPlaygroundStatus("write a rehearsal answer before saving");
+      return;
+    }
+    const elapsedSeconds = Math.max(1, 90 - defenseRehearsalSeconds);
+    const savedAt = new Date().toISOString();
+    const verdict = getPromptMentorRehearsalVerdict(defenseRehearsalSelfScore);
+    const attempt: PromptMentorRehearsalAttempt = {
+      id: `mentor-rehearsal-${activeDailyTask.id}-${activeDefenseQuestion.id}-${Date.now()}`,
+      taskId: activeDailyTask.id,
+      targetId: mentorDefenseSimulator.target.id,
+      questionId: activeDefenseQuestion.id,
+      questionLabel: activeDefenseQuestion.label,
+      answer,
+      selfScore: defenseRehearsalSelfScore,
+      durationSeconds: elapsedSeconds,
+      verdict,
+      savedAt,
+    };
+
+    setDefenseRehearsalRunning(false);
+    setMentorRehearsals((current) => [attempt, ...current].slice(0, 90));
+    updateTaskJournal({
+      answer: [
+        activeTaskJournal.answer.trim(),
+        "",
+        "---",
+        `Timed mentor-defense rehearsal: ${activeDefenseQuestion.label}`,
+        `Self-score: ${defenseRehearsalSelfScore}/100 · ${verdict} · ${elapsedSeconds}s`,
+        `Prompt: ${activeDefenseQuestion.practicePrompt}`,
+        "",
+        answer,
+      ].filter(Boolean).join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, defenseRehearsalSelfScore),
+      versionNote: `timed defense ${activeDefenseQuestion.label} ${defenseRehearsalSelfScore}/100`,
+    });
+    setPlaygroundStatus(`rehearsal saved: ${verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -21107,6 +21353,74 @@ function PromptView() {
                 </div>
                 {mentorDefenseSimulator.checklist.map((item) => <em key={item}>{item}</em>)}
                 <button type="button" onClick={loadMentorDefenseDrill}>load defense drill</button>
+              </div>
+              <div className="prompt-portfolio-rehearsal" aria-label="Timed mentor defense rehearsal">
+                <div className="prompt-portfolio-rehearsal-head">
+                  <div>
+                    <span>spoken timed rehearsal</span>
+                    <strong>{formatPromptRehearsalTime(defenseRehearsalSeconds)}</strong>
+                    <em>{defenseRehearsalRunning ? "answer aloud now" : defenseRehearsalSeconds === 0 ? "time expired" : "timer armed"}</em>
+                  </div>
+                  <p>Practice a tight spoken answer before saving it. The goal is not a long essay; it is evidence, boundary, tradeoff, and next action under review pressure.</p>
+                </div>
+                <div className="prompt-portfolio-rehearsal-meter">
+                  <i style={{ width: `${Math.min(100, Math.max(0, Math.round(((90 - defenseRehearsalSeconds) / 90) * 100)))}%` }} />
+                </div>
+                <div className="prompt-portfolio-rehearsal-workspace">
+                  <div>
+                    <span>concise answer template</span>
+                    <pre>{defenseAnswerTemplate}</pre>
+                  </div>
+                  <label>
+                    <span>rehearsal answer</span>
+                    <textarea
+                      value={defenseRehearsalAnswer}
+                      onChange={(event) => setDefenseRehearsalAnswer(event.target.value)}
+                      rows={8}
+                      spellCheck="true"
+                    />
+                  </label>
+                </div>
+                <div className="prompt-portfolio-rehearsal-score">
+                  <label>
+                    <span>post-answer self-score</span>
+                    <strong>{defenseRehearsalSelfScore}/100 · {getPromptMentorRehearsalVerdict(defenseRehearsalSelfScore)}</strong>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={defenseRehearsalSelfScore}
+                      onChange={(event) => setDefenseRehearsalSelfScore(Number(event.target.value))}
+                    />
+                  </label>
+                  <div>
+                    <span>live answer scan</span>
+                    <strong>{defenseRehearsalCoaching.estimatedScore}/100 · {defenseRehearsalCoaching.verdict}</strong>
+                    {defenseRehearsalCoaching.checks.map((check) => (
+                      <em key={check.label} className={check.ready ? "ready" : ""}>
+                        {check.ready ? "ok" : "missing"} · {check.label}
+                      </em>
+                    ))}
+                  </div>
+                </div>
+                <div className="prompt-portfolio-rehearsal-actions">
+                  <button type="button" onClick={startMentorRehearsal}>{defenseRehearsalRunning ? "running" : "start 90s"}</button>
+                  <button type="button" onClick={resetMentorRehearsal}>reset</button>
+                  <button type="button" onClick={saveMentorRehearsalAttempt}>save rehearsal</button>
+                </div>
+                <div className="prompt-portfolio-rehearsal-history">
+                  <span>recent rehearsals</span>
+                  {activeDefenseRehearsals.length ? (
+                    activeDefenseRehearsals.map((attempt) => (
+                      <button key={attempt.id} type="button" onClick={() => setDefenseRehearsalAnswer(attempt.answer)}>
+                        <strong>{attempt.selfScore}/100</strong>
+                        <em>{attempt.questionLabel} · {attempt.durationSeconds}s · {attempt.verdict}</em>
+                      </button>
+                    ))
+                  ) : (
+                    <p>// no timed answers saved for this question yet</p>
+                  )}
+                </div>
               </div>
             </div>
             <div className="prompt-portfolio-gallery-list">

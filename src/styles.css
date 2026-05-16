@@ -15853,7 +15853,13 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-head,
 .prompt-portfolio-defense-questions,
 .prompt-portfolio-defense-detail,
-.prompt-portfolio-defense-practice {
+.prompt-portfolio-defense-practice,
+.prompt-portfolio-rehearsal,
+.prompt-portfolio-rehearsal-head,
+.prompt-portfolio-rehearsal-workspace,
+.prompt-portfolio-rehearsal-score,
+.prompt-portfolio-rehearsal-actions,
+.prompt-portfolio-rehearsal-history {
   display: grid;
   gap: 8px;
 }
@@ -15878,7 +15884,13 @@ button.load-forecast-day:hover {
 .prompt-portfolio-polish-detail > div,
 .prompt-portfolio-defense,
 .prompt-portfolio-defense-head > div,
-.prompt-portfolio-defense-detail > div {
+.prompt-portfolio-defense-detail > div,
+.prompt-portfolio-rehearsal,
+.prompt-portfolio-rehearsal-head > div,
+.prompt-portfolio-rehearsal-workspace > div,
+.prompt-portfolio-rehearsal-workspace label,
+.prompt-portfolio-rehearsal-score label,
+.prompt-portfolio-rehearsal-score > div {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -15964,6 +15976,120 @@ button.load-forecast-day:hover {
   padding: 8px;
 }
 
+.prompt-portfolio-rehearsal {
+  border-color: rgba(170, 114, 255, 0.2);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.055), transparent 52%),
+    rgba(2, 7, 15, 0.34);
+  animation: prompt-panel-enter 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-rehearsal-head {
+  grid-template-columns: minmax(160px, 0.25fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-rehearsal-meter {
+  height: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(170, 114, 255, 0.16);
+  background: rgba(53, 215, 255, 0.045);
+}
+
+.prompt-portfolio-rehearsal-meter i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--purple));
+  box-shadow: 0 0 14px rgba(170, 114, 255, 0.32);
+  transition: width 0.28s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-rehearsal-workspace {
+  grid-template-columns: minmax(220px, 0.42fr) minmax(260px, 0.58fr);
+}
+
+.prompt-portfolio-rehearsal-workspace pre {
+  max-height: 210px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid rgba(170, 114, 255, 0.12);
+  background: rgba(2, 7, 15, 0.36);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 9px;
+  white-space: pre-wrap;
+}
+
+.prompt-portfolio-rehearsal textarea {
+  width: 100%;
+  min-height: 188px;
+  resize: vertical;
+  border: 1px solid rgba(170, 114, 255, 0.18);
+  background: rgba(2, 7, 15, 0.5);
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 10px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.prompt-portfolio-rehearsal textarea:focus {
+  border-color: rgba(170, 114, 255, 0.45);
+  background: rgba(5, 12, 24, 0.76);
+  box-shadow: 0 0 18px rgba(170, 114, 255, 0.12);
+}
+
+.prompt-portfolio-rehearsal-score {
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 0.66fr);
+}
+
+.prompt-portfolio-rehearsal-score input[type="range"] {
+  width: 100%;
+  accent-color: var(--purple);
+}
+
+.prompt-portfolio-rehearsal-score > div {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-portfolio-rehearsal-score > div span,
+.prompt-portfolio-rehearsal-score > div strong {
+  grid-column: 1 / -1;
+}
+
+.prompt-portfolio-rehearsal-score em.ready {
+  color: var(--green);
+}
+
+.prompt-portfolio-rehearsal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.prompt-portfolio-rehearsal-history {
+  border-top: 1px solid rgba(170, 114, 255, 0.12);
+  padding-top: 8px;
+}
+
+.prompt-portfolio-rehearsal-history button {
+  display: grid;
+  width: 100%;
+  gap: 4px;
+  min-height: 44px;
+  text-align: left;
+}
+
+.prompt-portfolio-rehearsal-history p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
 .prompt-portfolio-gallery-list > div.active {
   border-color: rgba(53, 215, 255, 0.2);
   background: rgba(53, 215, 255, 0.045);
@@ -15978,7 +16104,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-summary span,
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
-.prompt-portfolio-defense span {
+.prompt-portfolio-defense span,
+.prompt-portfolio-rehearsal span {
   color: var(--ink-2);
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;
@@ -15990,7 +16117,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-summary strong,
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
-.prompt-portfolio-defense strong {
+.prompt-portfolio-defense strong,
+.prompt-portfolio-rehearsal strong {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
   font-size: 14px;
@@ -16001,7 +16129,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-summary p,
 .prompt-portfolio-gallery-list p,
 .prompt-portfolio-polish p,
-.prompt-portfolio-defense p {
+.prompt-portfolio-defense p,
+.prompt-portfolio-rehearsal p {
   margin: 0;
   color: var(--ink-1);
   font-size: 12px;
@@ -16013,7 +16142,8 @@ button.load-forecast-day:hover {
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
-.prompt-portfolio-defense em {
+.prompt-portfolio-defense em,
+.prompt-portfolio-rehearsal em {
   color: var(--ink-2);
   font-size: 10px;
   font-style: normal;
@@ -18188,6 +18318,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-defense-head,
   .prompt-portfolio-defense-questions,
   .prompt-portfolio-defense-detail,
+  .prompt-portfolio-rehearsal-head,
+  .prompt-portfolio-rehearsal-workspace,
+  .prompt-portfolio-rehearsal-score,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-review-grid,
   .prompt-evidence-builder-head,
@@ -18268,6 +18401,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-defense-head,
   .prompt-portfolio-defense-questions,
   .prompt-portfolio-defense-detail,
+  .prompt-portfolio-rehearsal-head,
+  .prompt-portfolio-rehearsal-workspace,
+  .prompt-portfolio-rehearsal-score,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-compare-head,
   .prompt-checkpoint-review-grid,
