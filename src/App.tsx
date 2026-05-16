@@ -17211,6 +17211,24 @@ type PromptIncidentReport = {
   metrics: Array<{ label: string; value: string; detail: string }>;
 };
 
+type PromptIncidentReportArchiveEntry = {
+  id: string;
+  taskId: string;
+  day: number;
+  reportId: string;
+  packetId: string;
+  scenarioTitle: string;
+  savedAt: string;
+  readinessScore: number;
+  verdict: string;
+  versionNote: string;
+  weakestStress: string;
+  weakestAdversary: string;
+  replayMovement: number;
+  markdown: string;
+  searchText: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17219,6 +17237,7 @@ type PromptMemorySnapshot = {
   taskJournals: Record<string, PromptTaskJournal>;
   masteryHistory: PromptMasteryHistoryEntry[];
   redTeamReplayHistory: PromptRedTeamReplayEntry[];
+  incidentReportArchive: PromptIncidentReportArchiveEntry[];
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -17310,6 +17329,37 @@ function normalizePromptRedTeamReplayEntry(value: unknown): PromptRedTeamReplayE
   };
 }
 
+function normalizePromptIncidentReportArchiveEntry(value: unknown): PromptIncidentReportArchiveEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<PromptIncidentReportArchiveEntry>;
+  const id = typeof record.id === "string" && record.id ? record.id : "";
+  const taskId = typeof record.taskId === "string" && record.taskId ? record.taskId : "";
+  const reportId = typeof record.reportId === "string" && record.reportId ? record.reportId : "";
+  const savedAt = typeof record.savedAt === "string" && record.savedAt ? record.savedAt : "";
+  const markdown = typeof record.markdown === "string" ? record.markdown : "";
+  if (!id || !taskId || !reportId || !savedAt || !markdown) return null;
+  const searchText = typeof record.searchText === "string" && record.searchText
+    ? record.searchText
+    : `${record.reportId ?? ""} ${record.scenarioTitle ?? ""} ${record.verdict ?? ""} ${record.weakestStress ?? ""} ${record.weakestAdversary ?? ""} ${markdown}`.toLowerCase();
+  return {
+    id,
+    taskId,
+    day: Math.min(Math.max(Math.trunc(Number(record.day) || 1), 1), 90),
+    reportId,
+    packetId: typeof record.packetId === "string" ? record.packetId : "",
+    scenarioTitle: typeof record.scenarioTitle === "string" ? record.scenarioTitle : "scenario not recorded",
+    savedAt,
+    readinessScore: clampPromptPercent(record.readinessScore),
+    verdict: typeof record.verdict === "string" ? record.verdict : "report archived",
+    versionNote: typeof record.versionNote === "string" ? record.versionNote : "incident report",
+    weakestStress: typeof record.weakestStress === "string" ? record.weakestStress : "not recorded",
+    weakestAdversary: typeof record.weakestAdversary === "string" ? record.weakestAdversary : "not recorded",
+    replayMovement: Number.isFinite(Number(record.replayMovement)) ? Math.round(Number(record.replayMovement)) : 0,
+    markdown,
+    searchText,
+  };
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17343,6 +17393,13 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
             .filter((entry): entry is PromptRedTeamReplayEntry => Boolean(entry))
             .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
             .slice(0, 60)
+        : [],
+      incidentReportArchive: Array.isArray(parsed.incidentReportArchive)
+        ? parsed.incidentReportArchive
+            .map(normalizePromptIncidentReportArchiveEntry)
+            .filter((entry): entry is PromptIncidentReportArchiveEntry => Boolean(entry))
+            .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+            .slice(0, 90)
         : [],
       playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
       playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
@@ -18421,6 +18478,66 @@ function buildPromptIncidentReport({
   };
 }
 
+function buildPromptIncidentReportArchiveEntry({
+  day,
+  task,
+  packet,
+  report,
+  stress,
+  adversary,
+  replayHistory,
+  journal,
+}: {
+  day: number;
+  task: PromptDailyTask;
+  packet: PromptEvidencePacket;
+  report: PromptIncidentReport;
+  stress: PromptEvidenceStressHarness;
+  adversary: PromptEvidenceAdversaryHarness;
+  replayHistory: PromptRedTeamReplayEntry[];
+  journal: PromptTaskJournal;
+}): PromptIncidentReportArchiveEntry {
+  const replayMovement = replayHistory.length >= 2 ? replayHistory[0].combinedScore - replayHistory[1].combinedScore : 0;
+  const weaknessText = [
+    stress.weakest.label,
+    stress.weakest.status,
+    ...stress.weakest.weaknesses,
+    adversary.weakest.label,
+    adversary.weakest.status,
+    ...adversary.weakest.weaknesses,
+  ].join(" ");
+  const searchText = [
+    task.label,
+    task.mode,
+    packet.scenarioTitle,
+    packet.packetId,
+    report.reportId,
+    report.verdict,
+    journal.versionNote,
+    weaknessText,
+    replayMovement > 0 ? "improved rising positive" : replayMovement < 0 ? "regressed falling negative" : "steady unchanged",
+    report.markdown,
+  ].join(" ").toLowerCase();
+
+  return {
+    id: `${report.reportId}-${Date.now()}-archive`,
+    taskId: task.id,
+    day,
+    reportId: report.reportId,
+    packetId: packet.packetId,
+    scenarioTitle: packet.scenarioTitle,
+    savedAt: new Date().toISOString(),
+    readinessScore: report.readinessScore,
+    verdict: report.verdict,
+    versionNote: journal.versionNote || "incident report",
+    weakestStress: `${stress.weakest.label} (${stress.weakest.score}/100, ${stress.weakest.status})`,
+    weakestAdversary: `${adversary.weakest.label} (${adversary.weakest.score}/100, ${adversary.weakest.status})`,
+    replayMovement,
+    markdown: report.markdown,
+    searchText,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -18734,6 +18851,8 @@ function PromptView() {
   const [taskJournals, setTaskJournals] = useState<Record<string, PromptTaskJournal>>(initialMemory?.taskJournals ?? {});
   const [masteryHistory, setMasteryHistory] = useState<PromptMasteryHistoryEntry[]>(initialMemory?.masteryHistory ?? []);
   const [redTeamReplayHistory, setRedTeamReplayHistory] = useState<PromptRedTeamReplayEntry[]>(initialMemory?.redTeamReplayHistory ?? []);
+  const [incidentReportArchive, setIncidentReportArchive] = useState<PromptIncidentReportArchiveEntry[]>(initialMemory?.incidentReportArchive ?? []);
+  const [reportArchiveQuery, setReportArchiveQuery] = useState("");
   const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
@@ -18805,6 +18924,34 @@ function PromptView() {
       selectedDay,
     ],
   );
+  const activeReportArchive = useMemo(
+    () => incidentReportArchive.filter((entry) => entry.taskId === activeDailyTask.id).slice(0, 6),
+    [activeDailyTask.id, incidentReportArchive],
+  );
+  const filteredIncidentReports = useMemo(() => {
+    const tokens = reportArchiveQuery.toLowerCase().split(/\s+/).filter(Boolean);
+    const reports = tokens.length
+      ? incidentReportArchive.filter((entry) => tokens.every((token) => entry.searchText.includes(token)))
+      : incidentReportArchive;
+    return reports.slice(0, 8);
+  }, [incidentReportArchive, reportArchiveQuery]);
+  const reportArchiveStats = useMemo(() => {
+    const averageReadiness = average(incidentReportArchive.map((entry) => entry.readinessScore));
+    const best = incidentReportArchive.reduce<PromptIncidentReportArchiveEntry | null>(
+      (currentBest, entry) => (!currentBest || entry.readinessScore > currentBest.readinessScore ? entry : currentBest),
+      null,
+    );
+    const latest = incidentReportArchive[0] ?? null;
+    const priorSameTask = activeReportArchive[1] ?? null;
+    const activeScoreDelta = activeReportArchive[0] && priorSameTask ? activeReportArchive[0].readinessScore - priorSameTask.readinessScore : 0;
+    return {
+      averageReadiness,
+      best,
+      latest,
+      activeScoreDelta,
+      count: incidentReportArchive.length,
+    };
+  }, [activeReportArchive, incidentReportArchive]);
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -18889,11 +19036,12 @@ function PromptView() {
       taskJournals,
       masteryHistory,
       redTeamReplayHistory,
+      incidentReportArchive,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, iterations, masteryHistory, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
+  }, [completedTasks, incidentReportArchive, iterations, masteryHistory, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -19070,6 +19218,28 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`incident report journaled: ${activeIncidentReport.verdict}`);
+  }
+
+  function archiveIncidentReport() {
+    const entry = buildPromptIncidentReportArchiveEntry({
+      day: selectedDay,
+      task: activeDailyTask,
+      packet: activeEvidencePacket,
+      report: activeIncidentReport,
+      stress: activeStressHarness,
+      adversary: activeAdversaryHarness,
+      replayHistory: activeReplayHistory,
+      journal: activeTaskJournal,
+    });
+    setIncidentReportArchive((current) => [entry, ...current.filter((item) => item.reportId !== entry.reportId)].slice(0, 90));
+    setReportArchiveQuery("");
+    setPlaygroundStatus(`incident report archived: ${entry.readinessScore}/100`);
+  }
+
+  function loadArchivedIncidentReport(entry: PromptIncidentReportArchiveEntry) {
+    setPlaygroundPrompt(entry.markdown);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`archived report staged: D${String(entry.day).padStart(2, "0")} ${entry.readinessScore}/100`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -19532,6 +19702,58 @@ function PromptView() {
                           </div>
                         ))}
                       </div>
+                      <div className="prompt-evidence-report-archive">
+                        <div className="prompt-evidence-report-archive-head">
+                          <div>
+                            <span>report archive</span>
+                            <strong>{reportArchiveStats.count} saved</strong>
+                            <em>avg readiness {reportArchiveStats.averageReadiness}/100</em>
+                          </div>
+                          <div>
+                            <span>comparison drawer</span>
+                            <strong>{activeReportArchive.length >= 2 ? `${reportArchiveStats.activeScoreDelta >= 0 ? "+" : ""}${reportArchiveStats.activeScoreDelta}` : "baseline"}</strong>
+                            <em>{activeReportArchive.length >= 2 ? "latest report movement for this task" : "archive this report to create a baseline"}</em>
+                          </div>
+                          <input
+                            value={reportArchiveQuery}
+                            onChange={(event) => setReportArchiveQuery(event.target.value)}
+                            placeholder="// search task, score, weakness, movement"
+                          />
+                        </div>
+                        <div className="prompt-evidence-report-compare">
+                          <div>
+                            <span>latest archived</span>
+                            <strong>{reportArchiveStats.latest ? `${reportArchiveStats.latest.readinessScore}/100` : "none"}</strong>
+                            <p>{reportArchiveStats.latest ? reportArchiveStats.latest.verdict : "No incident report has been archived yet."}</p>
+                          </div>
+                          <div>
+                            <span>best archived</span>
+                            <strong>{reportArchiveStats.best ? `${reportArchiveStats.best.readinessScore}/100` : "none"}</strong>
+                            <p>{reportArchiveStats.best ? `${reportArchiveStats.best.scenarioTitle} · D${String(reportArchiveStats.best.day).padStart(2, "0")}` : "Archive reports across the bootcamp to find your strongest evidence packet."}</p>
+                          </div>
+                          <div>
+                            <span>active task trend</span>
+                            <strong>{activeReportArchive.length ? activeReportArchive[0].weakestAdversary : "no task archive"}</strong>
+                            <p>{activeReportArchive.length ? `Replay movement ${activeReportArchive[0].replayMovement >= 0 ? "+" : ""}${activeReportArchive[0].replayMovement}; stress ${activeReportArchive[0].weakestStress}.` : "Save this report, then compare later attempts against it."}</p>
+                          </div>
+                        </div>
+                        <div className="prompt-evidence-report-list">
+                          {filteredIncidentReports.length ? filteredIncidentReports.map((entry) => (
+                            <button key={entry.id} type="button" onClick={() => loadArchivedIncidentReport(entry)}>
+                              <span>D{String(entry.day).padStart(2, "0")} · {entry.packetId}</span>
+                              <strong>{entry.readinessScore}/100 · {entry.verdict}</strong>
+                              <em>{entry.scenarioTitle}</em>
+                              <i>{entry.weakestStress} // {entry.weakestAdversary}</i>
+                            </button>
+                          )) : (
+                            <div>
+                              <span>no archive match</span>
+                              <strong>try stress, injection, rising, or a task name</strong>
+                              <p>Search uses task labels, readiness verdicts, weakest cases, packet ids, and replay movement.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <pre>{activeIncidentReport.markdown}</pre>
                     </div>
                     <div className="prompt-evidence-tests">
@@ -19558,6 +19780,7 @@ function PromptView() {
                     <button type="button" onClick={loadWeakestAdversaryCaseIntoLab}>load adversary case</button>
                     <button type="button" onClick={applyAdversaryHardenedRewriteToJournal}>apply guarded v4</button>
                     <button type="button" onClick={saveRedTeamReplay}>save replay</button>
+                    <button type="button" onClick={archiveIncidentReport}>archive report</button>
                     <button type="button" onClick={stageIncidentReportInLab}>stage report</button>
                     <button type="button" onClick={saveIncidentReportToJournal}>journal report</button>
                     <button type="button" onClick={copyIncidentReport}>copy report</button>

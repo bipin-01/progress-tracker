@@ -389,3 +389,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a report archive and comparison drawer so exported incident reports can be searched by task, readiness score, weakness, and replay movement across the full 90-day bootcamp.
+
+### 2026-05-16 - Incident Report Archive And Comparison Drawer
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because exported reports were useful, but still behaved like one-off artifacts unless the learner saved and compared them over time.
+
+Problem observed:
+- The incident report generator produced a strong markdown artifact, but there was no persistent archive of exported reports.
+- Learners could not search prior reports by task, readiness, weak stress case, adversary weakness, or replay movement.
+- UI/UX needed a quieter longitudinal layer that answers "am I improving across attempts?" without forcing the learner to inspect every saved journal manually.
+
+Decision:
+- More scenario-based tracking content was needed. This fit the 70% rule because a professional prompt bootcamp should build an audit trail of evidence reports and show whether later attempts reduce the same weaknesses.
+
+Implemented:
+- Added persistent incident report archive entries to `/prompt` local memory.
+- Each archived report stores task id, day, report id, packet id, scenario, saved time, readiness score, verdict, version note, weakest stress case, weakest adversary case, replay movement, markdown, and a searchable index.
+- Added an archive report action to the Packet panel.
+- Added a compact report archive drawer inside the incident report layer with saved count, average readiness, latest report, best report, active task trend, and comparison delta.
+- Added search across task labels, packet ids, scenario names, readiness verdicts, weaknesses, replay movement terms, and full markdown content.
+- Archived report cards can be clicked to stage the saved markdown back into the lab for review.
+- Styled the archive as a quiet green audit layer with responsive comparison cards and smooth hover states.
+
+Next likely upgrade:
+- Add a guided report review rubric that grades archived incident reports against portfolio standards and generates a focused remediation checklist before the learner exports or shares the report.
