@@ -17361,6 +17361,37 @@ type PromptDefenseCalendarReviewSummary = {
   recommendedQueueItem?: PromptPortfolioReviewQueueItem;
 };
 
+type PromptDefensePerformanceExportMetric = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+type PromptDefensePerformanceExportRehearsal = {
+  id: string;
+  label: string;
+  score: number;
+  verdict: string;
+  duration: string;
+  dateLabel: string;
+  answerExcerpt: string;
+};
+
+type PromptDefensePerformanceExport = {
+  exportId: string;
+  title: string;
+  readinessScore: number;
+  verdict: string;
+  mentorNote: string;
+  recurringWeakness: string;
+  recoveryPrescription: string;
+  metrics: PromptDefensePerformanceExportMetric[];
+  strongestRehearsals: PromptDefensePerformanceExportRehearsal[];
+  recoveryHistory: string[];
+  nextSevenDayPlan: string[];
+  markdown: string;
+};
+
 type PromptPortfolioGallery = {
   items: PromptPortfolioGalleryItem[];
   best: PromptPortfolioGalleryItem;
@@ -17368,6 +17399,7 @@ type PromptPortfolioGallery = {
   reviewQueue: PromptPortfolioReviewQueueItem[];
   reviewCalendar: PromptPortfolioReviewCalendarDay[];
   defenseCalendarReview: PromptDefenseCalendarReviewSummary;
+  defensePerformanceExport: PromptDefensePerformanceExport;
   averageScore: number;
   readyCount: number;
   defenseGatedCount: number;
@@ -19412,6 +19444,164 @@ function buildPromptDefenseCalendarReviewSummary({
   };
 }
 
+function buildPromptDefensePerformanceExport({
+  selectedDay,
+  items,
+  reviewQueue,
+  reviewCalendar,
+  schedules,
+  rehearsals,
+  summary,
+}: {
+  selectedDay: number;
+  items: PromptPortfolioGalleryItem[];
+  reviewQueue: PromptPortfolioReviewQueueItem[];
+  reviewCalendar: PromptPortfolioReviewCalendarDay[];
+  schedules: PromptDefenseCalendarSchedule[];
+  rehearsals: PromptMentorRehearsalAttempt[];
+  summary: PromptDefenseCalendarReviewSummary;
+}): PromptDefensePerformanceExport {
+  const recentSchedules = [...schedules]
+    .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt))
+    .slice(0, 21);
+  const practicedSchedules = recentSchedules.filter((schedule) => isPromptDefenseSchedulePracticed(schedule, rehearsals));
+  const missedSchedules = recentSchedules.filter((schedule) => schedule.day < selectedDay && !isPromptDefenseSchedulePracticed(schedule, rehearsals));
+  const recentRehearsals = [...rehearsals]
+    .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+    .slice(0, 18);
+  const averageRehearsalScore = average(recentRehearsals.map((attempt) => attempt.selfScore));
+  const defenseGateReadiness = average(items.map((item) => item.defenseGate.readinessScore));
+  const strongestRehearsals = [...rehearsals]
+    .sort((a, b) => b.selfScore - a.selfScore || b.savedAt.localeCompare(a.savedAt))
+    .slice(0, 3)
+    .map((attempt): PromptDefensePerformanceExportRehearsal => ({
+      id: attempt.id,
+      label: attempt.questionLabel,
+      score: attempt.selfScore,
+      verdict: attempt.verdict,
+      duration: `${attempt.durationSeconds}s`,
+      dateLabel: new Date(attempt.savedAt).toLocaleDateString([], { month: "short", day: "2-digit" }),
+      answerExcerpt: attempt.answer.replace(/\s+/g, " ").slice(0, 180) || "No answer text captured.",
+    }));
+  if (!strongestRehearsals.length) {
+    strongestRehearsals.push({
+      id: "no-rehearsal",
+      label: "No timed defense saved",
+      score: 0,
+      verdict: "evidence missing",
+      duration: "0s",
+      dateLabel: "pending",
+      answerExcerpt: "Save one timed mentor-defense answer so this export can show spoken proof, not just written prompt artifacts.",
+    });
+  }
+  const recurringWeakness =
+    reviewQueue.find((queueItem) => queueItem.nextCheck.questionId === summary.recurringQuestionId)?.scenario ??
+    `The recurring weakness is ${summary.recurringQuestionLabel}; the learner should answer with confirmed evidence, unknowns, a guardrail, and a measurable next action.`;
+  const recoveryHistory = [
+    ...missedSchedules.slice(0, 4).map((schedule) => `Missed D${String(schedule.day).padStart(2, "0")} ${schedule.questionLabel}; reschedule before adding new showcase work.`),
+    ...practicedSchedules.slice(0, 4).map((schedule) => `Practiced D${String(schedule.day).padStart(2, "0")} ${schedule.questionLabel}; verify the saved answer clears the ${PROMPT_MENTOR_DEFENSE_GATE_THRESHOLD}/100 gate.`),
+    ...recentRehearsals.slice(0, 4).map((attempt) => `${attempt.questionLabel} scored ${attempt.selfScore}/100 (${attempt.verdict}) in ${attempt.durationSeconds}s.`),
+  ].slice(0, 8);
+  if (!recoveryHistory.length) {
+    recoveryHistory.push("No recovery history yet. Schedule the first defense micro-plan day, save the timed answer, then rerun this export.");
+  }
+  const nextSevenDayPlan = reviewCalendar.map((planDay) => [
+    `D${String(planDay.day).padStart(2, "0")} ${planDay.title}`,
+    `${planDay.minutes}m`,
+    planDay.successMetric,
+  ].join(" - "));
+  const consistencyScore = recentSchedules.length ? Math.round((practicedSchedules.length / recentSchedules.length) * 100) : summary.completionRate;
+  const debtScore = Math.max(0, 100 - summary.missedDebt * 18);
+  const readinessScore = Math.round(
+    summary.completionRate * 0.26 +
+    averageRehearsalScore * 0.28 +
+    defenseGateReadiness * 0.26 +
+    debtScore * 0.2,
+  );
+  const verdict =
+    readinessScore >= 88
+      ? "mentor-ready defense packet"
+      : readinessScore >= 74
+        ? "usable with one focused recovery pass"
+        : readinessScore >= 58
+          ? "needs defense rehearsal before review"
+          : "not ready for mentor review";
+  const recoveryPrescription =
+    summary.missedDebt > 1
+      ? `Stop adding new artifacts for one session. Clear ${summary.missedDebt} missed rehearsal${summary.missedDebt === 1 ? "" : "s"}, beginning with ${summary.recurringQuestionLabel}.`
+      : reviewQueue[0]
+        ? `Run the next blocked-artifact drill: ${reviewQueue[0].item.title} / ${reviewQueue[0].nextCheck.label}, then save a timed answer above ${reviewQueue[0].item.defenseGate.threshold}/100.`
+        : "Keep maintenance mode: rehearse one 90-second portfolio pitch, archive the strongest answer, and compare it against the final export.";
+  const mentorNote = [
+    `As of D${String(selectedDay).padStart(2, "0")}, the learner is at ${readinessScore}/100 defense readiness.`,
+    `Cadence is ${consistencyScore}% with ${summary.missedDebt} missed rehearsal debt.`,
+    `The recurring risk is ${summary.recurringQuestionLabel}: ${recurringWeakness}`,
+    `In a real review, ask for a concrete SOC case detail, one missing evidence line, the output/human gate, and the next measurable improvement.`,
+  ].join(" ");
+  const metrics: PromptDefensePerformanceExportMetric[] = [
+    { label: "defense readiness", value: `${readinessScore}/100`, detail: verdict },
+    { label: "calendar cadence", value: `${summary.completionRate}%`, detail: `${summary.practicedCount}/${summary.scheduledCount} practiced` },
+    { label: "rehearsal avg", value: `${averageRehearsalScore}/100`, detail: `${recentRehearsals.length} recent timed answers` },
+    { label: "gate readiness", value: `${defenseGateReadiness}/100`, detail: `${items.filter((item) => item.defenseGate.unlocked).length}/${items.length} artifacts cleared` },
+    { label: "missed debt", value: `${summary.missedDebt}`, detail: summary.verdict },
+    { label: "recurring risk", value: summary.recurringQuestionLabel, detail: `risk weight ${summary.recurringRiskCount}` },
+  ];
+  const exportId = `DEFENSE-D${String(selectedDay).padStart(2, "0")}-${getPromptEvidenceChecksum(`${readinessScore}:${summary.recurringQuestionId}:${recentRehearsals.length}:${summary.missedDebt}`)}`;
+  const markdown = [
+    `# Mentor Defense Progress Note: D${String(selectedDay).padStart(2, "0")}`,
+    "",
+    `Export ID: ${exportId}`,
+    `Readiness: ${readinessScore}/100 (${verdict})`,
+    "",
+    "## Mentor Summary",
+    mentorNote,
+    "",
+    "## Cadence Metrics",
+    formatPromptReportTable(["Metric", "Value", "Detail"], metrics.map((metric) => [metric.label, metric.value, metric.detail])),
+    "",
+    "## Recurring Weakness",
+    `Primary recurring defense risk: ${summary.recurringQuestionLabel}.`,
+    summary.reviewerScenario,
+    recurringWeakness,
+    "",
+    "## Strongest Timed Rehearsals",
+    formatPromptReportTable(
+      ["Question", "Score", "Duration", "Evidence"],
+      strongestRehearsals.map((attempt) => [attempt.label, `${attempt.score}/100`, attempt.duration, `${attempt.dateLabel}: ${attempt.answerExcerpt}`]),
+    ),
+    "",
+    "## Recovery History",
+    formatPromptReportBullets(recoveryHistory),
+    "",
+    "## Next 7-Day Defense Plan",
+    formatPromptReportBullets(nextSevenDayPlan),
+    "",
+    "## Mentor Review Script",
+    `1. Ask the learner to defend ${summary.recurringQuestionLabel} without reading the UI.`,
+    "2. Interrupt once with missing evidence or a hostile-ticket detail.",
+    "3. Require a final answer that names confirmed evidence, unknowns, human/output gate, and measurable next action.",
+    "4. Pass only if the answer stays specific under pressure and clears the timed rehearsal threshold.",
+    "",
+    "## Recovery Prescription",
+    recoveryPrescription,
+  ].join("\n");
+
+  return {
+    exportId,
+    title: `D${String(selectedDay).padStart(2, "0")} defense performance export`,
+    readinessScore,
+    verdict,
+    mentorNote,
+    recurringWeakness,
+    recoveryPrescription,
+    metrics,
+    strongestRehearsals,
+    recoveryHistory,
+    nextSevenDayPlan,
+    markdown,
+  };
+}
+
 function buildPromptPortfolioReviewCalendar(
   reviewQueue: PromptPortfolioReviewQueueItem[],
   selectedDay: number,
@@ -19550,6 +19740,15 @@ function buildPromptPortfolioGallery({
     reviewQueue,
     selectedDay,
   });
+  const defensePerformanceExport = buildPromptDefensePerformanceExport({
+    selectedDay,
+    items,
+    reviewQueue,
+    reviewCalendar,
+    schedules: defenseCalendarSchedules,
+    rehearsals: mentorRehearsals,
+    summary: defenseCalendarReview,
+  });
 
   return {
     items,
@@ -19558,6 +19757,7 @@ function buildPromptPortfolioGallery({
     reviewQueue,
     reviewCalendar,
     defenseCalendarReview,
+    defensePerformanceExport,
     averageScore: average(items.map((item) => item.showcaseScore)),
     readyCount: items.filter((item) => item.showcaseReady).length,
     defenseGatedCount: items.filter((item) => !item.defenseGate.unlocked).length,
@@ -21055,6 +21255,41 @@ function PromptView() {
     setPlaygroundStatus(`defense calendar recovery loaded: ${summary.recurringQuestionLabel}`);
   }
 
+  async function copyDefensePerformanceExport() {
+    const defenseExport = portfolioGallery.defensePerformanceExport;
+    try {
+      await navigator.clipboard.writeText(defenseExport.markdown);
+      setPlaygroundStatus(`defense export copied: ${defenseExport.exportId}`);
+    } catch {
+      setPlaygroundOutput(defenseExport.markdown);
+      setPlaygroundStatus("copy blocked; defense export staged in output panel");
+    }
+  }
+
+  function stageDefensePerformanceExport() {
+    const defenseExport = portfolioGallery.defensePerformanceExport;
+    setPlaygroundPrompt(defenseExport.markdown);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`defense export staged: ${defenseExport.readinessScore}/100`);
+  }
+
+  function saveDefensePerformanceExportToJournal() {
+    const defenseExport = portfolioGallery.defensePerformanceExport;
+    const currentAnswer = activeTaskJournal.answer.trim();
+    updateTaskJournal({
+      answer: [
+        currentAnswer,
+        "",
+        "---",
+        defenseExport.markdown,
+      ].filter(Boolean).join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, defenseExport.readinessScore),
+      versionNote: `defense export ${defenseExport.exportId}`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`defense export journaled: ${defenseExport.verdict}`);
+  }
+
   function loadPortfolioPolishWorkflow() {
     const currentAnswer = activeTaskJournal.answer.trim() || activePortfolioExport.markdown;
     updateTaskJournal({
@@ -22199,6 +22434,48 @@ function PromptView() {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="prompt-defense-performance-export" aria-label="Mentor-ready defense performance export">
+                <div className="prompt-defense-performance-head">
+                  <div>
+                    <span>mentor progress export</span>
+                    <strong>{portfolioGallery.defensePerformanceExport.readinessScore}/100</strong>
+                    <em>{portfolioGallery.defensePerformanceExport.verdict}</em>
+                  </div>
+                  <p>{portfolioGallery.defensePerformanceExport.mentorNote}</p>
+                  <div>
+                    <button type="button" onClick={stageDefensePerformanceExport}>stage note</button>
+                    <button type="button" onClick={saveDefensePerformanceExportToJournal}>journal note</button>
+                    <button type="button" onClick={copyDefensePerformanceExport}>copy note</button>
+                  </div>
+                </div>
+                <div className="prompt-defense-performance-metrics">
+                  {portfolioGallery.defensePerformanceExport.metrics.map((metric) => (
+                    <div key={metric.label}>
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <em>{metric.detail}</em>
+                    </div>
+                  ))}
+                </div>
+                <div className="prompt-defense-performance-brief">
+                  <div>
+                    <span>recurring weakness</span>
+                    <strong>{portfolioGallery.defensePerformanceExport.recurringWeakness}</strong>
+                    <p>{portfolioGallery.defensePerformanceExport.recoveryPrescription}</p>
+                  </div>
+                  <div>
+                    <span>strongest timed answers</span>
+                    {portfolioGallery.defensePerformanceExport.strongestRehearsals.map((attempt) => (
+                      <em key={attempt.id}>{attempt.label} · {attempt.score}/100 · {attempt.duration} · {attempt.answerExcerpt}</em>
+                    ))}
+                  </div>
+                  <div>
+                    <span>recovery history</span>
+                    {portfolioGallery.defensePerformanceExport.recoveryHistory.slice(0, 5).map((item) => <em key={item}>{item}</em>)}
+                  </div>
+                </div>
+                <pre>{portfolioGallery.defensePerformanceExport.markdown}</pre>
               </div>
             </div>
             <div className="prompt-portfolio-polish" aria-label="Case study polish workflow">

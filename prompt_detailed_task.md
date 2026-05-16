@@ -722,3 +722,30 @@ Implemented:
 
 Next likely upgrade:
 - Add a defense performance export that packages calendar cadence, recurring weakness, strongest rehearsals, and recovery history into a mentor-ready progress note.
+
+### 2026-05-16 - Defense Performance Export
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the calendar review could diagnose cadence, but the learner still needed a mentor-ready artifact that summarizes behavior, spoken proof, recovery debt, and next rehearsal commitments.
+
+Problem observed:
+- The defense calendar summary was useful inside the app, but it did not produce a portable progress note for a mentor, reviewer, or future AI coach.
+- Strongest timed rehearsals, missed rehearsal debt, recurring weakness, and the next seven-day prescription lived in separate UI layers.
+- UI/UX needed a smoother transition from "I reviewed my defense cadence" to "I can export a concise progress note and act on it."
+
+Decision:
+- More content-rich export infrastructure was needed. This fit the 70% rule because a serious bootcamp should teach the learner how to explain their practice history, not only complete practice cards.
+
+Implemented:
+- Added a deterministic defense performance export model to the portfolio gallery.
+- The export calculates defense readiness from calendar cadence, recent timed rehearsal scores, gate readiness, and missed rehearsal debt.
+- Added mentor-facing metrics for defense readiness, calendar cadence, rehearsal average, gate readiness, missed debt, and recurring risk.
+- Added strongest timed rehearsal extraction with score, duration, date, verdict, and answer excerpt.
+- Added recovery history that combines missed calendar commitments, practiced calendar commitments, and recent timed rehearsal outcomes.
+- Added a next seven-day defense plan and a mentor review script with realistic interruption pressure.
+- Added stage, journal, and copy actions for the defense progress note.
+- Styled the export as a quiet cyan review layer under the defense calendar, with responsive metrics, compact rehearsal proof, recovery history, and a scroll-safe markdown preview.
+
+Next likely upgrade:
+- Add a defense export comparison ledger that compares the newest mentor progress note against the previous note, showing cadence improvement, repeated weakness movement, and whether recovery debt is shrinking.

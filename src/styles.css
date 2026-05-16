@@ -15850,6 +15850,10 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-calendar-head,
 .prompt-portfolio-defense-review-summary,
 .prompt-portfolio-defense-calendar-grid,
+.prompt-defense-performance-export,
+.prompt-defense-performance-head,
+.prompt-defense-performance-metrics,
+.prompt-defense-performance-brief,
 .prompt-portfolio-gallery-list,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head,
@@ -16044,6 +16048,55 @@ button.load-forecast-day:hover {
   min-width: max-content;
 }
 
+.prompt-defense-performance-export {
+  border-color: rgba(53, 215, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.035), transparent 42%),
+    rgba(2, 7, 15, 0.32);
+  animation: prompt-panel-enter 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-defense-performance-head {
+  grid-template-columns: minmax(180px, 0.22fr) minmax(280px, 1fr) auto;
+  align-items: start;
+}
+
+.prompt-defense-performance-head > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 6px;
+}
+
+.prompt-defense-performance-metrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.prompt-defense-performance-brief {
+  grid-template-columns: minmax(280px, 0.42fr) minmax(240px, 0.29fr) minmax(240px, 0.29fr);
+}
+
+.prompt-defense-performance-brief strong {
+  color: var(--ink-0);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  line-height: 1.55;
+}
+
+.prompt-defense-performance-export pre {
+  max-height: 240px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.38);
+  padding: 10px;
+  color: var(--ink-1);
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .prompt-portfolio-gallery-list {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
@@ -16058,6 +16111,10 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-calendar-head > div,
 .prompt-portfolio-defense-review-summary > div,
 .prompt-portfolio-defense-calendar-grid > div,
+.prompt-defense-performance-export,
+.prompt-defense-performance-head > div,
+.prompt-defense-performance-metrics > div,
+.prompt-defense-performance-brief > div,
 .prompt-portfolio-gallery-list > div,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head > div,
@@ -16376,6 +16433,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue span,
 .prompt-portfolio-defense-calendar span,
 .prompt-portfolio-defense-review-summary span,
+.prompt-defense-performance-export span,
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
@@ -16393,6 +16451,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue strong,
 .prompt-portfolio-defense-calendar strong,
 .prompt-portfolio-defense-review-summary strong,
+.prompt-defense-performance-export strong,
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
@@ -16409,6 +16468,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue p,
 .prompt-portfolio-defense-calendar p,
 .prompt-portfolio-defense-review-summary p,
+.prompt-defense-performance-export p,
 .prompt-portfolio-gallery-list p,
 .prompt-portfolio-polish p,
 .prompt-portfolio-defense p,
@@ -16425,6 +16485,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-review-queue em,
 .prompt-portfolio-defense-calendar em,
 .prompt-portfolio-defense-review-summary em,
+.prompt-defense-performance-export em,
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
@@ -18603,6 +18664,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-defense-calendar-head,
   .prompt-portfolio-defense-review-summary,
   .prompt-portfolio-defense-calendar-grid,
+  .prompt-defense-performance-head,
+  .prompt-defense-performance-metrics,
+  .prompt-defense-performance-brief,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
@@ -18694,6 +18758,9 @@ button.load-forecast-day:hover {
   .prompt-portfolio-defense-calendar-head,
   .prompt-portfolio-defense-review-summary,
   .prompt-portfolio-defense-calendar-grid,
+  .prompt-defense-performance-head,
+  .prompt-defense-performance-metrics,
+  .prompt-defense-performance-brief,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
