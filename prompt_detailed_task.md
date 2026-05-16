@@ -140,3 +140,27 @@ Implemented:
 
 Next likely upgrade:
 - Add mastery history persistence by saving each day's ledger snapshot, then show real trend history instead of recomputing the last seven days from current state.
+
+### 2026-05-16 - Persisted Mastery History
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the mastery score existed, but it still behaved like a temporary dashboard calculation.
+
+Problem observed:
+- The Daily Mastery Ledger computed a useful score, but it did not create a durable day-by-day record.
+- The trend bars were still mostly derived from current state, which made progress feel less like a real bootcamp history.
+- The learner had no explicit ritual for closing a training day and saving the evidence trail.
+
+Decision:
+- More tracking infrastructure was needed. This fit the 70% rule because real mastery requires a saved checkpoint, visible trend history, and a reviewable archive rather than another static explanation block.
+
+Implemented:
+- Added persisted mastery history to `/prompt` local memory with backwards-compatible loading for existing users.
+- Added a lock/update checkpoint action to the Daily Mastery Ledger.
+- Changed the seven-day trend to distinguish locked checkpoints, the current draft day, and empty days with calmer visual states.
+- Added a compact archive summary showing history average, best day, latest checkpoint, and total archived days.
+- Kept the UI cyber/futuristic but quieter by using small status labels, dashed draft bars, muted empty bars, and smooth hover transitions.
+
+Next likely upgrade:
+- Add a checkpoint review drawer that opens any locked day and shows the exact weak signal, saved journal attempts, and recommended next drill for that day.

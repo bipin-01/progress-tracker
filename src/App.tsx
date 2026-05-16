@@ -16994,12 +16994,22 @@ type PromptDayMasterySnapshot = {
   nextAction: string;
 };
 
+type PromptMasteryHistoryEntry = PromptDayMasterySnapshot & {
+  savedAt: string;
+};
+
+type PromptMasteryTrendPoint = PromptDayMasterySnapshot & {
+  savedAt?: string;
+  status: "locked" | "draft" | "empty";
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
   reviewStates: Record<string, PromptReviewState>;
   iterations: PromptIteration[];
   taskJournals: Record<string, PromptTaskJournal>;
+  masteryHistory: PromptMasteryHistoryEntry[];
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -17041,6 +17051,32 @@ function isPromptTaskJournal(value: unknown): value is PromptTaskJournal {
   return Boolean(value && typeof value === "object" && "taskId" in value && "answer" in value);
 }
 
+function clampPromptPercent(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(100, Math.max(0, Math.round(numeric))) : 0;
+}
+
+function normalizePromptMasteryHistoryEntry(value: unknown): PromptMasteryHistoryEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<PromptMasteryHistoryEntry>;
+  const day = Math.min(Math.max(Math.trunc(Number(record.day) || 1), 1), 90);
+  const score = clampPromptPercent(record.score);
+  const savedAt = typeof record.savedAt === "string" && record.savedAt ? record.savedAt : "";
+  if (!savedAt) return null;
+  return {
+    day,
+    score,
+    label: typeof record.label === "string" && record.label ? record.label : getPromptMasteryLabel(score),
+    taskCompletion: clampPromptPercent(record.taskCompletion),
+    journalCompletion: clampPromptPercent(record.journalCompletion),
+    coachScore: clampPromptPercent(record.coachScore),
+    srsReadiness: clampPromptPercent(record.srsReadiness),
+    playgroundScore: clampPromptPercent(record.playgroundScore),
+    nextAction: typeof record.nextAction === "string" && record.nextAction ? record.nextAction : "Review the weakest signal and lock a new checkpoint.",
+    savedAt,
+  };
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17061,6 +17097,13 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
             Object.entries(parsed.taskJournals).filter((entry): entry is [string, PromptTaskJournal] => isPromptTaskJournal(entry[1])),
           )
         : {},
+      masteryHistory: Array.isArray(parsed.masteryHistory)
+        ? parsed.masteryHistory
+            .map(normalizePromptMasteryHistoryEntry)
+            .filter((entry): entry is PromptMasteryHistoryEntry => Boolean(entry))
+            .sort((a, b) => a.day - b.day)
+            .slice(-90)
+        : [],
       playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
       playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
     };
@@ -17283,6 +17326,7 @@ function PromptView() {
   const [iterationScore, setIterationScore] = useState(70);
   const [iterations, setIterations] = useState<PromptIteration[]>(initialMemory?.iterations ?? []);
   const [taskJournals, setTaskJournals] = useState<Record<string, PromptTaskJournal>>(initialMemory?.taskJournals ?? {});
+  const [masteryHistory, setMasteryHistory] = useState<PromptMasteryHistoryEntry[]>(initialMemory?.masteryHistory ?? []);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
   const activeDailyTask = dailyTasks.find((task) => task.id === activeDailyTaskId) ?? dailyTasks[0];
@@ -17295,14 +17339,47 @@ function PromptView() {
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
   );
+  const masteryHistoryByDay = useMemo(() => new Map(masteryHistory.map((entry) => [entry.day, entry])), [masteryHistory]);
+  const lockedMastery = masteryHistoryByDay.get(selectedDay);
   const masteryTrend = useMemo(
     () => {
       const trendStart = Math.min(Math.max(1, selectedDay - 6), 84);
-      return Array.from({ length: 7 }, (_, index) => trendStart + index).map((day) =>
-        buildPromptDayMasterySnapshot({ day, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
-      );
+      return Array.from({ length: 7 }, (_, index): PromptMasteryTrendPoint => {
+        const day = trendStart + index;
+        const locked = masteryHistoryByDay.get(day);
+        if (locked) return { ...locked, status: "locked" };
+        if (day === selectedDay) return { ...dayMastery, status: "draft" };
+        return {
+          day,
+          score: 0,
+          label: "not locked",
+          taskCompletion: 0,
+          journalCompletion: 0,
+          coachScore: 0,
+          srsReadiness: 0,
+          playgroundScore: 0,
+          nextAction: "No locked checkpoint exists for this day yet.",
+          status: "empty",
+        };
+      });
     },
-    [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
+    [dayMastery, masteryHistoryByDay, selectedDay],
+  );
+  const masteryHistoryStats = useMemo(
+    () => {
+      const best = masteryHistory.reduce<PromptMasteryHistoryEntry | null>(
+        (currentBest, entry) => (!currentBest || entry.score > currentBest.score ? entry : currentBest),
+        null,
+      );
+      const latest = [...masteryHistory].sort((a, b) => b.savedAt.localeCompare(a.savedAt))[0] ?? null;
+      return {
+        averageScore: average(masteryHistory.map((entry) => entry.score)),
+        best,
+        latest,
+        lockedCount: masteryHistory.length,
+      };
+    },
+    [masteryHistory],
   );
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
@@ -17330,11 +17407,12 @@ function PromptView() {
       reviewStates,
       iterations: iterations.slice(0, 36),
       taskJournals,
+      masteryHistory,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, iterations, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay, taskJournals]);
+  }, [completedTasks, iterations, masteryHistory, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -17351,6 +17429,20 @@ function PromptView() {
       else next.add(taskId);
       return next;
     });
+  }
+
+  function lockMasterySnapshot() {
+    const savedAt = new Date().toISOString();
+    setMasteryHistory((current) =>
+      [
+        ...current.filter((entry) => entry.day !== selectedDay),
+        {
+          ...dayMastery,
+          savedAt,
+        },
+      ].sort((a, b) => a.day - b.day).slice(-90),
+    );
+    setPlaygroundStatus(`D${String(selectedDay).padStart(2, "0")} mastery checkpoint locked`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -17733,17 +17825,23 @@ function PromptView() {
               <span>mastery</span>
               <strong>{dayMastery.score}%</strong>
               <em>{dayMastery.label}</em>
+              <small>{lockedMastery ? `locked ${new Date(lockedMastery.savedAt).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "draft checkpoint"}</small>
             </div>
             <div className="prompt-mastery-next">
               <span>next best action</span>
               <p>{dayMastery.nextAction}</p>
               <strong>{activeTaskFeedback.automationGate}</strong>
+              <div className="prompt-mastery-actions">
+                <button type="button" onClick={lockMasterySnapshot}>{lockedMastery ? "update checkpoint" : "lock checkpoint"}</button>
+                <em>{masteryHistoryStats.lockedCount}/90 days archived</em>
+              </div>
             </div>
             <div className="prompt-mastery-trend" aria-label="Seven day prompt mastery trend">
               {masteryTrend.map((snapshot) => (
-                <div key={snapshot.day} title={`D${snapshot.day}: ${snapshot.score}%`}>
+                <div key={snapshot.day} className={snapshot.status} title={`D${snapshot.day}: ${snapshot.score}% · ${snapshot.status}`}>
                   <i style={{ height: `${Math.max(10, snapshot.score)}%` }} />
                   <span>D{String(snapshot.day).padStart(2, "0")}</span>
+                  <em>{snapshot.status}</em>
                 </div>
               ))}
             </div>
@@ -17773,6 +17871,23 @@ function PromptView() {
               <span>lab</span>
               <strong>{dayMastery.playgroundScore}%</strong>
               <em>{activeIterations.length} versions</em>
+            </div>
+          </div>
+          <div className="prompt-mastery-archive">
+            <div>
+              <span>history average</span>
+              <strong>{masteryHistoryStats.averageScore}%</strong>
+              <em>{masteryHistoryStats.lockedCount ? `${masteryHistoryStats.lockedCount} locked checkpoints` : "no locked checkpoints yet"}</em>
+            </div>
+            <div>
+              <span>best day</span>
+              <strong>{masteryHistoryStats.best ? `D${String(masteryHistoryStats.best.day).padStart(2, "0")}` : "--"}</strong>
+              <em>{masteryHistoryStats.best ? `${masteryHistoryStats.best.score}% · ${masteryHistoryStats.best.label}` : "lock a day to begin trend history"}</em>
+            </div>
+            <div>
+              <span>latest archive</span>
+              <strong>{masteryHistoryStats.latest ? `D${String(masteryHistoryStats.latest.day).padStart(2, "0")}` : "--"}</strong>
+              <em>{masteryHistoryStats.latest ? new Date(masteryHistoryStats.latest.savedAt).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "awaiting first checkpoint"}</em>
             </div>
           </div>
         </HudCard>

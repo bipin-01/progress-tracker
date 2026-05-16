@@ -15611,6 +15611,14 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.prompt-mastery-score small {
+  color: rgba(126, 151, 190, 0.72);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .prompt-mastery-next {
   display: grid;
   align-content: center;
@@ -15633,6 +15641,42 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.prompt-mastery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.prompt-mastery-actions button {
+  min-height: 30px;
+  border: 1px solid rgba(53, 215, 255, 0.34);
+  background: rgba(53, 215, 255, 0.08);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition:
+    border-color 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    background 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-mastery-actions button:hover {
+  border-color: rgba(133, 255, 94, 0.55);
+  background: rgba(133, 255, 94, 0.08);
+  transform: translateY(-1px);
+}
+
+.prompt-mastery-actions em {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .prompt-mastery-trend {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -15644,8 +15688,8 @@ button.load-forecast-day:hover {
 .prompt-mastery-trend div {
   display: grid;
   align-items: end;
-  gap: 5px;
-  height: 82px;
+  gap: 4px;
+  height: 94px;
   min-width: 0;
 }
 
@@ -15659,10 +15703,36 @@ button.load-forecast-day:hover {
   transition: height 0.24s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
+.prompt-mastery-trend div.empty i {
+  border-color: rgba(126, 151, 190, 0.16);
+  background: rgba(126, 151, 190, 0.1);
+  box-shadow: none;
+}
+
+.prompt-mastery-trend div.draft i {
+  border-style: dashed;
+  background: linear-gradient(180deg, rgba(53, 215, 255, 0.48), rgba(53, 215, 255, 0.14));
+}
+
+.prompt-mastery-trend div.locked i {
+  border-color: rgba(133, 255, 94, 0.34);
+}
+
 .prompt-mastery-trend span {
   overflow: hidden;
   text-align: center;
   text-overflow: ellipsis;
+}
+
+.prompt-mastery-trend em {
+  overflow: hidden;
+  color: rgba(126, 151, 190, 0.7);
+  font-size: 8px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 
 .prompt-mastery-signals {
@@ -15682,6 +15752,57 @@ button.load-forecast-day:hover {
   font-family: "Orbitron", sans-serif;
   font-size: 18px;
   letter-spacing: 0.08em;
+}
+
+.prompt-mastery-archive {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-mastery-archive > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.28);
+  padding: 10px;
+  transition:
+    border-color 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    background 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-mastery-archive > div:hover {
+  border-color: rgba(53, 215, 255, 0.28);
+  background: rgba(53, 215, 255, 0.05);
+}
+
+.prompt-mastery-archive span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-mastery-archive strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+}
+
+.prompt-mastery-archive em {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 
 .prompt-day-card,
@@ -16788,6 +16909,7 @@ button.load-forecast-day:hover {
   .prompt-level-rail,
   .prompt-mastery-core,
   .prompt-mastery-signals,
+  .prompt-mastery-archive,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -16829,6 +16951,7 @@ button.load-forecast-day:hover {
   .prompt-hero-metrics,
   .prompt-mastery-core,
   .prompt-mastery-signals,
+  .prompt-mastery-archive,
   .prompt-grade-row,
   .prompt-question-strip,
   .prompt-daily-panel-tabs,
