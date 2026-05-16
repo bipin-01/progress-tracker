@@ -339,3 +339,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a red-team replay history that saves adversary/stress results per task attempt so the learner can compare v2, v3, and v4 resilience over time instead of only seeing the current prompt state.
+
+### 2026-05-16 - Red-Team Replay History
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the Packet panel could score stress/adversary resilience, but the learner could not compare attempts over time.
+
+Problem observed:
+- Stress and adversary scores were only live calculations.
+- Learners could apply v2, v3, and v4 rewrites, but there was no record of which attempt improved resilience.
+- UI/UX needed a smoother loop from "test" to "save replay" to "repair the weakest prior case."
+
+Decision:
+- More tracking and scenario-history infrastructure was needed. This fit the 70% rule because a professional prompt engineering bootcamp should preserve red-team evidence, not just show temporary scores.
+
+Implemented:
+- Added persistent red-team replay history to `/prompt` local memory.
+- Each replay stores task, day, packet id, version note, rewrite score, stress score, adversary score, combined resilience score, weakest stress case, weakest adversary case, verdict, and timestamp.
+- Added a compact Red-Team Replay History layer to the Packet panel.
+- Added a save replay action and clickable replay entries that load a focused repair block into the journal.
+- Added latest movement tracking so learners can see whether their newest attempt improved or regressed against the previous replay.
+- Styled the replay layer as a quiet violet history strip with smooth hover transitions and responsive replay cards.
+
+Next likely upgrade:
+- Add an exportable prompt incident report that turns the packet, diff, rewrite, stress harness, adversary harness, and replay history into a SOC-ready markdown report for portfolio evidence.

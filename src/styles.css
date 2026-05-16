@@ -16358,6 +16358,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite span,
 .prompt-evidence-stress span,
 .prompt-evidence-adversary span,
+.prompt-evidence-replay span,
 .prompt-daily-mentor span,
 .prompt-daily-proof span,
 .prompt-daily-done span,
@@ -16383,6 +16384,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite strong,
 .prompt-evidence-stress strong,
 .prompt-evidence-adversary strong,
+.prompt-evidence-replay strong,
 .prompt-skill-head strong,
 .prompt-bootcamp-card h2 {
   margin: 0;
@@ -16401,6 +16403,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite p,
 .prompt-evidence-stress p,
 .prompt-evidence-adversary p,
+.prompt-evidence-replay p,
 .prompt-daily-proof p,
 .prompt-daily-lab p,
 .prompt-daily-future p,
@@ -16430,6 +16433,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite,
 .prompt-evidence-stress,
 .prompt-evidence-adversary,
+.prompt-evidence-replay,
 .prompt-daily-mentor,
 .prompt-daily-deliverable,
 .prompt-daily-future {
@@ -16485,7 +16489,10 @@ button.load-forecast-day:hover {
 .prompt-evidence-stress-head > div,
 .prompt-evidence-stress-cases > div,
 .prompt-evidence-adversary-head > div,
-.prompt-evidence-adversary-cases > div {
+.prompt-evidence-adversary-cases > div,
+.prompt-evidence-replay-head > div,
+.prompt-evidence-replay-grid > div,
+.prompt-evidence-replay-grid button {
   display: grid;
   align-content: start;
   gap: 6px;
@@ -16510,7 +16517,9 @@ button.load-forecast-day:hover {
 .prompt-evidence-stress i,
 .prompt-evidence-adversary em,
 .prompt-evidence-adversary i,
-.prompt-evidence-adversary b {
+.prompt-evidence-adversary b,
+.prompt-evidence-replay em,
+.prompt-evidence-replay i {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.035);
   color: var(--ink-1);
@@ -16813,6 +16822,56 @@ button.load-forecast-day:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+}
+
+.prompt-evidence-replay {
+  border-color: rgba(170, 114, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.045), transparent 42%),
+    rgba(2, 7, 15, 0.36);
+  animation: prompt-panel-enter 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-evidence-replay-head {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.28fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.prompt-evidence-replay-head > div {
+  border: 1px solid rgba(170, 114, 255, 0.2);
+  background: rgba(170, 114, 255, 0.04);
+  padding: 9px;
+}
+
+.prompt-evidence-replay-head strong {
+  color: var(--violet);
+  font-size: 20px;
+}
+
+.prompt-evidence-replay-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+}
+
+.prompt-evidence-replay-grid > div,
+.prompt-evidence-replay-grid button {
+  border: 1px solid rgba(170, 114, 255, 0.14);
+  background: rgba(170, 114, 255, 0.035);
+  color: inherit;
+  padding: 9px;
+  text-align: left;
+  transition:
+    border-color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    background 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-evidence-replay-grid button:hover {
+  border-color: rgba(170, 114, 255, 0.36);
+  background: rgba(170, 114, 255, 0.07);
+  transform: translateY(-1px);
 }
 
 .prompt-evidence-grade-grid {
@@ -17643,6 +17702,7 @@ button.load-forecast-day:hover {
   .prompt-evidence-adversary-head,
   .prompt-evidence-adversary-cases,
   .prompt-evidence-adversary-rules,
+  .prompt-evidence-replay-head,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -17708,6 +17768,7 @@ button.load-forecast-day:hover {
   .prompt-evidence-adversary-head,
   .prompt-evidence-adversary-cases,
   .prompt-evidence-adversary-rules,
+  .prompt-evidence-replay-head,
   .prompt-evidence-grade-grid,
   .prompt-evidence-actions,
   .prompt-daily-steps,

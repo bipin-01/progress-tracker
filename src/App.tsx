@@ -17178,6 +17178,22 @@ type PromptEvidenceAdversaryHarness = {
   defenseRules: string[];
 };
 
+type PromptRedTeamReplayEntry = {
+  id: string;
+  taskId: string;
+  day: number;
+  packetId: string;
+  versionNote: string;
+  savedAt: string;
+  rewriteScore: number;
+  stressScore: number;
+  adversaryScore: number;
+  combinedScore: number;
+  weakestStress: string;
+  weakestAdversary: string;
+  verdict: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17185,6 +17201,7 @@ type PromptMemorySnapshot = {
   iterations: PromptIteration[];
   taskJournals: Record<string, PromptTaskJournal>;
   masteryHistory: PromptMasteryHistoryEntry[];
+  redTeamReplayHistory: PromptRedTeamReplayEntry[];
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -17252,6 +17269,30 @@ function normalizePromptMasteryHistoryEntry(value: unknown): PromptMasteryHistor
   };
 }
 
+function normalizePromptRedTeamReplayEntry(value: unknown): PromptRedTeamReplayEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<PromptRedTeamReplayEntry>;
+  const id = typeof record.id === "string" && record.id ? record.id : "";
+  const taskId = typeof record.taskId === "string" && record.taskId ? record.taskId : "";
+  const savedAt = typeof record.savedAt === "string" && record.savedAt ? record.savedAt : "";
+  if (!id || !taskId || !savedAt) return null;
+  return {
+    id,
+    taskId,
+    day: Math.min(Math.max(Math.trunc(Number(record.day) || 1), 1), 90),
+    packetId: typeof record.packetId === "string" ? record.packetId : "",
+    versionNote: typeof record.versionNote === "string" ? record.versionNote : "red-team replay",
+    savedAt,
+    rewriteScore: clampPromptPercent(record.rewriteScore),
+    stressScore: clampPromptPercent(record.stressScore),
+    adversaryScore: clampPromptPercent(record.adversaryScore),
+    combinedScore: clampPromptPercent(record.combinedScore),
+    weakestStress: typeof record.weakestStress === "string" ? record.weakestStress : "not recorded",
+    weakestAdversary: typeof record.weakestAdversary === "string" ? record.weakestAdversary : "not recorded",
+    verdict: typeof record.verdict === "string" ? record.verdict : "replay recorded",
+  };
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17278,6 +17319,13 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
             .filter((entry): entry is PromptMasteryHistoryEntry => Boolean(entry))
             .sort((a, b) => a.day - b.day)
             .slice(-90)
+        : [],
+      redTeamReplayHistory: Array.isArray(parsed.redTeamReplayHistory)
+        ? parsed.redTeamReplayHistory
+            .map(normalizePromptRedTeamReplayEntry)
+            .filter((entry): entry is PromptRedTeamReplayEntry => Boolean(entry))
+            .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+            .slice(0, 60)
         : [],
       playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
       playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
@@ -18147,6 +18195,48 @@ function buildPromptAdversaryHardenedRewrite(rewrite: PromptEvidenceRewritePrevi
   ].join("\n");
 }
 
+function getPromptReplayVerdict(combinedScore: number) {
+  if (combinedScore >= 88) return "resilience rising";
+  if (combinedScore >= 72) return "guardrails improving";
+  if (combinedScore >= 55) return "replay needs repair";
+  return "red-team failure";
+}
+
+function buildPromptRedTeamReplayEntry({
+  day,
+  task,
+  packet,
+  rewrite,
+  stress,
+  adversary,
+  versionNote,
+}: {
+  day: number;
+  task: PromptDailyTask;
+  packet: PromptEvidencePacket;
+  rewrite: PromptEvidenceRewritePreview;
+  stress: PromptEvidenceStressHarness;
+  adversary: PromptEvidenceAdversaryHarness;
+  versionNote: string;
+}): PromptRedTeamReplayEntry {
+  const combinedScore = Math.round(rewrite.afterScore * 0.34 + stress.averageScore * 0.32 + adversary.averageScore * 0.34);
+  return {
+    id: `${task.id}-${Date.now()}-redteam`,
+    taskId: task.id,
+    day,
+    packetId: packet.packetId,
+    versionNote: versionNote.trim() || "red-team replay",
+    savedAt: new Date().toISOString(),
+    rewriteScore: rewrite.afterScore,
+    stressScore: stress.averageScore,
+    adversaryScore: adversary.averageScore,
+    combinedScore,
+    weakestStress: `${stress.weakest.label} (${stress.weakest.score}/100)`,
+    weakestAdversary: `${adversary.weakest.label} (${adversary.weakest.score}/100)`,
+    verdict: getPromptReplayVerdict(combinedScore),
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -18459,6 +18549,7 @@ function PromptView() {
   const [iterations, setIterations] = useState<PromptIteration[]>(initialMemory?.iterations ?? []);
   const [taskJournals, setTaskJournals] = useState<Record<string, PromptTaskJournal>>(initialMemory?.taskJournals ?? {});
   const [masteryHistory, setMasteryHistory] = useState<PromptMasteryHistoryEntry[]>(initialMemory?.masteryHistory ?? []);
+  const [redTeamReplayHistory, setRedTeamReplayHistory] = useState<PromptRedTeamReplayEntry[]>(initialMemory?.redTeamReplayHistory ?? []);
   const [reviewCheckpointDay, setReviewCheckpointDay] = useState<number | null>(null);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
@@ -18499,6 +18590,11 @@ function PromptView() {
     () => buildPromptEvidenceAdversaryHarness(activeEvidencePacket, activeEvidenceRewrite),
     [activeEvidencePacket, activeEvidenceRewrite],
   );
+  const activeReplayHistory = useMemo(
+    () => redTeamReplayHistory.filter((entry) => entry.taskId === activeDailyTask.id).slice(0, 6),
+    [activeDailyTask.id, redTeamReplayHistory],
+  );
+  const replayImprovement = activeReplayHistory.length >= 2 ? activeReplayHistory[0].combinedScore - activeReplayHistory[1].combinedScore : 0;
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -18582,11 +18678,12 @@ function PromptView() {
       iterations: iterations.slice(0, 36),
       taskJournals,
       masteryHistory,
+      redTeamReplayHistory,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, iterations, masteryHistory, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay, taskJournals]);
+  }, [completedTasks, iterations, masteryHistory, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -18705,6 +18802,37 @@ function PromptView() {
     setPlaygroundPrompt(hardenedPrompt);
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`adversary-hardened rewrite applied: ${activeAdversaryHarness.averageScore}/100`);
+  }
+
+  function saveRedTeamReplay() {
+    const entry = buildPromptRedTeamReplayEntry({
+      day: selectedDay,
+      task: activeDailyTask,
+      packet: activeEvidencePacket,
+      rewrite: activeEvidenceRewrite,
+      stress: activeStressHarness,
+      adversary: activeAdversaryHarness,
+      versionNote: activeTaskJournal.versionNote || activeEvidenceRewrite.verdict,
+    });
+    setRedTeamReplayHistory((current) => [entry, ...current.filter((item) => item.id !== entry.id)].slice(0, 60));
+    setPlaygroundStatus(`red-team replay saved: ${entry.combinedScore}/100`);
+  }
+
+  function loadReplayWeaknessIntoJournal(entry: PromptRedTeamReplayEntry) {
+    updateTaskJournal({
+      answer: [
+        activeTaskJournal.answer.trim() || activeEvidenceRewrite.afterPrompt,
+        "",
+        "Replay repair focus:",
+        `- Prior verdict: ${entry.verdict} (${entry.combinedScore}/100).`,
+        `- Weakest stress case: ${entry.weakestStress}.`,
+        `- Weakest adversary case: ${entry.weakestAdversary}.`,
+        "- Revise the prompt so the weakest cases improve without removing schema, confidence, missing-data disclosure, or approval gates.",
+      ].join("\n"),
+      versionNote: `replay repair ${entry.combinedScore}/100`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`replay repair loaded: ${entry.verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -19113,6 +19241,32 @@ function PromptView() {
                         {activeAdversaryHarness.defenseRules.map((rule) => <em key={rule}>{rule}</em>)}
                       </div>
                     </div>
+                    <div className="prompt-evidence-replay">
+                      <div className="prompt-evidence-replay-head">
+                        <div>
+                          <span>red-team replay history</span>
+                          <strong>{activeReplayHistory[0]?.combinedScore ?? 0}/100</strong>
+                          <em>{activeReplayHistory.length ? activeReplayHistory[0].verdict : "no replay saved yet"}</em>
+                        </div>
+                        <p>{activeReplayHistory.length >= 2 ? `Latest movement: ${replayImprovement >= 0 ? "+" : ""}${replayImprovement} resilience points.` : "Save a replay after each v2/v3/v4 attempt to compare resilience over time."}</p>
+                      </div>
+                      <div className="prompt-evidence-replay-grid">
+                        {activeReplayHistory.length ? activeReplayHistory.map((entry) => (
+                          <button key={entry.id} type="button" onClick={() => loadReplayWeaknessIntoJournal(entry)}>
+                            <span>{new Date(entry.savedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · D{String(entry.day).padStart(2, "0")}</span>
+                            <strong>{entry.combinedScore}/100 · {entry.verdict}</strong>
+                            <em>rewrite {entry.rewriteScore} · stress {entry.stressScore} · adversary {entry.adversaryScore}</em>
+                            <i>{entry.weakestStress} // {entry.weakestAdversary}</i>
+                          </button>
+                        )) : (
+                          <div>
+                            <span>first replay</span>
+                            <strong>capture v2/v3/v4 resilience</strong>
+                            <p>Use this after applying a rewrite so future attempts can be compared against real stress and adversary scores.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div className="prompt-evidence-tests">
                       <div>
                         <span>acceptance tests</span>
@@ -19136,6 +19290,7 @@ function PromptView() {
                     <button type="button" onClick={applyStressHardenedRewriteToJournal}>apply hardened v3</button>
                     <button type="button" onClick={loadWeakestAdversaryCaseIntoLab}>load adversary case</button>
                     <button type="button" onClick={applyAdversaryHardenedRewriteToJournal}>apply guarded v4</button>
+                    <button type="button" onClick={saveRedTeamReplay}>save replay</button>
                   </div>
                 </>
               )}
