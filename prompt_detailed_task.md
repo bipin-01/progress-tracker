@@ -214,3 +214,27 @@ Implemented:
 
 Next likely upgrade:
 - Add a prompt evidence packet builder that turns any daily scenario into a reusable structured evidence block, then grades whether the learner's prompt preserved evidence, missing data, constraints, and output schema.
+
+### 2026-05-16 - Prompt Evidence Packet Builder
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the route had strong scenarios, but the learner still had to manually translate messy SOC evidence into a reusable prompt input.
+
+Problem observed:
+- Daily scenarios had evidence and missing data, but they were displayed as reading material instead of a reusable packet.
+- The journal coach could score generic prompt controls, but it did not grade whether the prompt preserved confirmed evidence, missing evidence, constraints, and schema.
+- UI/UX needed a smoother bridge from scenario reading to lab-ready prompt construction.
+
+Decision:
+- More scenario-based practice infrastructure was needed. This fit the 70% rule because prompt engineering for SOC work depends on evidence preservation, not only prompt wording.
+
+Implemented:
+- Added a Packet panel to every daily bootcamp task.
+- Built structured evidence packets from the active SOC scenario with packet id, confirmed evidence, missing data, constraints, output schema, and acceptance tests.
+- Added packet preservation grading for confirmed evidence coverage, missing-data preservation, safety constraints, and output-schema coverage.
+- Added actions to load the packet prompt into the lab or start the task journal from the packet scaffold.
+- Styled the packet builder as a compact workstation with smooth panel transitions, packet score, grade breakdown, reusable packet block, and quiet action controls.
+
+Next likely upgrade:
+- Add an evidence packet diff that compares the original packet with the learner's saved journal attempt and highlights exactly which evidence lines were omitted, transformed, or invented.

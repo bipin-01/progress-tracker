@@ -16137,6 +16137,7 @@ button.load-forecast-day:hover {
 .prompt-day-control input,
 .prompt-daily-panel-tabs button,
 .prompt-daily-actions button,
+.prompt-evidence-actions button,
 .prompt-task-journal-actions button,
 .prompt-grade-row button,
 .prompt-drill-actions button,
@@ -16171,6 +16172,7 @@ button.load-forecast-day:hover {
 .prompt-day-control button:hover,
 .prompt-daily-panel-tabs button:hover,
 .prompt-daily-actions button:hover,
+.prompt-evidence-actions button:hover,
 .prompt-task-journal-actions button:hover,
 .prompt-grade-row button:hover,
 .prompt-drill-actions button:hover,
@@ -16351,6 +16353,7 @@ button.load-forecast-day:hover {
 .prompt-daily-detail-head span,
 .prompt-daily-scenario span,
 .prompt-daily-evidence span,
+.prompt-evidence-builder span,
 .prompt-daily-mentor span,
 .prompt-daily-proof span,
 .prompt-daily-done span,
@@ -16371,6 +16374,7 @@ button.load-forecast-day:hover {
 
 .prompt-daily-detail-head strong,
 .prompt-daily-scenario strong,
+.prompt-evidence-builder strong,
 .prompt-skill-head strong,
 .prompt-bootcamp-card h2 {
   margin: 0;
@@ -16384,6 +16388,7 @@ button.load-forecast-day:hover {
 .prompt-daily-detail p,
 .prompt-daily-scenario p,
 .prompt-daily-scenario em,
+.prompt-evidence-builder p,
 .prompt-daily-proof p,
 .prompt-daily-lab p,
 .prompt-daily-future p,
@@ -16408,6 +16413,7 @@ button.load-forecast-day:hover {
 
 .prompt-daily-scenario-copy,
 .prompt-daily-evidence,
+.prompt-evidence-builder,
 .prompt-daily-mentor,
 .prompt-daily-deliverable,
 .prompt-daily-future {
@@ -16436,6 +16442,105 @@ button.load-forecast-day:hover {
   overflow-wrap: anywhere;
   padding: 6px 7px;
   white-space: normal;
+}
+
+.prompt-evidence-builder {
+  border-color: rgba(170, 114, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.055), transparent 42%),
+    rgba(2, 7, 15, 0.4);
+}
+
+.prompt-evidence-builder-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.28fr);
+  gap: 8px;
+}
+
+.prompt-evidence-builder-head > div,
+.prompt-evidence-grid > div,
+.prompt-evidence-tests > div,
+.prompt-evidence-grade-grid > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prompt-evidence-score {
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background: rgba(53, 215, 255, 0.04);
+  padding: 9px;
+}
+
+.prompt-evidence-score strong {
+  font-size: 20px;
+}
+
+.prompt-evidence-builder em,
+.prompt-evidence-tests em {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.5;
+  padding: 7px;
+  text-transform: none;
+}
+
+.prompt-evidence-grid,
+.prompt-evidence-tests {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-evidence-grid > div,
+.prompt-evidence-tests > div,
+.prompt-evidence-grade-grid > div {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.28);
+  padding: 8px;
+}
+
+.prompt-evidence-grid code,
+.prompt-evidence-builder pre {
+  display: block;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.44);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 7px;
+  white-space: pre-wrap;
+}
+
+.prompt-evidence-grade-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.prompt-evidence-grade-grid strong {
+  color: var(--cyan);
+  font-size: 17px;
+}
+
+.prompt-evidence-tests strong {
+  color: var(--lime);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.prompt-evidence-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .prompt-daily-steps,
@@ -17226,6 +17331,9 @@ button.load-forecast-day:hover {
   .prompt-mastery-archive,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-review-grid,
+  .prompt-evidence-builder-head,
+  .prompt-evidence-grid,
+  .prompt-evidence-tests,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -17275,6 +17383,11 @@ button.load-forecast-day:hover {
   .prompt-grade-row,
   .prompt-question-strip,
   .prompt-daily-panel-tabs,
+  .prompt-evidence-builder-head,
+  .prompt-evidence-grid,
+  .prompt-evidence-tests,
+  .prompt-evidence-grade-grid,
+  .prompt-evidence-actions,
   .prompt-daily-steps,
   .prompt-daily-proof,
   .prompt-daily-actions,

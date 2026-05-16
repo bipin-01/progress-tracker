@@ -17050,6 +17050,29 @@ type PromptCheckpointComparison = {
   recoveryPlan: string[];
 };
 
+type PromptEvidencePacket = {
+  packetId: string;
+  scenarioTitle: string;
+  decisionPressure: string;
+  confirmedEvidence: string[];
+  missingEvidence: string[];
+  constraints: string[];
+  outputSchema: string[];
+  acceptanceTests: string[];
+  block: string;
+};
+
+type PromptEvidencePacketGrade = {
+  score: number;
+  label: string;
+  confirmedCoverage: number;
+  missingCoverage: number;
+  constraintCoverage: number;
+  schemaCoverage: number;
+  missing: string[];
+  nextAction: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17249,6 +17272,133 @@ function buildTaskJournalFeedback(answer: string, taskLabel: string): PromptTask
 
 function average(values: number[]) {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+}
+
+function getPromptEvidenceChecksum(value: string) {
+  let hash = 0;
+  for (const char of value) hash = (hash * 31 + char.charCodeAt(0)) % 100000;
+  return hash.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function getPromptEvidenceKeywords(value: string) {
+  const stop = new Set(["missing", "confirmed", "before", "after", "with", "from", "that", "this", "they", "their", "over", "under", "unknown", "alert", "event"]);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9.\s_-]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 3 && !stop.has(token))
+    .slice(0, 5);
+}
+
+function getPromptEvidenceCoverage(lines: string[], prompt: string) {
+  if (!lines.length) return 100;
+  const text = prompt.toLowerCase();
+  const covered = lines.filter((line) => {
+    const keywords = getPromptEvidenceKeywords(line);
+    return keywords.length ? keywords.some((keyword) => text.includes(keyword)) : text.includes(line.toLowerCase());
+  }).length;
+  return Math.round((covered / lines.length) * 100);
+}
+
+function buildPromptEvidencePacket(task: PromptDailyTask): PromptEvidencePacket {
+  const confirmedEvidence = task.scenario.evidence.filter((item) => !/^missing:/i.test(item)).map((item) => item.trim());
+  const missingEvidence = task.scenario.evidence
+    .filter((item) => /^missing:/i.test(item))
+    .map((item) => item.replace(/^missing:\s*/i, "").trim());
+  const outputSchema = ["verdict", "confidence", "confirmed_evidence", "missing_data", "constraints_applied", "next_action"];
+  const constraints = [
+    "Use only the confirmed evidence in this packet.",
+    "Mark missing evidence as unknown instead of filling gaps.",
+    "Separate analyst action from executive summary.",
+    "Do not recommend destructive containment without a human approval note.",
+  ];
+  const acceptanceTests = [
+    "Every claim maps to confirmed_evidence or missing_data.",
+    "The answer can say unclear when evidence is thin.",
+    "The next_action is safe under the stated decision pressure.",
+  ];
+  const seed = `${task.id}:${task.scenario.title}:${confirmedEvidence.join("|")}:${missingEvidence.join("|")}`;
+  const packetId = `PROMPT-D${task.id.match(/^d(\d+)-/)?.[1]?.padStart(2, "0") ?? "00"}-${getPromptEvidenceChecksum(seed)}`;
+  const block = [
+    `packet_id: ${packetId}`,
+    `scenario: ${task.scenario.title}`,
+    `decision_pressure: ${task.scenario.pressure}`,
+    "",
+    "confirmed_evidence:",
+    ...(confirmedEvidence.length ? confirmedEvidence.map((item) => `- ${item}`) : ["- none provided"]),
+    "",
+    "missing_data:",
+    ...(missingEvidence.length ? missingEvidence.map((item) => `- ${item}`) : ["- none declared"]),
+    "",
+    "constraints:",
+    ...constraints.map((item) => `- ${item}`),
+    "",
+    "output_schema:",
+    ...outputSchema.map((item) => `- ${item}`),
+    "",
+    "acceptance_tests:",
+    ...acceptanceTests.map((item) => `- ${item}`),
+  ].join("\n");
+
+  return {
+    packetId,
+    scenarioTitle: task.scenario.title,
+    decisionPressure: task.scenario.pressure,
+    confirmedEvidence,
+    missingEvidence,
+    constraints,
+    outputSchema,
+    acceptanceTests,
+    block,
+  };
+}
+
+function buildPromptEvidencePacketPrompt(packet: PromptEvidencePacket, task: PromptDailyTask) {
+  return [
+    "You are a SOC prompt engineer.",
+    `Task: build a ${task.mode} prompt for ${task.label.toLowerCase()}.`,
+    "Use the evidence packet exactly. Preserve confirmed evidence, missing data, constraints, and output schema.",
+    "",
+    packet.block,
+    "",
+    "Return a production prompt that an analyst can reuse with a fresh evidence packet.",
+  ].join("\n");
+}
+
+function gradePromptAgainstEvidencePacket(prompt: string, packet: PromptEvidencePacket): PromptEvidencePacketGrade {
+  const text = prompt.toLowerCase();
+  const confirmedCoverage = getPromptEvidenceCoverage(packet.confirmedEvidence, prompt);
+  const missingCoverage = getPromptEvidenceCoverage(packet.missingEvidence, prompt);
+  const constraintHits = [
+    /\bonly\b|\bprovided\b|\bconfirmed evidence\b/.test(text),
+    /\bmissing\b|\bunknown\b|\bgaps?\b/.test(text),
+    /\bdo not\b|\bnever\b|\bhuman approval\b|\bconstraint/.test(text),
+    /\bnext_action\b|\bnext action\b|\banalyst action\b/.test(text),
+  ].filter(Boolean).length;
+  const constraintCoverage = Math.round((constraintHits / 4) * 100);
+  const schemaCoverage = Math.round((packet.outputSchema.filter((field) => text.includes(field.replace("_", " ")) || text.includes(field)).length / packet.outputSchema.length) * 100);
+  const score = Math.round(confirmedCoverage * 0.3 + missingCoverage * 0.25 + constraintCoverage * 0.2 + schemaCoverage * 0.25);
+  const missing = [
+    confirmedCoverage < 70 ? "confirmed evidence coverage" : "",
+    missingCoverage < 70 ? "missing data preservation" : "",
+    constraintCoverage < 70 ? "safety constraints" : "",
+    schemaCoverage < 70 ? "output schema fields" : "",
+  ].filter(Boolean);
+  const label = score >= 86 ? "packet-safe" : score >= 68 ? "usable with review" : score >= 44 ? "leaky translation" : "packet not preserved";
+  const nextAction = missing.length
+    ? `Repair packet translation: add ${missing.slice(0, 2).join(" + ")} before saving this prompt.`
+    : "Add one adversarial acceptance test, then save the attempt and lock the checkpoint.";
+
+  return {
+    score,
+    label,
+    confirmedCoverage,
+    missingCoverage,
+    constraintCoverage,
+    schemaCoverage,
+    missing,
+    nextAction,
+  };
 }
 
 function getPromptMasteryLabel(score: number) {
@@ -17528,6 +17678,7 @@ function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
 
 const promptDailyPanels = [
   { id: "mission", label: "Mission" },
+  { id: "packet", label: "Packet" },
   { id: "lab", label: "Lab" },
   { id: "rubric", label: "Rubric" },
   { id: "journal", label: "Journal" },
@@ -17570,6 +17721,16 @@ function PromptView() {
   const activeTaskFeedback = useMemo(
     () => buildTaskJournalFeedback(activeTaskJournal.answer, activeDailyTask.label),
     [activeDailyTask.label, activeTaskJournal.answer],
+  );
+  const activeEvidencePacket = useMemo(() => buildPromptEvidencePacket(activeDailyTask), [activeDailyTask]);
+  const activeEvidencePacketPrompt = useMemo(
+    () => buildPromptEvidencePacketPrompt(activeEvidencePacket, activeDailyTask),
+    [activeDailyTask, activeEvidencePacket],
+  );
+  const evidencePromptSource = activeTaskJournal.answer.trim() || playgroundPrompt;
+  const activeEvidenceGrade = useMemo(
+    () => gradePromptAgainstEvidencePacket(evidencePromptSource, activeEvidencePacket),
+    [activeEvidencePacket, evidencePromptSource],
   );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
@@ -17699,6 +17860,20 @@ function PromptView() {
     setActiveDailyPanel("journal");
     setPlaygroundPrompt(task.template);
     setPlaygroundStatus(`checkpoint drill loaded: ${task.label}`);
+  }
+
+  function loadEvidencePacketIntoLab() {
+    setPlaygroundPrompt(activeEvidencePacketPrompt);
+    setPlaygroundStatus(`evidence packet staged: ${activeEvidencePacket.packetId}`);
+  }
+
+  function loadEvidencePacketIntoJournal() {
+    updateTaskJournal({
+      answer: activeEvidencePacketPrompt,
+      versionNote: `packet scaffold ${activeEvidencePacket.packetId}`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`evidence packet journaled: ${activeEvidencePacket.packetId}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -17908,6 +18083,78 @@ function PromptView() {
                     {activeDailyTask.mentorScript.map((line, index) => (
                       <em key={line}>{String(index + 1).padStart(2, "0")} {line}</em>
                     ))}
+                  </div>
+                </>
+              )}
+
+              {activeDailyPanel === "packet" && (
+                <>
+                  <div className="prompt-evidence-builder">
+                    <div className="prompt-evidence-builder-head">
+                      <div>
+                        <span>evidence packet builder</span>
+                        <strong>{activeEvidencePacket.packetId}</strong>
+                        <em>{activeEvidencePacket.scenarioTitle}</em>
+                      </div>
+                      <div className="prompt-evidence-score">
+                        <span>packet preservation</span>
+                        <strong>{activeEvidenceGrade.score}/100</strong>
+                        <em>{activeEvidenceGrade.label}</em>
+                      </div>
+                    </div>
+                    <div className="prompt-evidence-grid">
+                      <div>
+                        <span>confirmed evidence</span>
+                        {activeEvidencePacket.confirmedEvidence.map((item) => <code key={item}>{item}</code>)}
+                      </div>
+                      <div>
+                        <span>missing data</span>
+                        {activeEvidencePacket.missingEvidence.length ? activeEvidencePacket.missingEvidence.map((item) => <code key={item}>{item}</code>) : <code>none declared</code>}
+                      </div>
+                      <div>
+                        <span>safety constraints</span>
+                        {activeEvidencePacket.constraints.map((item) => <em key={item}>{item}</em>)}
+                      </div>
+                      <div>
+                        <span>output schema</span>
+                        {activeEvidencePacket.outputSchema.map((field) => <em key={field}>{field}</em>)}
+                      </div>
+                    </div>
+                    <div className="prompt-evidence-grade-grid">
+                      <div>
+                        <span>confirmed</span>
+                        <strong>{activeEvidenceGrade.confirmedCoverage}%</strong>
+                      </div>
+                      <div>
+                        <span>missing</span>
+                        <strong>{activeEvidenceGrade.missingCoverage}%</strong>
+                      </div>
+                      <div>
+                        <span>constraints</span>
+                        <strong>{activeEvidenceGrade.constraintCoverage}%</strong>
+                      </div>
+                      <div>
+                        <span>schema</span>
+                        <strong>{activeEvidenceGrade.schemaCoverage}%</strong>
+                      </div>
+                    </div>
+                    <div className="prompt-evidence-tests">
+                      <div>
+                        <span>acceptance tests</span>
+                        {activeEvidencePacket.acceptanceTests.map((item) => <em key={item}>{item}</em>)}
+                      </div>
+                      <div>
+                        <span>next repair</span>
+                        <p>{activeEvidenceGrade.nextAction}</p>
+                        <strong>{activeEvidenceGrade.missing.length ? activeEvidenceGrade.missing.join(" · ") : "packet translation intact"}</strong>
+                      </div>
+                    </div>
+                    <pre>{activeEvidencePacket.block}</pre>
+                  </div>
+                  <div className="prompt-evidence-actions">
+                    <button type="button" onClick={loadEvidencePacketIntoLab}>load packet into lab</button>
+                    <button type="button" onClick={loadEvidencePacketIntoJournal}>start journal from packet</button>
+                    <button type="button" onClick={() => setActiveDailyPanel("journal")}>grade journal prompt</button>
                   </div>
                 </>
               )}
