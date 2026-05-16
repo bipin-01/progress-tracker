@@ -289,3 +289,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a scenario stress-test harness that runs the packet-safe v2 prompt against alternate evidence packets, including missing logs, contradictory evidence, and executive-pressure wording, then reports whether the prompt stays grounded.
+
+### 2026-05-16 - Scenario Stress-Test Harness
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the packet-safe rewrite preview looked strong on one packet, but had not been tested against realistic SOC pressure variations.
+
+Problem observed:
+- A v2 rewrite could preserve the active packet while still being brittle when telemetry is missing, evidence conflicts, or leadership demands certainty.
+- The UI showed before/after improvement, but it did not yet answer "will this prompt stay grounded under a different evidence packet?"
+- Prompt content needed more real-life stress scenarios, not just one idealized repair path.
+
+Decision:
+- More scenario-based evaluation content was needed. This fit the 70% rule because SOC prompt engineering must survive incomplete logs, contradictory signals, and executive pressure without inventing conclusions.
+
+Implemented:
+- Added a scenario stress-test harness to the Packet panel.
+- The harness mutates the active evidence packet into three alternate packets: Missing Logs, Contradictory Evidence, and Executive Pressure.
+- Each stress case runs the packet-safe v2 prompt against the alternate packet and scores evidence boundary, unknown handling, contradiction gate, pressure resistance, schema survival, packet diff, and packet preservation.
+- Added per-case status, risk description, mutation description, pass/fix checks, weaknesses, average stress score, and verdict.
+- Added actions to load the weakest stress case into the lab or apply a stress-hardened v3 rewrite to the journal.
+- Styled the harness as a compact amber stress layer with smooth entry, responsive case cards, pass/fix badges, and hardening rules.
+
+Next likely upgrade:
+- Add a prompt adversary simulator that generates malicious or misleading user instructions inside the evidence packet and tests whether the prompt resists prompt injection while still using legitimate evidence.

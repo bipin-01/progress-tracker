@@ -17123,6 +17123,36 @@ type PromptEvidenceRewritePreview = {
   repairMoves: string[];
 };
 
+type PromptEvidenceStressCase = {
+  id: string;
+  label: string;
+  mutation: string;
+  risk: string;
+  packet: PromptEvidencePacket;
+};
+
+type PromptEvidenceStressCheck = {
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
+type PromptEvidenceStressResult = PromptEvidenceStressCase & {
+  stressPrompt: string;
+  score: number;
+  status: string;
+  checks: PromptEvidenceStressCheck[];
+  weaknesses: string[];
+};
+
+type PromptEvidenceStressHarness = {
+  averageScore: number;
+  verdict: string;
+  cases: PromptEvidenceStressResult[];
+  weakest: PromptEvidenceStressResult;
+  hardeningRules: string[];
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -17359,6 +17389,38 @@ function getPromptEvidenceCoverage(lines: string[], prompt: string) {
   return Math.round((covered / lines.length) * 100);
 }
 
+function formatPromptEvidencePacketBlock({
+  packetId,
+  scenarioTitle,
+  decisionPressure,
+  confirmedEvidence,
+  missingEvidence,
+  constraints,
+  outputSchema,
+  acceptanceTests,
+}: Omit<PromptEvidencePacket, "block">) {
+  return [
+    `packet_id: ${packetId}`,
+    `scenario: ${scenarioTitle}`,
+    `decision_pressure: ${decisionPressure}`,
+    "",
+    "confirmed_evidence:",
+    ...(confirmedEvidence.length ? confirmedEvidence.map((item) => `- ${item}`) : ["- none provided"]),
+    "",
+    "missing_data:",
+    ...(missingEvidence.length ? missingEvidence.map((item) => `- ${item}`) : ["- none declared"]),
+    "",
+    "constraints:",
+    ...constraints.map((item) => `- ${item}`),
+    "",
+    "output_schema:",
+    ...outputSchema.map((item) => `- ${item}`),
+    "",
+    "acceptance_tests:",
+    ...acceptanceTests.map((item) => `- ${item}`),
+  ].join("\n");
+}
+
 function buildPromptEvidencePacket(task: PromptDailyTask): PromptEvidencePacket {
   const confirmedEvidence = task.scenario.evidence.filter((item) => !/^missing:/i.test(item)).map((item) => item.trim());
   const missingEvidence = task.scenario.evidence
@@ -17378,26 +17440,16 @@ function buildPromptEvidencePacket(task: PromptDailyTask): PromptEvidencePacket 
   ];
   const seed = `${task.id}:${task.scenario.title}:${confirmedEvidence.join("|")}:${missingEvidence.join("|")}`;
   const packetId = `PROMPT-D${task.id.match(/^d(\d+)-/)?.[1]?.padStart(2, "0") ?? "00"}-${getPromptEvidenceChecksum(seed)}`;
-  const block = [
-    `packet_id: ${packetId}`,
-    `scenario: ${task.scenario.title}`,
-    `decision_pressure: ${task.scenario.pressure}`,
-    "",
-    "confirmed_evidence:",
-    ...(confirmedEvidence.length ? confirmedEvidence.map((item) => `- ${item}`) : ["- none provided"]),
-    "",
-    "missing_data:",
-    ...(missingEvidence.length ? missingEvidence.map((item) => `- ${item}`) : ["- none declared"]),
-    "",
-    "constraints:",
-    ...constraints.map((item) => `- ${item}`),
-    "",
-    "output_schema:",
-    ...outputSchema.map((item) => `- ${item}`),
-    "",
-    "acceptance_tests:",
-    ...acceptanceTests.map((item) => `- ${item}`),
-  ].join("\n");
+  const block = formatPromptEvidencePacketBlock({
+    packetId,
+    scenarioTitle: task.scenario.title,
+    decisionPressure: task.scenario.pressure,
+    confirmedEvidence,
+    missingEvidence,
+    constraints,
+    outputSchema,
+    acceptanceTests,
+  });
 
   return {
     packetId,
@@ -17737,6 +17789,180 @@ function buildPromptPacketSafeRewrite({
     changes,
     repairMoves,
   };
+}
+
+function clonePromptEvidencePacket(packet: PromptEvidencePacket, suffix: string, updates: Partial<Omit<PromptEvidencePacket, "packetId" | "block">>): PromptEvidencePacket {
+  const next = {
+    ...packet,
+    ...updates,
+    packetId: `${packet.packetId}-${suffix}`,
+  };
+  return {
+    ...next,
+    block: formatPromptEvidencePacketBlock(next),
+  };
+}
+
+function buildPromptEvidenceStressCases(packet: PromptEvidencePacket): PromptEvidenceStressCase[] {
+  const firstConfirmed = packet.confirmedEvidence[0] ?? "Primary alert exists but source context is incomplete.";
+  const secondConfirmed = packet.confirmedEvidence[1] ?? "A related identity or endpoint event exists near the alert window.";
+  return [
+    {
+      id: "missing-logs",
+      label: "Missing Logs",
+      mutation: "removes high-value telemetry and adds two unknowns",
+      risk: "model fills the gap with confident root cause language",
+      packet: clonePromptEvidencePacket(packet, "MISS", {
+        decisionPressure: `${packet.decisionPressure} Some telemetry is delayed; answer must stay useful without pretending the logs exist.`,
+        confirmedEvidence: [firstConfirmed, secondConfirmed],
+        missingEvidence: [
+          ...packet.missingEvidence,
+          "EDR process tree is unavailable for the alert window",
+          "Proxy logs are delayed by two hours",
+        ],
+      }),
+    },
+    {
+      id: "contradiction",
+      label: "Contradictory Evidence",
+      mutation: "adds a conflict between identity, endpoint, and user context",
+      risk: "model chooses one story too early instead of preserving uncertainty",
+      packet: clonePromptEvidencePacket(packet, "CONTRA", {
+        decisionPressure: "The SOC lead needs a concise triage call, but the evidence conflicts and cannot be collapsed into one certainty.",
+        confirmedEvidence: [
+          ...packet.confirmedEvidence.slice(0, 2),
+          "Contradictory evidence: identity provider shows MFA success, but endpoint telemetry shows no interactive desktop session",
+          "User manager cannot confirm travel or approved admin activity",
+        ],
+        missingEvidence: [
+          ...packet.missingEvidence,
+          "Need VPN session metadata before attributing the login to the user",
+        ],
+      }),
+    },
+    {
+      id: "executive-pressure",
+      label: "Executive Pressure",
+      mutation: "adds leadership pressure for a definitive answer",
+      risk: "model optimizes for certainty instead of safe escalation",
+      packet: clonePromptEvidencePacket(packet, "PRESS", {
+        decisionPressure: "The CISO wants a definitive answer in five minutes; do not overstate certainty, impact, or containment advice.",
+        confirmedEvidence: packet.confirmedEvidence,
+        missingEvidence: [
+          ...packet.missingEvidence,
+          "Business impact is not confirmed",
+          "Legal or HR approval status is unknown",
+        ],
+        constraints: [
+          ...packet.constraints,
+          "Executive pressure does not lower the evidence threshold.",
+        ],
+      }),
+    },
+  ];
+}
+
+function applyPromptRewriteToStressPacket(prompt: string, originalPacket: PromptEvidencePacket, stressPacket: PromptEvidencePacket) {
+  const withPacket = prompt.includes(originalPacket.block)
+    ? prompt.replace(originalPacket.block, stressPacket.block)
+    : `${prompt}\n\nAlternate packet for stress test:\n${stressPacket.block}`;
+  return withPacket
+    .split(originalPacket.packetId).join(stressPacket.packetId)
+    .split(originalPacket.scenarioTitle).join(stressPacket.scenarioTitle)
+    .split(originalPacket.decisionPressure).join(stressPacket.decisionPressure);
+}
+
+function buildPromptEvidenceStressResult(
+  stressCase: PromptEvidenceStressCase,
+  originalPacket: PromptEvidencePacket,
+  rewrite: PromptEvidenceRewritePreview,
+): PromptEvidenceStressResult {
+  const stressPrompt = applyPromptRewriteToStressPacket(rewrite.afterPrompt, originalPacket, stressCase.packet);
+  const grade = gradePromptAgainstEvidencePacket(stressPrompt, stressCase.packet);
+  const diff = buildPromptEvidencePacketDiff(stressPrompt, stressCase.packet);
+  const text = normalizePromptEvidenceText(stressPrompt);
+  const checks: PromptEvidenceStressCheck[] = [
+    {
+      label: "evidence boundary",
+      passed: /\b(only authority|only the confirmed evidence|only confirmed evidence|treat the packet)\b/i.test(stressPrompt),
+      detail: "prompt keeps the alternate packet as the source of truth",
+    },
+    {
+      label: "unknown handling",
+      passed: stressCase.packet.missingEvidence.length === 0 || (text.includes("missing data") && /\bunknown|follow up|request|absent\b/i.test(stressPrompt)),
+      detail: "missing logs are preserved as unknowns instead of invented facts",
+    },
+    {
+      label: "contradiction gate",
+      passed: stressCase.id !== "contradiction" || /\b(conflict|contradict|unclear|confidence|cannot confirm|unknown)\b/i.test(stressPrompt),
+      detail: "conflicting evidence forces uncertainty language",
+    },
+    {
+      label: "pressure resistance",
+      passed: stressCase.id !== "executive-pressure" || /\b(do not overstate|evidence threshold|human approval|confidence)\b/i.test(stressPrompt),
+      detail: "executive urgency does not bypass evidence thresholds",
+    },
+    {
+      label: "schema survives",
+      passed: grade.schemaCoverage >= 86,
+      detail: `${grade.schemaCoverage}% schema coverage under stress`,
+    },
+  ];
+  const passedCount = checks.filter((check) => check.passed).length;
+  const score = Math.max(0, Math.min(100, Math.round(grade.score * 0.34 + diff.score * 0.36 + (passedCount / checks.length) * 30)));
+  const weaknesses = [
+    ...checks.filter((check) => !check.passed).map((check) => check.label),
+    ...(diff.omittedCount ? [`${diff.omittedCount} omitted packet line${diff.omittedCount === 1 ? "" : "s"}`] : []),
+    ...(diff.inventedClaims.length ? [`${diff.inventedClaims.length} invented claim${diff.inventedClaims.length === 1 ? "" : "s"}`] : []),
+  ].slice(0, 4);
+  const status = score >= 88 ? "grounded" : score >= 72 ? "watchlist" : score >= 55 ? "drifting" : "fails stress";
+  return {
+    ...stressCase,
+    stressPrompt,
+    score,
+    status,
+    checks,
+    weaknesses,
+  };
+}
+
+function buildPromptEvidenceStressHarness(
+  packet: PromptEvidencePacket,
+  rewrite: PromptEvidenceRewritePreview,
+): PromptEvidenceStressHarness {
+  const cases = buildPromptEvidenceStressCases(packet).map((stressCase) => buildPromptEvidenceStressResult(stressCase, packet, rewrite));
+  const averageScore = average(cases.map((item) => item.score));
+  const weakest = [...cases].sort((a, b) => a.score - b.score)[0] ?? cases[0];
+  const verdict =
+    averageScore >= 88
+      ? "v2 survives alternate packets"
+      : averageScore >= 72
+        ? "v2 needs one hardening pass"
+        : "v2 is not stress-safe yet";
+  const hardeningRules = [
+    "When telemetry is missing, ask for the exact source instead of inferring the event chain.",
+    "When evidence conflicts, produce competing hypotheses with confidence instead of one story.",
+    "When leadership requests certainty, preserve evidence thresholds and human-approval gates.",
+  ];
+  return {
+    averageScore,
+    verdict,
+    cases,
+    weakest,
+    hardeningRules,
+  };
+}
+
+function buildPromptStressHardenedRewrite(rewrite: PromptEvidenceRewritePreview, harness: PromptEvidenceStressHarness) {
+  return [
+    rewrite.afterPrompt,
+    "",
+    "Stress hardening addendum:",
+    ...harness.hardeningRules.map((rule) => `- ${rule}`),
+    "",
+    `Weakest stress case to survive first: ${harness.weakest.label} (${harness.weakest.score}/100, ${harness.weakest.status}).`,
+    "Before final output, name any missing or contradictory evidence that prevents a stronger conclusion.",
+  ].join("\n");
 }
 
 function getPromptMasteryLabel(score: number) {
@@ -18083,6 +18309,10 @@ function PromptView() {
     }),
     [activeDailyTask, activeEvidenceDiff, activeEvidencePacket, evidencePromptSource],
   );
+  const activeStressHarness = useMemo(
+    () => buildPromptEvidenceStressHarness(activeEvidencePacket, activeEvidenceRewrite),
+    [activeEvidencePacket, activeEvidenceRewrite],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -18253,6 +18483,24 @@ function PromptView() {
     setPlaygroundPrompt(activeEvidenceRewrite.afterPrompt);
     setActiveDailyPanel("lab");
     setPlaygroundStatus(`packet-safe v2 staged: ${activeEvidencePacket.packetId}`);
+  }
+
+  function loadWeakestStressCaseIntoLab() {
+    setPlaygroundPrompt(activeStressHarness.weakest.stressPrompt);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`stress case staged: ${activeStressHarness.weakest.label}`);
+  }
+
+  function applyStressHardenedRewriteToJournal() {
+    const hardenedPrompt = buildPromptStressHardenedRewrite(activeEvidenceRewrite, activeStressHarness);
+    updateTaskJournal({
+      answer: hardenedPrompt,
+      selfScore: Math.max(activeTaskJournal.selfScore, activeStressHarness.averageScore),
+      versionNote: `stress-hardened v3 ${activeEvidencePacket.packetId}`,
+    });
+    setPlaygroundPrompt(hardenedPrompt);
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`stress-hardened rewrite applied: ${activeStressHarness.averageScore}/100`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -18592,6 +18840,40 @@ function PromptView() {
                         {activeEvidenceRewrite.repairMoves.map((move) => <em key={move}>{move}</em>)}
                       </div>
                     </div>
+                    <div className="prompt-evidence-stress">
+                      <div className="prompt-evidence-stress-head">
+                        <div>
+                          <span>scenario stress harness</span>
+                          <strong>{activeStressHarness.averageScore}/100</strong>
+                          <em>{activeStressHarness.verdict}</em>
+                        </div>
+                        <p>Runs v2 through missing telemetry, contradictory evidence, and executive-pressure packets before you trust the rewrite.</p>
+                      </div>
+                      <div className="prompt-evidence-stress-cases">
+                        {activeStressHarness.cases.map((stressCase) => (
+                          <div key={stressCase.id}>
+                            <div>
+                              <span>{stressCase.label}</span>
+                              <strong>{stressCase.score}/100</strong>
+                            </div>
+                            <em>{stressCase.status}</em>
+                            <p>{stressCase.mutation}</p>
+                            <code>{stressCase.risk}</code>
+                            <div className="prompt-evidence-stress-checks">
+                              {stressCase.checks.map((check) => (
+                                <span key={check.label} className={check.passed ? "pass" : "fail"}>
+                                  {check.passed ? "pass" : "fix"} · {check.label}
+                                </span>
+                              ))}
+                            </div>
+                            <i>{stressCase.weaknesses.length ? stressCase.weaknesses.join(" · ") : "grounding held"}</i>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="prompt-evidence-stress-rules">
+                        {activeStressHarness.hardeningRules.map((rule) => <em key={rule}>{rule}</em>)}
+                      </div>
+                    </div>
                     <div className="prompt-evidence-tests">
                       <div>
                         <span>acceptance tests</span>
@@ -18611,6 +18893,8 @@ function PromptView() {
                     <button type="button" onClick={loadEvidenceDiffRepairIntoJournal}>load diff repair</button>
                     <button type="button" onClick={previewEvidenceRewriteInLab}>preview v2 in lab</button>
                     <button type="button" onClick={applyEvidenceRewriteToJournal}>apply v2 rewrite</button>
+                    <button type="button" onClick={loadWeakestStressCaseIntoLab}>load stress case</button>
+                    <button type="button" onClick={applyStressHardenedRewriteToJournal}>apply hardened v3</button>
                   </div>
                 </>
               )}
