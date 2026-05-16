@@ -15370,6 +15370,7 @@ button.load-forecast-day:hover {
 
 .prompt-command-grid,
 .prompt-zero-grid,
+.prompt-bootcamp-grid,
 .prompt-main-grid,
 .prompt-lab-grid,
 .prompt-reference-grid {
@@ -15397,12 +15398,17 @@ button.load-forecast-day:hover {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+.prompt-bootcamp-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .prompt-hero-card,
 .prompt-day-card,
 .prompt-foundation-card,
 .prompt-anatomy-card,
 .prompt-level-card,
 .prompt-mistake-card,
+.prompt-bootcamp-card,
 .prompt-phase-card,
 .prompt-roadmap-card,
 .prompt-srs-card,
@@ -15519,6 +15525,7 @@ button.load-forecast-day:hover {
 .prompt-anatomy-card,
 .prompt-level-card,
 .prompt-mistake-card,
+.prompt-bootcamp-card,
 .prompt-srs-card,
 .prompt-drill-card,
 .prompt-iteration-card,
@@ -15536,9 +15543,11 @@ button.load-forecast-day:hover {
 
 .prompt-day-control button,
 .prompt-day-control input,
+.prompt-daily-actions button,
 .prompt-grade-row button,
 .prompt-drill-actions button,
 .prompt-teach-card button,
+.prompt-skill-detail button,
 .prompt-mistake-body button,
 .prompt-playground-actions button,
 .prompt-playground-actions input,
@@ -15546,7 +15555,8 @@ button.load-forecast-day:hover {
 .prompt-reference-tabs button,
 .prompt-scenario-tabs button,
 .prompt-concept-tabs button,
-.prompt-mistake-tabs button {
+.prompt-mistake-tabs button,
+.prompt-level-rail button {
   min-height: 34px;
   border: 1px solid rgba(53, 215, 255, 0.22);
   background: rgba(2, 7, 15, 0.42);
@@ -15595,6 +15605,11 @@ button.load-forecast-day:hover {
 .prompt-daily-list button.done {
   border-color: rgba(158, 255, 102, 0.34);
   background: rgba(158, 255, 102, 0.055);
+}
+
+.prompt-daily-list button.active {
+  border-color: rgba(53, 215, 255, 0.5);
+  background: rgba(53, 215, 255, 0.085);
 }
 
 .prompt-daily-list button > span {
@@ -15657,6 +15672,115 @@ button.load-forecast-day:hover {
 .prompt-roadmap i {
   color: var(--zh-gold);
   font-style: normal;
+}
+
+.prompt-daily-detail {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background:
+    linear-gradient(90deg, rgba(53, 215, 255, 0.05), transparent),
+    rgba(2, 7, 15, 0.42);
+  padding: 12px;
+}
+
+.prompt-daily-detail-head,
+.prompt-bootcamp-top,
+.prompt-skill-head {
+  display: grid;
+  gap: 5px;
+}
+
+.prompt-daily-detail-head span,
+.prompt-daily-proof span,
+.prompt-daily-done span,
+.prompt-bootcamp-card span,
+.prompt-skill-head span,
+.prompt-skill-columns span,
+.prompt-skill-warning span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-daily-detail-head strong,
+.prompt-skill-head strong,
+.prompt-bootcamp-card h2 {
+  margin: 0;
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prompt-daily-detail p,
+.prompt-daily-proof p,
+.prompt-skill-head p,
+.prompt-skill-warning p,
+.prompt-bootcamp-card p,
+.prompt-bootcamp-card em {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.65;
+  text-transform: none;
+}
+
+.prompt-daily-steps,
+.prompt-daily-done,
+.prompt-daily-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.prompt-daily-steps {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-daily-steps span,
+.prompt-daily-done em,
+.prompt-skill-columns em {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.5;
+  padding: 7px;
+  text-transform: none;
+}
+
+.prompt-daily-proof {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.prompt-daily-proof > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prompt-daily-proof code,
+.prompt-skill-detail code {
+  display: block;
+  border: 1px solid rgba(170, 114, 255, 0.16);
+  background: rgba(2, 7, 15, 0.5);
+  color: var(--cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
+.prompt-daily-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .prompt-foundation-card {
@@ -15733,7 +15857,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-anatomy-grid div,
-.prompt-level-rail div {
+.prompt-level-rail button {
   display: grid;
   gap: 6px;
   min-width: 0;
@@ -15767,9 +15891,15 @@ button.load-forecast-day:hover {
   gap: 5px;
 }
 
-.prompt-level-rail div.active {
+.prompt-level-rail button.active {
   border-color: rgba(158, 255, 102, 0.28);
   background: rgba(158, 255, 102, 0.035);
+}
+
+.prompt-level-rail button.selected {
+  border-color: rgba(53, 215, 255, 0.58);
+  background: rgba(53, 215, 255, 0.09);
+  box-shadow: inset 0 0 20px rgba(53, 215, 255, 0.06);
 }
 
 .prompt-level-rail strong {
@@ -15791,6 +15921,34 @@ button.load-forecast-day:hover {
 
 .prompt-level-rail i {
   color: var(--zh-gold);
+}
+
+.prompt-skill-detail {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 12px;
+}
+
+.prompt-skill-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.prompt-skill-columns > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.prompt-skill-warning {
+  display: grid;
+  gap: 5px;
+  border-left: 2px solid rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.035);
+  padding: 8px 10px;
 }
 
 .prompt-mistake-tabs {
@@ -15864,6 +16022,38 @@ button.load-forecast-day:hover {
   font-size: 15px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.prompt-bootcamp-card {
+  align-content: start;
+  gap: 10px;
+}
+
+.prompt-bootcamp-card > div:not(.brackets) {
+  display: grid;
+  gap: 5px;
+}
+
+.prompt-bootcamp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prompt-bootcamp-top strong {
+  color: var(--violet);
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.prompt-bootcamp-card h2 {
+  font-size: 12px;
+}
+
+.prompt-bootcamp-card em {
+  font-style: normal;
 }
 
 .prompt-phase-tags,
@@ -16071,6 +16261,7 @@ button.load-forecast-day:hover {
 
   .prompt-command-grid,
   .prompt-zero-grid,
+  .prompt-bootcamp-grid,
   .prompt-main-grid,
   .prompt-lab-grid,
   .prompt-reference-grid,
@@ -16087,6 +16278,7 @@ button.load-forecast-day:hover {
 
   .prompt-anatomy-grid,
   .prompt-level-rail,
+  .prompt-skill-columns,
   .prompt-walkthrough {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -16124,8 +16316,12 @@ button.load-forecast-day:hover {
   .prompt-hero-metrics,
   .prompt-grade-row,
   .prompt-question-strip,
+  .prompt-daily-steps,
+  .prompt-daily-proof,
+  .prompt-daily-actions,
   .prompt-anatomy-grid,
   .prompt-level-rail,
+  .prompt-skill-columns,
   .prompt-mistake-tabs,
   .prompt-mistake-body div,
   .prompt-walkthrough,

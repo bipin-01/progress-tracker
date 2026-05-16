@@ -23,6 +23,13 @@ export type PromptDailyTask = {
   label: string;
   detail: string;
   minutes: number;
+  mode: "learn" | "build" | "iterate" | "evaluate" | "review";
+  lesson: string;
+  babySteps: string[];
+  socWhy: string;
+  example: string;
+  template: string;
+  doneLooksLike: string[];
 };
 
 export type PromptDrill = {
@@ -88,6 +95,20 @@ export type PromptSkillLevel = {
   capability: string;
   practice: string;
   danger: string;
+  mentalModel: string;
+  skills: string[];
+  drills: string[];
+  promotionCriteria: string[];
+  examplePrompt: string;
+};
+
+export type PromptBootcampStage = {
+  range: string;
+  title: string;
+  level: number;
+  teaches: string;
+  dailyOutput: string;
+  finalArtifact: string;
 };
 
 export type PromptMistakePattern = {
@@ -253,6 +274,11 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Can ask a simple question.",
     practice: "Write one sentence with a clear role and task.",
     danger: "Believes the first answer because it sounds confident.",
+    mentalModel: "A prompt is not magic. It is a tiny work order. If the work order is vague, the worker guesses.",
+    skills: ["Name the role", "Name the task", "Ask for one answer shape", "Notice when the model invents details"],
+    drills: ["Rewrite 'analyze this' into a role and task", "Ask for bullet points instead of a paragraph", "Mark one answer as supported or unsupported"],
+    promotionCriteria: ["Your prompt says who the model is", "Your prompt says what job to finish", "Your prompt does not ask for hidden facts"],
+    examplePrompt: "You are a patient SOC tutor. Explain what an IOC is in 5 bullets for a beginner. Do not use unexplained acronyms.",
   },
   {
     level: 10,
@@ -260,6 +286,11 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Understands role, context, task, and output.",
     practice: "Rewrite vague prompts into role/context/task format.",
     danger: "Still forgets evidence boundaries.",
+    mentalModel: "The model needs a box: role, context, task, constraints, output. Without the box, the answer spills everywhere.",
+    skills: ["Separate context from task", "Use explicit constraints", "Ask for a table or JSON", "State what unknown means"],
+    drills: ["Turn an alert snippet into a four-part prompt", "Require 'unknown' for missing fields", "Ask the model to cite the evidence line"],
+    promotionCriteria: ["Every output field has a reason", "Unknown data stays unknown", "The model can be wrong without sounding final"],
+    examplePrompt: "Role: SOC analyst. Context: only use the evidence below. Task: classify this login alert. Constraints: mark missing fields as unknown. Output: severity, confidence, evidence, next_action.",
   },
   {
     level: 20,
@@ -267,6 +298,11 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Can produce useful structured answers.",
     practice: "Use severity/confidence/evidence/next_action fields.",
     danger: "Uses structure without checking if facts are grounded.",
+    mentalModel: "A structured answer is a machine-readable checklist, not decoration.",
+    skills: ["Design JSON fields", "Add confidence levels", "Request missing data", "Compare benign vs suspicious explanations"],
+    drills: ["Create a phishing classifier JSON schema", "Add a false-positive branch", "Score one answer for grounding"],
+    promotionCriteria: ["Outputs are consistent across examples", "Confidence is tied to evidence", "False positives are considered"],
+    examplePrompt: "Classify the email as benign, suspicious, or malicious. Return JSON with verdict, confidence, evidence_quotes, benign_explanation, malicious_explanation, missing_data, and next_action.",
   },
   {
     level: 50,
@@ -274,6 +310,11 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Can build repeatable prompts for SOC workflows.",
     practice: "Create triage, hunt, and briefing prompts with rubrics.",
     danger: "Prompts work on demos but fail on edge cases.",
+    mentalModel: "A professional prompt is a reusable procedure with tests, not a clever one-off question.",
+    skills: ["Build workflow prompts", "Create rubrics", "Test edge cases", "Version prompt changes"],
+    drills: ["Write a triage prompt and 5 regression cases", "Create a hunt hypothesis generator", "Turn analyst feedback into v2"],
+    promotionCriteria: ["The prompt handles weak evidence", "The rubric catches bad answers", "Version notes explain what changed"],
+    examplePrompt: "Use this runbook and alert evidence to produce a triage packet. Before final answer, run a grounding check and list any unsupported claim you removed.",
   },
   {
     level: 70,
@@ -281,6 +322,11 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Uses examples, RAG, evaluations, and version control.",
     practice: "Maintain a prompt pack with tests and failure notes.",
     danger: "Optimizes for cleverness instead of reliability.",
+    mentalModel: "The prompt is only one component. Retrieval, examples, evals, and telemetry decide whether it survives production.",
+    skills: ["Few-shot boundary design", "Retrieval grounding", "Prompt regression testing", "Failure taxonomy"],
+    drills: ["Create positive and negative examples", "Write a citation-required RAG prompt", "Log 10 failure modes"],
+    promotionCriteria: ["Examples cover boundary cases", "Retrieved text is treated as evidence", "Eval results guide revisions"],
+    examplePrompt: "Using only the retrieved runbook passages, answer the analyst question. Cite passage ids for every claim. If passages conflict, report conflict instead of resolving it silently.",
   },
   {
     level: 90,
@@ -288,6 +334,11 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Designs multi-agent workflows with guardrails.",
     practice: "Planner, evidence collector, critic, and human approval loops.",
     danger: "Lets agents act before evidence is strong enough.",
+    mentalModel: "Agents are a controlled investigation team. Each agent needs one job, one tool boundary, one stop rule, and an audit trail.",
+    skills: ["Agent role decomposition", "Human approval gates", "Tool-use policies", "Critic review loops"],
+    drills: ["Design a planner/evidence/critic workflow", "Add stop rules for destructive actions", "Write an audit log schema"],
+    promotionCriteria: ["No agent owns final risk alone", "Tool calls are justified by evidence", "The critic can veto weak conclusions"],
+    examplePrompt: "Planner: create investigation steps. Evidence Collector: request only needed logs. Critic: reject unsupported conclusions. Human Approver: authorize escalation. Stop before containment actions.",
   },
   {
     level: 100,
@@ -295,6 +346,54 @@ export const promptSkillLevels: PromptSkillLevel[] = [
     capability: "Builds AI-native SOC systems that learn from outcomes.",
     practice: "Connect prompts, tools, evals, telemetry, and governance.",
     danger: "Forgets that humans still own risk decisions.",
+    mentalModel: "The system is a learning loop: prompt, tool, evidence, decision, outcome, evaluation, revision.",
+    skills: ["Outcome telemetry", "Governance controls", "Continuous evals", "Behavioral analytics"],
+    drills: ["Map prompt outputs to case outcomes", "Create a governance checklist", "Design a monthly prompt review process"],
+    promotionCriteria: ["Outcome data improves prompts", "Risk decisions remain auditable", "Bad automation paths are disabled fast"],
+    examplePrompt: "Review the last 30 closed incidents, compare AI recommendations with analyst outcomes, identify prompt failure patterns, and propose guarded revisions with test cases.",
+  },
+];
+
+export const promptBootcampStages: PromptBootcampStage[] = [
+  {
+    range: "Days 01-07",
+    title: "Birth: learn the shape",
+    level: 10,
+    teaches: "You learn that a prompt has parts, just like a sentence has words. Role, evidence, task, constraints, output, and eval become muscle memory.",
+    dailyOutput: "One tiny prompt that names a role, gives one piece of evidence, asks one task, and demands one answer shape.",
+    finalArtifact: "A one-page prompt anatomy card you can reuse for every SOC task.",
+  },
+  {
+    range: "Days 08-21",
+    title: "Crawl: stop hallucinations early",
+    level: 20,
+    teaches: "You learn to make the model say unknown, separate facts from guesses, and point to evidence before it gives advice.",
+    dailyOutput: "One evidence-bounded prompt plus one bad answer you correct with a grounding rule.",
+    finalArtifact: "A triage JSON schema with evidence_quotes, missing_data, confidence, and next_action.",
+  },
+  {
+    range: "Days 22-45",
+    title: "Stand: build reusable SOC workflows",
+    level: 45,
+    teaches: "You stop writing random prompts and start designing repeatable workflows for phishing, login alerts, malware notes, and incident summaries.",
+    dailyOutput: "One workflow prompt, one test case, and one failure note.",
+    finalArtifact: "A phase-one SOC prompt pack with triage, hunt, IR, briefing, and evaluation prompts.",
+  },
+  {
+    range: "Days 46-70",
+    title: "Walk: evaluate and iterate",
+    level: 70,
+    teaches: "You learn that v1 is only a draft. You score outputs, revise prompts, compare v1/v2/v3, and keep the revision that fails least.",
+    dailyOutput: "Three prompt versions with a score and a reason for the winning version.",
+    finalArtifact: "A regression-tested prompt library with rubrics and before/after examples.",
+  },
+  {
+    range: "Days 71-90",
+    title: "Run: connect prompts into systems",
+    level: 90,
+    teaches: "You combine prompts with retrieval, tool boundaries, agent roles, human approval, and audit logs.",
+    dailyOutput: "One system design note that says what the AI may do, what it may not do, and what a human must approve.",
+    finalArtifact: "A SOC copilot blueprint with planner, evidence collector, critic, and approval gates.",
   },
 ];
 
@@ -430,36 +529,121 @@ export function getPromptDailyTasks(day: number): PromptDailyTask[] {
   const safeDay = Math.min(Math.max(Math.trunc(day), 1), 90);
   const cycle = dailyCycle[(safeDay - 1) % dailyCycle.length];
   const week = Math.ceil(safeDay / 7);
+  const focus = promptRoadmapWeeks[Math.min(promptRoadmapWeeks.length - 1, week - 1)];
+  const outputSchema = "verdict, confidence, evidence, missing_data, next_action";
   return [
     {
       id: `d${safeDay}-read`,
       label: "Read the concept packet",
       detail: `Week ${week}: extract the prompt principle behind ${cycle}.`,
       minutes: 15,
+      mode: "learn",
+      lesson: `Today starts with the smallest possible idea: a ${cycle} prompt is a set of instructions that turns messy security evidence into a safer analyst decision. Read the week's principle, then restate it in your own words before you write anything.`,
+      babySteps: [
+        `Say the topic out loud: "Today I am practicing ${cycle}."`,
+        `Name the week theme: ${focus.title}.`,
+        "Write one sentence explaining what the model is allowed to know.",
+        "Write one sentence explaining what the model must produce.",
+      ],
+      socWhy: "SOC work punishes vague thinking. If the prompt cannot separate evidence, assumption, and next action, the analyst loses time during the exact moment clarity matters.",
+      example: `Bad: "Analyze this ${cycle}." Better: "Use only the evidence below to produce a ${cycle} analyst note with ${outputSchema}."`,
+      template: `You are my SOC prompt coach. Teach me ${cycle} for Week ${week}: ${focus.title}. Explain the principle in simple language, show one bad prompt, show one better prompt, and give me one tiny exercise.`,
+      doneLooksLike: [
+        "You can explain the principle without reading the card.",
+        "You have one bad prompt and one improved prompt.",
+        "You can point to the evidence boundary in the improved prompt.",
+      ],
     },
     {
       id: `d${safeDay}-build`,
       label: "Write one production prompt",
       detail: `Build ${indefiniteArticle(cycle)} ${cycle} prompt with role, evidence, constraints, and output schema.`,
       minutes: 25,
+      mode: "build",
+      lesson: "A production prompt is the version you would hand to a real analyst workflow. It should not depend on vibes. It should tell the model who it is, what evidence it may use, what task it must complete, what it must not invent, and what shape the answer must take.",
+      babySteps: [
+        "Start with the role: You are a SOC analyst.",
+        "Paste or describe the evidence block.",
+        "Write one task sentence with a strong verb: classify, summarize, reconstruct, compare, or recommend.",
+        "Add a constraint that blocks invented facts.",
+        `Demand fields: ${outputSchema}.`,
+      ],
+      socWhy: "This turns prompt engineering from casual chat into a repeatable security control. A consistent schema lets you compare alerts, automate handoff, and audit decisions.",
+      example: `Role: SOC analyst. Evidence: failed logins from unfamiliar ASN, successful MFA push, no EDR alert. Task: classify this ${cycle}. Constraint: no facts outside evidence. Output: ${outputSchema}.`,
+      template: `Role: You are a SOC analyst.\nEvidence:\n- [paste logs, alert fields, notes]\nTask: Produce a ${cycle} decision for an analyst handoff.\nConstraints:\n- Use only provided evidence.\n- Mark missing data as unknown.\n- Do not recommend destructive actions.\nOutput:\n- verdict\n- confidence\n- evidence\n- missing_data\n- next_action`,
+      doneLooksLike: [
+        "The prompt has role, evidence, task, constraints, and output.",
+        "The output shape can be reused tomorrow.",
+        "A missing field would be marked unknown instead of guessed.",
+      ],
     },
     {
       id: `d${safeDay}-iterate`,
       label: "Create v2 and v3",
       detail: "Improve the prompt once for precision and once for analyst usability.",
       minutes: 20,
+      mode: "iterate",
+      lesson: "Your first prompt is never the final prompt. v2 should reduce ambiguity. v3 should make the output easier for a tired analyst to use. You are training yourself to revise systematically, not randomly.",
+      babySteps: [
+        "Copy your v1 prompt.",
+        "Make v2 stricter: add evidence quotes, confidence rules, or missing-data handling.",
+        "Make v3 more usable: add an analyst summary, next 15-minute action, or escalation threshold.",
+        "Write one sentence explaining why v3 is better than v1.",
+      ],
+      socWhy: "Most AI failures are not solved by a bigger model. They are solved by a tighter prompt, better examples, and clearer evaluation criteria.",
+      example: "v1 asks for a summary. v2 requires evidence_quotes. v3 adds 'actionable in the next 15 minutes' and separates analyst_note from executive_note.",
+      template: `Take this ${cycle} prompt and create two revisions.\nRevision v2: improve grounding and precision.\nRevision v3: improve analyst usability under time pressure.\nReturn a comparison table with changed_instruction, reason, expected_failure_reduced, and risk_remaining.`,
+      doneLooksLike: [
+        "You have v1, v2, and v3 saved.",
+        "Each revision changes a specific failure mode.",
+        "You can explain which version you would ship and why.",
+      ],
     },
     {
       id: `d${safeDay}-evaluate`,
       label: "Score against rubric",
       detail: "Rate accuracy, grounding, completeness, and escalation safety.",
       minutes: 15,
+      mode: "evaluate",
+      lesson: "Evaluation is how you stop guessing whether a prompt is good. Score the output like an analyst reviewing another analyst: Did it use evidence? Did it avoid unsupported claims? Did it produce the next useful step?",
+      babySteps: [
+        "Score grounding from 0 to 5.",
+        "Score completeness from 0 to 5.",
+        "Score escalation safety from 0 to 5.",
+        "Write the single worst failure.",
+        "Write the one instruction that would prevent that failure next time.",
+      ],
+      socWhy: "Security prompts need measurable reliability. A pretty answer that hides unsupported claims is more dangerous than a boring answer that admits uncertainty.",
+      example: "Grounding 4/5 because it quoted the ASN and MFA push. Completeness 3/5 because it forgot prior login baseline. Safety 5/5 because it requested more evidence before containment.",
+      template: `Evaluate this ${cycle} prompt output.\nRubric:\n- Grounding: every claim has evidence.\n- Completeness: important fields are answered or marked unknown.\n- Escalation safety: recommendations match confidence.\n- Analyst usefulness: next action is concrete.\nReturn scores, the worst failure, and the next prompt revision.`,
+      doneLooksLike: [
+        "Every score has a reason.",
+        "You found at least one weakness.",
+        "You wrote one precise improvement instruction.",
+      ],
     },
     {
       id: `d${safeDay}-srs`,
       label: "Review due Q&A",
       detail: "Run the SRS queue before adding new theory.",
       minutes: 10,
+      mode: "review",
+      lesson: "Spaced repetition protects the fundamentals from fading. You do not need to reread everything. You need to answer one due question, grade yourself honestly, and let the queue decide when it returns.",
+      babySteps: [
+        "Read the due theory question.",
+        "Answer from memory before looking at the answer.",
+        "Grade Again if you missed the core idea.",
+        "Grade Hard if you remembered half.",
+        "Grade Good or Easy only when you could teach it to someone else.",
+      ],
+      socWhy: "In a real SOC, you do not get to pause and relearn evidence boundaries during an incident. The basics need to be instantly available.",
+      example: "Question: Why force missing_data? Answer: because unknowns are safer than invented facts and tell the analyst what to collect next.",
+      template: "Quiz me on one prompt engineering theory question for SOC work. Wait for my answer, then grade it using Again, Hard, Good, or Easy and explain the next review interval.",
+      doneLooksLike: [
+        "You answered before revealing.",
+        "Your grade was honest.",
+        "You can state the lesson in one sentence.",
+      ],
     },
   ];
 }

@@ -69,6 +69,7 @@ import {
 import {
   getPromptDailyTasks,
   promptAnatomyParts,
+  promptBootcampStages,
   promptDrills,
   promptFoundationConcepts,
   promptMasteryPhases,
@@ -17095,8 +17096,10 @@ function PromptView() {
   const [activeDrillId, setActiveDrillId] = useState(promptDrills[0].id);
   const [hintOpen, setHintOpen] = useState(false);
   const [answerOpen, setAnswerOpen] = useState(false);
+  const [activeDailyTaskId, setActiveDailyTaskId] = useState(`d${initialMemory?.selectedDay ?? 1}-read`);
   const [activeConceptId, setActiveConceptId] = useState(promptFoundationConcepts[0].id);
   const [activeMistakeId, setActiveMistakeId] = useState(promptMistakePatterns[0].id);
+  const [activeSkillLevel, setActiveSkillLevel] = useState(promptSkillLevels[0].level);
   const [activeReferenceId, setActiveReferenceId] = useState(promptReferenceSheets[0].id);
   const [activeScenarioId, setActiveScenarioId] = useState(promptScenarios[0].id);
   const [playgroundPrompt, setPlaygroundPrompt] = useState(initialMemory?.playgroundPrompt || promptDrills[0].modelAnswer);
@@ -17108,9 +17111,11 @@ function PromptView() {
   const [iterations, setIterations] = useState<PromptIteration[]>(initialMemory?.iterations ?? []);
 
   const dailyTasks = useMemo(() => getPromptDailyTasks(selectedDay), [selectedDay]);
+  const activeDailyTask = dailyTasks.find((task) => task.id === activeDailyTaskId) ?? dailyTasks[0];
   const activeDrill = promptDrills.find((drill) => drill.id === activeDrillId) ?? promptDrills[0];
   const activeConcept = promptFoundationConcepts.find((concept) => concept.id === activeConceptId) ?? promptFoundationConcepts[0];
   const activeMistake = promptMistakePatterns.find((mistake) => mistake.id === activeMistakeId) ?? promptMistakePatterns[0];
+  const activeSkill = promptSkillLevels.find((level) => level.level === activeSkillLevel) ?? promptSkillLevels[0];
   const activeReference = promptReferenceSheets.find((sheet) => sheet.id === activeReferenceId) ?? promptReferenceSheets[0];
   const activeScenario = promptScenarios.find((scenario) => scenario.id === activeScenarioId) ?? promptScenarios[0];
   const dueQuestions = promptTheoryQuestions
@@ -17137,6 +17142,10 @@ function PromptView() {
     });
     if (!saved) setPlaygroundStatus("memory offline");
   }, [completedTasks, iterations, playgroundOutput, playgroundPrompt, promptEndpoint, reviewStates, selectedDay]);
+
+  useEffect(() => {
+    setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
+  }, [dailyTasks]);
 
   function toggleDailyTask(taskId: string) {
     setCompletedTasks((current) => {
@@ -17255,12 +17264,49 @@ function PromptView() {
           </div>
           <div className="prompt-daily-list">
             {dailyTasks.map((task) => (
-              <button key={task.id} type="button" className={completedTasks.has(task.id) ? "done" : ""} onClick={() => toggleDailyTask(task.id)}>
+              <button
+                key={task.id}
+                type="button"
+                className={`${completedTasks.has(task.id) ? "done" : ""} ${task.id === activeDailyTask.id ? "active" : ""}`}
+                onClick={() => setActiveDailyTaskId(task.id)}
+              >
                 <span>{completedTasks.has(task.id) ? <Check /> : String(task.minutes)}</span>
                 <strong>{task.label}</strong>
                 <em>{task.detail}</em>
               </button>
             ))}
+          </div>
+          <div className="prompt-daily-detail">
+            <div className="prompt-daily-detail-head">
+              <span>{activeDailyTask.mode} · {activeDailyTask.minutes} min</span>
+              <strong>{activeDailyTask.label}</strong>
+            </div>
+            <p>{activeDailyTask.lesson}</p>
+            <div className="prompt-daily-steps">
+              {activeDailyTask.babySteps.map((step, index) => (
+                <span key={step}>{String(index + 1).padStart(2, "0")} {step}</span>
+              ))}
+            </div>
+            <div className="prompt-daily-proof">
+              <div>
+                <span>SOC why</span>
+                <p>{activeDailyTask.socWhy}</p>
+              </div>
+              <div>
+                <span>example</span>
+                <code>{activeDailyTask.example}</code>
+              </div>
+            </div>
+            <div className="prompt-daily-done">
+              <span>done looks like</span>
+              {activeDailyTask.doneLooksLike.map((item) => <em key={item}>{item}</em>)}
+            </div>
+            <div className="prompt-daily-actions">
+              <button type="button" onClick={() => setPlaygroundPrompt(activeDailyTask.template)}>load task template</button>
+              <button type="button" onClick={() => toggleDailyTask(activeDailyTask.id)}>
+                {completedTasks.has(activeDailyTask.id) ? "mark open" : "mark done"}
+              </button>
+            </div>
           </div>
         </HudCard>
       </section>
@@ -17317,14 +17363,45 @@ function PromptView() {
           <CardHeader title="0 -> 100 Skill Ladder" meta="calibration" />
           <div className="prompt-level-rail">
             {promptSkillLevels.map((level) => (
-              <div key={level.level} className={level.level <= activePhase.level ? "active" : ""}>
+              <button
+                key={level.level}
+                type="button"
+                className={`${level.level <= activePhase.level ? "active" : ""} ${level.level === activeSkill.level ? "selected" : ""}`}
+                onClick={() => setActiveSkillLevel(level.level)}
+              >
                 <span>{level.level}</span>
                 <strong>{level.label}</strong>
                 <p>{level.capability}</p>
                 <em>{level.practice}</em>
-                <i>{level.danger}</i>
-              </div>
+              </button>
             ))}
+          </div>
+          <div className="prompt-skill-detail">
+            <div className="prompt-skill-head">
+              <span>level {activeSkill.level} · {activeSkill.label}</span>
+              <strong>{activeSkill.mentalModel}</strong>
+              <p>{activeSkill.capability}</p>
+            </div>
+            <div className="prompt-skill-columns">
+              <div>
+                <span>skills</span>
+                {activeSkill.skills.map((skill) => <em key={skill}>{skill}</em>)}
+              </div>
+              <div>
+                <span>drills</span>
+                {activeSkill.drills.map((drill) => <em key={drill}>{drill}</em>)}
+              </div>
+              <div>
+                <span>promotion check</span>
+                {activeSkill.promotionCriteria.map((item) => <em key={item}>{item}</em>)}
+              </div>
+            </div>
+            <div className="prompt-skill-warning">
+              <span>failure trap</span>
+              <p>{activeSkill.danger}</p>
+            </div>
+            <code>{activeSkill.examplePrompt}</code>
+            <button type="button" onClick={() => setPlaygroundPrompt(activeSkill.examplePrompt)}>load level prompt</button>
           </div>
         </HudCard>
 
@@ -17367,6 +17444,27 @@ function PromptView() {
             <p>{phase.outcome}</p>
             <div className="prompt-phase-tags">
               {phase.focus.map((item) => <em key={item}>{item}</em>)}
+            </div>
+          </HudCard>
+        ))}
+      </section>
+
+      <section className="prompt-bootcamp-grid" aria-label="Phase 1 bootcamp stages">
+        {promptBootcampStages.map((stage) => (
+          <HudCard key={stage.range} className="prompt-bootcamp-card">
+            <div className="prompt-bootcamp-top">
+              <span>{stage.range}</span>
+              <strong>L{stage.level}</strong>
+            </div>
+            <h2>{stage.title}</h2>
+            <p>{stage.teaches}</p>
+            <div>
+              <span>daily output</span>
+              <em>{stage.dailyOutput}</em>
+            </div>
+            <div>
+              <span>final artifact</span>
+              <em>{stage.finalArtifact}</em>
             </div>
           </HudCard>
         ))}
