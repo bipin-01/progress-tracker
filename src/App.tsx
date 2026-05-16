@@ -17380,7 +17380,14 @@ type PromptDefensePerformanceExportRehearsal = {
 type PromptDefensePerformanceExport = {
   exportId: string;
   title: string;
+  day: number;
   readinessScore: number;
+  completionRate: number;
+  missedDebt: number;
+  rehearsalAverage: number;
+  gateReadiness: number;
+  recurringQuestionLabel: string;
+  recurringRiskCount: number;
   verdict: string;
   mentorNote: string;
   recurringWeakness: string;
@@ -17392,6 +17399,39 @@ type PromptDefensePerformanceExport = {
   markdown: string;
 };
 
+type PromptDefensePerformanceExportArchiveEntry = Pick<
+  PromptDefensePerformanceExport,
+  | "exportId"
+  | "title"
+  | "day"
+  | "readinessScore"
+  | "completionRate"
+  | "missedDebt"
+  | "rehearsalAverage"
+  | "gateReadiness"
+  | "recurringQuestionLabel"
+  | "recurringRiskCount"
+  | "verdict"
+  | "recoveryPrescription"
+  | "markdown"
+> & {
+  savedAt: string;
+};
+
+type PromptDefensePerformanceComparison = {
+  current: PromptDefensePerformanceExport;
+  previous?: PromptDefensePerformanceExportArchiveEntry;
+  readinessDelta: number;
+  cadenceDelta: number;
+  rehearsalDelta: number;
+  gateDelta: number;
+  debtDelta: number;
+  repeatedWeakness: boolean;
+  verdict: string;
+  mentorRead: string;
+  nextAction: string;
+};
+
 type PromptPortfolioGallery = {
   items: PromptPortfolioGalleryItem[];
   best: PromptPortfolioGalleryItem;
@@ -17400,6 +17440,7 @@ type PromptPortfolioGallery = {
   reviewCalendar: PromptPortfolioReviewCalendarDay[];
   defenseCalendarReview: PromptDefenseCalendarReviewSummary;
   defensePerformanceExport: PromptDefensePerformanceExport;
+  defensePerformanceComparison: PromptDefensePerformanceComparison;
   averageScore: number;
   readyCount: number;
   defenseGatedCount: number;
@@ -17512,6 +17553,7 @@ type PromptMemorySnapshot = {
   incidentReportArchive: PromptIncidentReportArchiveEntry[];
   mentorRehearsals: PromptMentorRehearsalAttempt[];
   defenseCalendarSchedules: PromptDefenseCalendarSchedule[];
+  defensePerformanceExports: PromptDefensePerformanceExportArchiveEntry[];
   playgroundPrompt: string;
   playgroundOutput: string;
 };
@@ -17681,6 +17723,31 @@ function normalizePromptDefenseCalendarSchedule(value: unknown): PromptDefenseCa
   };
 }
 
+function normalizePromptDefensePerformanceExportArchiveEntry(value: unknown): PromptDefensePerformanceExportArchiveEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<PromptDefensePerformanceExportArchiveEntry>;
+  const exportId = typeof record.exportId === "string" && record.exportId ? record.exportId : "";
+  const savedAt = typeof record.savedAt === "string" && record.savedAt ? record.savedAt : "";
+  const markdown = typeof record.markdown === "string" ? record.markdown : "";
+  if (!exportId || !savedAt || !markdown) return null;
+  return {
+    exportId,
+    title: typeof record.title === "string" && record.title ? record.title : "Defense performance export",
+    day: Math.min(Math.max(Math.trunc(Number(record.day) || 1), 1), 90),
+    readinessScore: clampPromptPercent(record.readinessScore),
+    completionRate: clampPromptPercent(record.completionRate),
+    missedDebt: Math.max(0, Math.trunc(Number(record.missedDebt) || 0)),
+    rehearsalAverage: clampPromptPercent(record.rehearsalAverage),
+    gateReadiness: clampPromptPercent(record.gateReadiness),
+    recurringQuestionLabel: typeof record.recurringQuestionLabel === "string" && record.recurringQuestionLabel ? record.recurringQuestionLabel : "Evidence Boundary",
+    recurringRiskCount: Math.max(0, Math.trunc(Number(record.recurringRiskCount) || 0)),
+    verdict: typeof record.verdict === "string" && record.verdict ? record.verdict : "defense export archived",
+    recoveryPrescription: typeof record.recoveryPrescription === "string" && record.recoveryPrescription ? record.recoveryPrescription : "Review the recurring weakness and schedule one timed defense drill.",
+    markdown,
+    savedAt,
+  };
+}
+
 function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
   try {
     const raw = window.localStorage.getItem(PROMPT_MEMORY_STORAGE_KEY);
@@ -17735,6 +17802,13 @@ function loadPromptMemorySnapshot(): PromptMemorySnapshot | null {
             .filter((entry): entry is PromptDefenseCalendarSchedule => Boolean(entry))
             .sort((a, b) => a.day - b.day || b.scheduledAt.localeCompare(a.scheduledAt))
             .slice(-120)
+        : [],
+      defensePerformanceExports: Array.isArray(parsed.defensePerformanceExports)
+        ? parsed.defensePerformanceExports
+            .map(normalizePromptDefensePerformanceExportArchiveEntry)
+            .filter((entry): entry is PromptDefensePerformanceExportArchiveEntry => Boolean(entry))
+            .sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+            .slice(0, 24)
         : [],
       playgroundPrompt: typeof parsed.playgroundPrompt === "string" ? parsed.playgroundPrompt : "",
       playgroundOutput: typeof parsed.playgroundOutput === "string" ? parsed.playgroundOutput : "",
@@ -19589,7 +19663,14 @@ function buildPromptDefensePerformanceExport({
   return {
     exportId,
     title: `D${String(selectedDay).padStart(2, "0")} defense performance export`,
+    day: selectedDay,
     readinessScore,
+    completionRate: summary.completionRate,
+    missedDebt: summary.missedDebt,
+    rehearsalAverage: averageRehearsalScore,
+    gateReadiness: defenseGateReadiness,
+    recurringQuestionLabel: summary.recurringQuestionLabel,
+    recurringRiskCount: summary.recurringRiskCount,
     verdict,
     mentorNote,
     recurringWeakness,
@@ -19599,6 +19680,81 @@ function buildPromptDefensePerformanceExport({
     recoveryHistory,
     nextSevenDayPlan,
     markdown,
+  };
+}
+
+function buildPromptDefensePerformanceArchiveEntry(
+  defenseExport: PromptDefensePerformanceExport,
+  savedAt = new Date().toISOString(),
+): PromptDefensePerformanceExportArchiveEntry {
+  return {
+    exportId: defenseExport.exportId,
+    title: defenseExport.title,
+    day: defenseExport.day,
+    readinessScore: defenseExport.readinessScore,
+    completionRate: defenseExport.completionRate,
+    missedDebt: defenseExport.missedDebt,
+    rehearsalAverage: defenseExport.rehearsalAverage,
+    gateReadiness: defenseExport.gateReadiness,
+    recurringQuestionLabel: defenseExport.recurringQuestionLabel,
+    recurringRiskCount: defenseExport.recurringRiskCount,
+    verdict: defenseExport.verdict,
+    recoveryPrescription: defenseExport.recoveryPrescription,
+    markdown: defenseExport.markdown,
+    savedAt,
+  };
+}
+
+function buildPromptDefensePerformanceComparison(
+  current: PromptDefensePerformanceExport,
+  archive: PromptDefensePerformanceExportArchiveEntry[],
+): PromptDefensePerformanceComparison {
+  const previous = archive.find((entry) => entry.exportId !== current.exportId);
+  const readinessDelta = previous ? current.readinessScore - previous.readinessScore : 0;
+  const cadenceDelta = previous ? current.completionRate - previous.completionRate : 0;
+  const rehearsalDelta = previous ? current.rehearsalAverage - previous.rehearsalAverage : 0;
+  const gateDelta = previous ? current.gateReadiness - previous.gateReadiness : 0;
+  const debtDelta = previous ? current.missedDebt - previous.missedDebt : 0;
+  const repeatedWeakness = Boolean(previous && previous.recurringQuestionLabel === current.recurringQuestionLabel);
+  const improvingSignals = [readinessDelta, cadenceDelta, rehearsalDelta, gateDelta].filter((delta) => delta > 0).length + (debtDelta < 0 ? 1 : 0);
+  const verdict = !previous
+    ? "baseline defense note"
+    : improvingSignals >= 4 && !repeatedWeakness
+      ? "defense trajectory improving"
+      : improvingSignals >= 3
+        ? "partial improvement, keep pressure"
+        : debtDelta > 0 || repeatedWeakness
+          ? "recovery debt still active"
+          : "defense trend needs clearer evidence";
+  const mentorRead = previous
+    ? [
+        `Compared with ${previous.title}, readiness moved ${readinessDelta >= 0 ? "+" : ""}${readinessDelta}, cadence ${cadenceDelta >= 0 ? "+" : ""}${cadenceDelta}, rehearsal average ${rehearsalDelta >= 0 ? "+" : ""}${rehearsalDelta}, and gate readiness ${gateDelta >= 0 ? "+" : ""}${gateDelta}.`,
+        `Missed debt ${debtDelta <= 0 ? "shrank" : "grew"} by ${Math.abs(debtDelta)}.`,
+        repeatedWeakness ? `${current.recurringQuestionLabel} is still repeating; make the learner answer it under interruption.` : `Weakness moved from ${previous.recurringQuestionLabel} to ${current.recurringQuestionLabel}.`,
+      ].join(" ")
+    : "Archive this defense note to establish the first comparison baseline. The next note will show readiness, cadence, debt, and recurring weakness movement.";
+  const nextAction = !previous
+    ? "Archive the current mentor note, then run one scheduled defense rehearsal before generating the next note."
+    : repeatedWeakness
+      ? `Run two timed ${current.recurringQuestionLabel} answers: one clean pass, one interrupted pass with missing evidence.`
+      : debtDelta > 0
+        ? "Clear missed rehearsal debt before creating new portfolio artifacts."
+        : readinessDelta < 0
+          ? "Review the strongest previous note and identify which defense gate regressed."
+          : "Archive this note and keep the next seven-day plan focused on the new recurring weakness.";
+
+  return {
+    current,
+    previous,
+    readinessDelta,
+    cadenceDelta,
+    rehearsalDelta,
+    gateDelta,
+    debtDelta,
+    repeatedWeakness,
+    verdict,
+    mentorRead,
+    nextAction,
   };
 }
 
@@ -19675,6 +19831,7 @@ function buildPromptPortfolioGallery({
   review,
   mentorRehearsals,
   defenseCalendarSchedules,
+  defensePerformanceExports,
 }: {
   activeExport: PromptPortfolioExportPacket;
   activeTask: PromptDailyTask;
@@ -19683,6 +19840,7 @@ function buildPromptPortfolioGallery({
   review: PromptReportPortfolioReview;
   mentorRehearsals: PromptMentorRehearsalAttempt[];
   defenseCalendarSchedules: PromptDefenseCalendarSchedule[];
+  defensePerformanceExports: PromptDefensePerformanceExportArchiveEntry[];
 }): PromptPortfolioGallery {
   const activeWeakness = review.checklist[0] ?? review.reviewerBrief;
   const activeItem: PromptPortfolioGallerySeed = {
@@ -19749,6 +19907,10 @@ function buildPromptPortfolioGallery({
     rehearsals: mentorRehearsals,
     summary: defenseCalendarReview,
   });
+  const defensePerformanceComparison = buildPromptDefensePerformanceComparison(
+    defensePerformanceExport,
+    defensePerformanceExports,
+  );
 
   return {
     items,
@@ -19758,6 +19920,7 @@ function buildPromptPortfolioGallery({
     reviewCalendar,
     defenseCalendarReview,
     defensePerformanceExport,
+    defensePerformanceComparison,
     averageScore: average(items.map((item) => item.showcaseScore)),
     readyCount: items.filter((item) => item.showcaseReady).length,
     defenseGatedCount: items.filter((item) => !item.defenseGate.unlocked).length,
@@ -20487,6 +20650,7 @@ function PromptView() {
   const [incidentReportArchive, setIncidentReportArchive] = useState<PromptIncidentReportArchiveEntry[]>(initialMemory?.incidentReportArchive ?? []);
   const [mentorRehearsals, setMentorRehearsals] = useState<PromptMentorRehearsalAttempt[]>(initialMemory?.mentorRehearsals ?? []);
   const [defenseCalendarSchedules, setDefenseCalendarSchedules] = useState<PromptDefenseCalendarSchedule[]>(initialMemory?.defenseCalendarSchedules ?? []);
+  const [defensePerformanceExports, setDefensePerformanceExports] = useState<PromptDefensePerformanceExportArchiveEntry[]>(initialMemory?.defensePerformanceExports ?? []);
   const [reportArchiveQuery, setReportArchiveQuery] = useState("");
   const [selectedPortfolioPolishId, setSelectedPortfolioPolishId] = useState<string | null>(null);
   const [activePolishStepId, setActivePolishStepId] = useState("pitch");
@@ -20650,8 +20814,9 @@ function PromptView() {
       review: activeReportReview,
       mentorRehearsals,
       defenseCalendarSchedules,
+      defensePerformanceExports,
     }),
-    [activeDailyTask, activePortfolioExport, activeReportReview, defenseCalendarSchedules, incidentReportArchive, mentorRehearsals, selectedDay],
+    [activeDailyTask, activePortfolioExport, activeReportReview, defenseCalendarSchedules, defensePerformanceExports, incidentReportArchive, mentorRehearsals, selectedDay],
   );
   const selectedPortfolioPolishTarget = useMemo(
     () => portfolioGallery.items.find((item) => item.id === selectedPortfolioPolishId) ?? portfolioGallery.polishTarget,
@@ -20792,11 +20957,12 @@ function PromptView() {
       incidentReportArchive,
       mentorRehearsals,
       defenseCalendarSchedules,
+      defensePerformanceExports,
       playgroundPrompt,
       playgroundOutput,
     });
     if (!saved) setPlaygroundStatus("memory offline");
-  }, [completedTasks, defenseCalendarSchedules, incidentReportArchive, iterations, masteryHistory, mentorRehearsals, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
+  }, [completedTasks, defenseCalendarSchedules, defensePerformanceExports, incidentReportArchive, iterations, masteryHistory, mentorRehearsals, playgroundOutput, playgroundPrompt, promptEndpoint, redTeamReplayHistory, reviewStates, selectedDay, taskJournals]);
 
   useEffect(() => {
     setActiveDailyTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
@@ -21271,6 +21437,35 @@ function PromptView() {
     setPlaygroundPrompt(defenseExport.markdown);
     setActiveDailyPanel("lab");
     setPlaygroundStatus(`defense export staged: ${defenseExport.readinessScore}/100`);
+  }
+
+  function archiveDefensePerformanceExport() {
+    const defenseExport = portfolioGallery.defensePerformanceExport;
+    const entry = buildPromptDefensePerformanceArchiveEntry(defenseExport);
+    setDefensePerformanceExports((current) => [entry, ...current.filter((item) => item.exportId !== entry.exportId)].slice(0, 24));
+    setPlaygroundStatus(`defense export archived: ${entry.readinessScore}/100`);
+  }
+
+  function loadDefenseExportComparisonAction() {
+    const comparison = portfolioGallery.defensePerformanceComparison;
+    const currentAnswer = activeTaskJournal.answer.trim();
+    updateTaskJournal({
+      answer: [
+        currentAnswer,
+        "",
+        "---",
+        `Defense export comparison: ${comparison.verdict}`,
+        comparison.previous ? `Previous note: ${comparison.previous.title} (${comparison.previous.readinessScore}/100)` : "Previous note: no archived baseline yet",
+        `Readiness ${comparison.readinessDelta >= 0 ? "+" : ""}${comparison.readinessDelta} · cadence ${comparison.cadenceDelta >= 0 ? "+" : ""}${comparison.cadenceDelta} · rehearsal ${comparison.rehearsalDelta >= 0 ? "+" : ""}${comparison.rehearsalDelta} · gate ${comparison.gateDelta >= 0 ? "+" : ""}${comparison.gateDelta} · debt ${comparison.debtDelta >= 0 ? "+" : ""}${comparison.debtDelta}`,
+        comparison.mentorRead,
+        "",
+        `Next action: ${comparison.nextAction}`,
+      ].filter(Boolean).join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, comparison.current.readinessScore),
+      versionNote: `defense comparison ${comparison.verdict}`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`defense comparison loaded: ${comparison.verdict}`);
   }
 
   function saveDefensePerformanceExportToJournal() {
@@ -22445,6 +22640,7 @@ function PromptView() {
                   <p>{portfolioGallery.defensePerformanceExport.mentorNote}</p>
                   <div>
                     <button type="button" onClick={stageDefensePerformanceExport}>stage note</button>
+                    <button type="button" onClick={archiveDefensePerformanceExport}>archive note</button>
                     <button type="button" onClick={saveDefensePerformanceExportToJournal}>journal note</button>
                     <button type="button" onClick={copyDefensePerformanceExport}>copy note</button>
                   </div>
@@ -22474,6 +22670,50 @@ function PromptView() {
                     <span>recovery history</span>
                     {portfolioGallery.defensePerformanceExport.recoveryHistory.slice(0, 5).map((item) => <em key={item}>{item}</em>)}
                   </div>
+                </div>
+                <div className="prompt-defense-performance-comparison">
+                  <div>
+                    <span>comparison ledger</span>
+                    <strong>{portfolioGallery.defensePerformanceComparison.verdict}</strong>
+                    <em>
+                      {portfolioGallery.defensePerformanceComparison.previous
+                        ? `vs ${portfolioGallery.defensePerformanceComparison.previous.title}`
+                        : "archive note to set baseline"}
+                    </em>
+                  </div>
+                  <div className="prompt-defense-performance-deltas">
+                    <span className={portfolioGallery.defensePerformanceComparison.readinessDelta >= 0 ? "good" : "bad"}>
+                      readiness {portfolioGallery.defensePerformanceComparison.readinessDelta >= 0 ? "+" : ""}{portfolioGallery.defensePerformanceComparison.readinessDelta}
+                    </span>
+                    <span className={portfolioGallery.defensePerformanceComparison.cadenceDelta >= 0 ? "good" : "bad"}>
+                      cadence {portfolioGallery.defensePerformanceComparison.cadenceDelta >= 0 ? "+" : ""}{portfolioGallery.defensePerformanceComparison.cadenceDelta}
+                    </span>
+                    <span className={portfolioGallery.defensePerformanceComparison.rehearsalDelta >= 0 ? "good" : "bad"}>
+                      rehearsal {portfolioGallery.defensePerformanceComparison.rehearsalDelta >= 0 ? "+" : ""}{portfolioGallery.defensePerformanceComparison.rehearsalDelta}
+                    </span>
+                    <span className={portfolioGallery.defensePerformanceComparison.debtDelta <= 0 ? "good" : "bad"}>
+                      debt {portfolioGallery.defensePerformanceComparison.debtDelta >= 0 ? "+" : ""}{portfolioGallery.defensePerformanceComparison.debtDelta}
+                    </span>
+                  </div>
+                  <p>{portfolioGallery.defensePerformanceComparison.mentorRead}</p>
+                  <div>
+                    <em>{portfolioGallery.defensePerformanceComparison.nextAction}</em>
+                    <button type="button" onClick={loadDefenseExportComparisonAction}>load comparison</button>
+                  </div>
+                </div>
+                <div className="prompt-defense-performance-history">
+                  <div>
+                    <span>archived progress notes</span>
+                    <strong>{defensePerformanceExports.length}</strong>
+                    <em>{defensePerformanceExports[0] ? new Date(defensePerformanceExports[0].savedAt).toLocaleDateString([], { month: "short", day: "2-digit" }) : "no baseline"}</em>
+                  </div>
+                  {defensePerformanceExports.slice(0, 4).map((entry) => (
+                    <button key={entry.exportId} type="button" onClick={() => setPlaygroundPrompt(entry.markdown)}>
+                      <span>D{String(entry.day).padStart(2, "0")} · {entry.readinessScore}/100</span>
+                      <strong>{entry.verdict}</strong>
+                      <em>{entry.completionRate}% cadence · debt {entry.missedDebt} · {entry.recurringQuestionLabel}</em>
+                    </button>
+                  ))}
                 </div>
                 <pre>{portfolioGallery.defensePerformanceExport.markdown}</pre>
               </div>

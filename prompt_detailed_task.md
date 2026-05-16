@@ -749,3 +749,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a defense export comparison ledger that compares the newest mentor progress note against the previous note, showing cadence improvement, repeated weakness movement, and whether recovery debt is shrinking.
+
+### 2026-05-16 - Defense Export Comparison Ledger
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the defense export produced a strong mentor note, but the learner still could not tell whether their defense behavior was improving from one note to the next.
+
+Problem observed:
+- Defense progress notes were generated on demand but not archived as comparable snapshots.
+- A mentor-ready note could show current cadence, weakness, and debt, but not whether readiness, rehearsal average, gate clearance, or missed debt had improved.
+- UI/UX needed a smoother transition from "I made a progress note" to "I can inspect the trend and load the next recovery action."
+
+Decision:
+- More measurement history was needed. This fit the 70% rule because real bootcamp coaching depends on trend comparison, not a single impressive export.
+
+Implemented:
+- Added persisted defense performance export history to prompt memory.
+- Added an archive-note action so each mentor progress export can become a baseline snapshot.
+- Added a defense export comparison model that compares current note against the most recent different archived note.
+- The comparison tracks readiness delta, cadence delta, rehearsal average delta, gate readiness delta, missed-debt delta, and whether the same recurring weakness is repeating.
+- Added mentor-readable comparison text and a next action that changes depending on repeated weakness, growing debt, readiness regression, or healthy improvement.
+- Added a comparison ledger UI inside the mentor progress export with compact delta chips, baseline state, load-comparison action, and archived note history.
+- Styled the ledger as a quiet violet/cyan layer with responsive collapse and small motion-safe controls.
+
+Next likely upgrade:
+- Add a mentor interruption simulator that uses the repeated weakness from the export comparison ledger to inject a realistic challenge into the timed defense rehearsal.

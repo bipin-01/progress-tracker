@@ -15854,6 +15854,9 @@ button.load-forecast-day:hover {
 .prompt-defense-performance-head,
 .prompt-defense-performance-metrics,
 .prompt-defense-performance-brief,
+.prompt-defense-performance-comparison,
+.prompt-defense-performance-deltas,
+.prompt-defense-performance-history,
 .prompt-portfolio-gallery-list,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head,
@@ -16076,6 +16079,47 @@ button.load-forecast-day:hover {
   grid-template-columns: minmax(280px, 0.42fr) minmax(240px, 0.29fr) minmax(240px, 0.29fr);
 }
 
+.prompt-defense-performance-comparison {
+  grid-template-columns: minmax(180px, 0.22fr) minmax(260px, 0.28fr) minmax(320px, 1fr) minmax(220px, 0.26fr);
+  align-items: start;
+  border-color: rgba(170, 114, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.035), transparent 52%),
+    rgba(2, 7, 15, 0.3);
+}
+
+.prompt-defense-performance-deltas {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-defense-performance-deltas span {
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.26);
+  padding: 5px 6px;
+}
+
+.prompt-defense-performance-deltas span.good {
+  border-color: rgba(158, 255, 102, 0.18);
+  color: var(--green);
+}
+
+.prompt-defense-performance-deltas span.bad {
+  border-color: rgba(255, 93, 124, 0.2);
+  color: var(--danger);
+}
+
+.prompt-defense-performance-history {
+  grid-template-columns: minmax(180px, 0.22fr) repeat(4, minmax(180px, 1fr));
+}
+
+.prompt-defense-performance-history button {
+  display: grid;
+  gap: 5px;
+  min-height: 84px;
+  padding: 8px;
+  text-align: left;
+}
+
 .prompt-defense-performance-brief strong {
   color: var(--ink-0);
   font-family: "JetBrains Mono", monospace;
@@ -16115,6 +16159,10 @@ button.load-forecast-day:hover {
 .prompt-defense-performance-head > div,
 .prompt-defense-performance-metrics > div,
 .prompt-defense-performance-brief > div,
+.prompt-defense-performance-comparison,
+.prompt-defense-performance-comparison > div,
+.prompt-defense-performance-history > div,
+.prompt-defense-performance-history button,
 .prompt-portfolio-gallery-list > div,
 .prompt-portfolio-polish,
 .prompt-portfolio-polish-head > div,
@@ -16434,6 +16482,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-calendar span,
 .prompt-portfolio-defense-review-summary span,
 .prompt-defense-performance-export span,
+.prompt-defense-performance-history button span,
 .prompt-portfolio-gallery-list span,
 .prompt-portfolio-polish span,
 .prompt-portfolio-defense span,
@@ -16452,6 +16501,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-calendar strong,
 .prompt-portfolio-defense-review-summary strong,
 .prompt-defense-performance-export strong,
+.prompt-defense-performance-history button strong,
 .prompt-portfolio-gallery-list strong,
 .prompt-portfolio-polish strong,
 .prompt-portfolio-defense strong,
@@ -16486,6 +16536,7 @@ button.load-forecast-day:hover {
 .prompt-portfolio-defense-calendar em,
 .prompt-portfolio-defense-review-summary em,
 .prompt-defense-performance-export em,
+.prompt-defense-performance-history button em,
 .prompt-portfolio-gallery-list em,
 .prompt-portfolio-gallery-list i,
 .prompt-portfolio-polish em,
@@ -18667,6 +18718,9 @@ button.load-forecast-day:hover {
   .prompt-defense-performance-head,
   .prompt-defense-performance-metrics,
   .prompt-defense-performance-brief,
+  .prompt-defense-performance-comparison,
+  .prompt-defense-performance-deltas,
+  .prompt-defense-performance-history,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
@@ -18761,6 +18815,9 @@ button.load-forecast-day:hover {
   .prompt-defense-performance-head,
   .prompt-defense-performance-metrics,
   .prompt-defense-performance-brief,
+  .prompt-defense-performance-comparison,
+  .prompt-defense-performance-deltas,
+  .prompt-defense-performance-history,
   .prompt-portfolio-gallery-list,
   .prompt-portfolio-polish-head,
   .prompt-portfolio-polish-steps,
