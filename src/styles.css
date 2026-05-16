@@ -15368,6 +15368,17 @@ button.load-forecast-day:hover {
   padding-bottom: 34px;
 }
 
+@keyframes prompt-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .prompt-command-grid,
 .prompt-zero-grid,
 .prompt-bootcamp-grid,
@@ -15535,6 +15546,14 @@ button.load-forecast-day:hover {
   gap: 12px;
 }
 
+.prompt-day-card,
+.prompt-level-card,
+.prompt-playground-card {
+  transition:
+    border-color 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    box-shadow 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
 .prompt-day-control {
   display: grid;
   grid-template-columns: 36px 1fr 36px;
@@ -15566,6 +15585,28 @@ button.load-forecast-day:hover {
   letter-spacing: 0.12em;
   text-align: center;
   text-transform: uppercase;
+  transition:
+    background 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    border-color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-day-control button:hover,
+.prompt-daily-actions button:hover,
+.prompt-grade-row button:hover,
+.prompt-drill-actions button:hover,
+.prompt-teach-card button:hover,
+.prompt-skill-detail button:hover,
+.prompt-mistake-body button:hover,
+.prompt-playground-actions button:hover,
+.prompt-reference-tabs button:hover,
+.prompt-scenario-tabs button:hover,
+.prompt-concept-tabs button:hover,
+.prompt-mistake-tabs button:hover,
+.prompt-level-rail button:hover {
+  border-color: rgba(53, 215, 255, 0.5);
+  background: rgba(53, 215, 255, 0.08);
 }
 
 .prompt-day-control input,
@@ -15600,6 +15641,22 @@ button.load-forecast-day:hover {
   background: rgba(53, 215, 255, 0.025);
   padding: 9px;
   text-align: left;
+  transition:
+    background 0.2s cubic-bezier(0.19, 1, 0.22, 1),
+    border-color 0.2s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.2s cubic-bezier(0.19, 1, 0.22, 1),
+    box-shadow 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-daily-list button:hover,
+.prompt-roadmap button:hover,
+.prompt-drill-tabs button:hover,
+.prompt-iteration-list button:hover,
+.prompt-scenario-list button:hover,
+.prompt-concept-tabs button:hover {
+  border-color: rgba(53, 215, 255, 0.34);
+  background: rgba(53, 215, 255, 0.065);
+  transform: translateX(2px);
 }
 
 .prompt-daily-list button.done {
@@ -15610,6 +15667,7 @@ button.load-forecast-day:hover {
 .prompt-daily-list button.active {
   border-color: rgba(53, 215, 255, 0.5);
   background: rgba(53, 215, 255, 0.085);
+  box-shadow: inset 3px 0 0 rgba(53, 215, 255, 0.78), inset 0 0 28px rgba(53, 215, 255, 0.055);
 }
 
 .prompt-daily-list button > span {
@@ -15681,6 +15739,7 @@ button.load-forecast-day:hover {
   background:
     linear-gradient(90deg, rgba(53, 215, 255, 0.05), transparent),
     rgba(2, 7, 15, 0.42);
+  animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
   padding: 12px;
 }
 
@@ -15692,8 +15751,12 @@ button.load-forecast-day:hover {
 }
 
 .prompt-daily-detail-head span,
+.prompt-daily-scenario span,
+.prompt-daily-evidence span,
 .prompt-daily-proof span,
 .prompt-daily-done span,
+.prompt-daily-lab span,
+.prompt-daily-future span,
 .prompt-bootcamp-card span,
 .prompt-skill-head span,
 .prompt-skill-columns span,
@@ -15706,6 +15769,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-daily-detail-head strong,
+.prompt-daily-scenario strong,
 .prompt-skill-head strong,
 .prompt-bootcamp-card h2 {
   margin: 0;
@@ -15717,7 +15781,11 @@ button.load-forecast-day:hover {
 }
 
 .prompt-daily-detail p,
+.prompt-daily-scenario p,
+.prompt-daily-scenario em,
 .prompt-daily-proof p,
+.prompt-daily-future p,
+.prompt-daily-future strong,
 .prompt-skill-head p,
 .prompt-skill-warning p,
 .prompt-bootcamp-card p,
@@ -15729,9 +15797,46 @@ button.load-forecast-day:hover {
   text-transform: none;
 }
 
+.prompt-daily-scenario {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 8px;
+}
+
+.prompt-daily-scenario-copy,
+.prompt-daily-evidence,
+.prompt-daily-future {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(2, 7, 15, 0.34);
+  padding: 10px;
+}
+
+.prompt-daily-scenario em {
+  color: var(--zh-gold);
+  font-style: normal;
+}
+
+.prompt-daily-evidence code {
+  display: block;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 6px 7px;
+  white-space: normal;
+}
+
 .prompt-daily-steps,
 .prompt-daily-done,
-.prompt-daily-actions {
+.prompt-daily-actions,
+.prompt-daily-lab {
   display: grid;
   gap: 6px;
 }
@@ -15742,6 +15847,7 @@ button.load-forecast-day:hover {
 
 .prompt-daily-steps span,
 .prompt-daily-done em,
+.prompt-daily-lab em,
 .prompt-skill-columns em {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.035);
@@ -15751,6 +15857,17 @@ button.load-forecast-day:hover {
   line-height: 1.5;
   padding: 7px;
   text-transform: none;
+}
+
+.prompt-daily-lab {
+  grid-template-columns: 1.1fr 0.9fr;
+}
+
+.prompt-daily-lab > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
 }
 
 .prompt-daily-proof {
@@ -15777,6 +15894,19 @@ button.load-forecast-day:hover {
   overflow-wrap: anywhere;
   padding: 8px;
   white-space: pre-wrap;
+}
+
+.prompt-daily-future {
+  border-color: rgba(170, 114, 255, 0.2);
+  background:
+    linear-gradient(90deg, rgba(170, 114, 255, 0.07), transparent),
+    rgba(2, 7, 15, 0.42);
+}
+
+.prompt-daily-future strong {
+  color: var(--lime);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
 }
 
 .prompt-daily-actions {
@@ -16278,6 +16408,8 @@ button.load-forecast-day:hover {
 
   .prompt-anatomy-grid,
   .prompt-level-rail,
+  .prompt-daily-scenario,
+  .prompt-daily-lab,
   .prompt-skill-columns,
   .prompt-walkthrough {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -16319,6 +16451,8 @@ button.load-forecast-day:hover {
   .prompt-daily-steps,
   .prompt-daily-proof,
   .prompt-daily-actions,
+  .prompt-daily-scenario,
+  .prompt-daily-lab,
   .prompt-anatomy-grid,
   .prompt-level-rail,
   .prompt-skill-columns,

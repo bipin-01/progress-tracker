@@ -17276,12 +17276,24 @@ function PromptView() {
               </button>
             ))}
           </div>
-          <div className="prompt-daily-detail">
+          <div key={activeDailyTask.id} className="prompt-daily-detail">
             <div className="prompt-daily-detail-head">
               <span>{activeDailyTask.mode} · {activeDailyTask.minutes} min</span>
               <strong>{activeDailyTask.label}</strong>
             </div>
             <p>{activeDailyTask.lesson}</p>
+            <div className="prompt-daily-scenario">
+              <div className="prompt-daily-scenario-copy">
+                <span>real-life scenario</span>
+                <strong>{activeDailyTask.scenario.title}</strong>
+                <p>{activeDailyTask.scenario.context}</p>
+                <em>{activeDailyTask.scenario.pressure}</em>
+              </div>
+              <div className="prompt-daily-evidence">
+                <span>evidence packet</span>
+                {activeDailyTask.scenario.evidence.map((item) => <code key={item}>{item}</code>)}
+              </div>
+            </div>
             <div className="prompt-daily-steps">
               {activeDailyTask.babySteps.map((step, index) => (
                 <span key={step}>{String(index + 1).padStart(2, "0")} {step}</span>
@@ -17300,6 +17312,21 @@ function PromptView() {
             <div className="prompt-daily-done">
               <span>done looks like</span>
               {activeDailyTask.doneLooksLike.map((item) => <em key={item}>{item}</em>)}
+            </div>
+            <div className="prompt-daily-lab">
+              <div>
+                <span>practice lab</span>
+                {activeDailyTask.practiceLab.map((item) => <em key={item}>{item}</em>)}
+              </div>
+              <div>
+                <span>reflection prompts</span>
+                {activeDailyTask.reflectionQuestions.map((item) => <em key={item}>{item}</em>)}
+              </div>
+            </div>
+            <div className="prompt-daily-future">
+              <span>futuristic upgrade</span>
+              <p>{activeDailyTask.futuristicUpgrade}</p>
+              <strong>{activeDailyTask.scenario.successMove}</strong>
             </div>
             <div className="prompt-daily-actions">
               <button type="button" onClick={() => setPlaygroundPrompt(activeDailyTask.template)}>load task template</button>
