@@ -519,6 +519,22 @@ type ChineseVoiceHanziHotspot = {
   risk: number;
 };
 
+type ChineseMissLedgerSource = "pinyin" | "voice" | "srs";
+
+type ChineseDecoderState = "pending" | "exact" | "tone" | "miss";
+
+type ChineseMissedCharacterSignal = {
+  id: string;
+  hanzi: string;
+  pinyin: string;
+  sources: ChineseMissLedgerSource[];
+  risk: number;
+  count: number;
+  detail: string;
+  action: string;
+  reviewCardId?: string;
+};
+
 type ChineseAdaptiveRepairDrill = {
   id: string;
   label: string;
@@ -694,6 +710,13 @@ type ChineseCoachEvidencePacket = {
     mission: string;
     comparison: string;
     delta: number;
+  };
+  missLedger: {
+    count: number;
+    topHanzi: string[];
+    topRisk: number;
+    sources: string[];
+    recommendation: string;
   };
   placement: {
     status: string;
@@ -2138,6 +2161,138 @@ function getChineseVoiceHeatmap(attempts: ChineseSpeechAttempt[]) {
     toneWeaknesses,
     hanziHotspots,
   };
+}
+
+function getChineseMissedCharacterLedger({
+  decoderResults,
+  activePhraseUnits,
+  activePinyinUnits,
+  voiceHotspots,
+  reviewItems,
+}: {
+  decoderResults: Array<{ target: string; typed: string; state: ChineseDecoderState }>;
+  activePhraseUnits: string[];
+  activePinyinUnits: string[];
+  voiceHotspots: ChineseVoiceHanziHotspot[];
+  reviewItems: Array<{
+    card: { id: string; hanzi: string; pinyin: string };
+    state: ChineseReviewState;
+  }>;
+}): ChineseMissedCharacterSignal[] {
+  const grouped = new Map<
+    string,
+    {
+      hanzi: string;
+      pinyin: string;
+      sources: Set<ChineseMissLedgerSource>;
+      risk: number;
+      count: number;
+      detail: string[];
+      action: string;
+      reviewCardId?: string;
+    }
+  >();
+
+  function addSignal({
+    hanzi,
+    pinyin,
+    source,
+    risk,
+    count = 1,
+    detail,
+    action,
+    reviewCardId,
+  }: {
+    hanzi: string;
+    pinyin: string;
+    source: ChineseMissLedgerSource;
+    risk: number;
+    count?: number;
+    detail: string;
+    action: string;
+    reviewCardId?: string;
+  }) {
+    if (!hanzi) return;
+    const existing = grouped.get(hanzi) ?? {
+      hanzi,
+      pinyin: pinyin || getChineseDictionaryEntry(hanzi).pinyin,
+      sources: new Set<ChineseMissLedgerSource>(),
+      risk: 0,
+      count: 0,
+      detail: [],
+      action,
+      reviewCardId,
+    };
+    existing.sources.add(source);
+    existing.risk = Math.max(existing.risk, risk);
+    existing.count += count;
+    if (!existing.detail.includes(detail)) existing.detail.push(detail);
+    if (!existing.reviewCardId && reviewCardId) existing.reviewCardId = reviewCardId;
+    if (source === "srs") existing.action = "recall now";
+    if (source === "voice" && existing.action !== "recall now") existing.action = "speak x5";
+    grouped.set(hanzi, existing);
+  }
+
+  decoderResults.forEach((result, index) => {
+    if (result.state === "pending" || result.state === "exact") return;
+    const hanzi = activePhraseUnits[index];
+    if (!hanzi) return;
+    addSignal({
+      hanzi,
+      pinyin: activePinyinUnits[index] ?? result.target,
+      source: "pinyin",
+      risk: result.state === "miss" ? 82 : 56,
+      detail: result.state === "miss" ? "pinyin mismatch" : "tone mismatch",
+      action: "decode tone",
+    });
+  });
+
+  voiceHotspots.forEach((hotspot) => {
+    addSignal({
+      hanzi: hotspot.hanzi,
+      pinyin: hotspot.pinyin,
+      source: "voice",
+      risk: Math.max(44, hotspot.risk),
+      count: hotspot.misses,
+      detail: `${hotspot.misses}/${hotspot.exposure} voice`,
+      action: "speak x5",
+    });
+  });
+
+  reviewItems.forEach(({ card, state }) => {
+    if (!state.lapses && state.rating !== "again") return;
+    const units = getChineseSpeechUnits(card.hanzi);
+    const pinyinUnits = getChinesePinyinUnits(card.pinyin);
+    const retentionRisk = 100 - getChineseRetention(state);
+    const risk = clampChinesePercent(42 + state.lapses * 18 + (state.rating === "again" ? 16 : 0) + retentionRisk * 0.22);
+    units.forEach((hanzi, index) => {
+      addSignal({
+        hanzi,
+        pinyin: pinyinUnits[index] ?? getChineseDictionaryEntry(hanzi).pinyin,
+        source: "srs",
+        risk,
+        count: Math.max(1, state.lapses),
+        detail: `${state.lapses || 1} SRS lapse`,
+        action: "recall now",
+        reviewCardId: card.id,
+      });
+    });
+  });
+
+  return Array.from(grouped.values())
+    .map<ChineseMissedCharacterSignal>((item) => ({
+      id: `${item.hanzi}-${Array.from(item.sources).sort().join("-")}`,
+      hanzi: item.hanzi,
+      pinyin: item.pinyin,
+      sources: Array.from(item.sources).sort(),
+      risk: clampChinesePercent(item.risk + Math.min(18, (item.sources.size - 1) * 8) + Math.min(12, item.count * 2)),
+      count: item.count,
+      detail: item.detail.slice(0, 2).join(" · "),
+      action: item.action,
+      reviewCardId: item.reviewCardId,
+    }))
+    .sort((a, b) => b.risk - a.risk || b.sources.length - a.sources.length || b.count - a.count || a.hanzi.localeCompare(b.hanzi))
+    .slice(0, 6);
 }
 
 function getChineseAdaptiveRepairMission(
@@ -13788,7 +13943,7 @@ function ChineseView() {
         const typed = decoderInputUnits[index] ?? "";
         const targetToken = normalizeChinesePinyinToken(target);
         const typedToken = normalizeChinesePinyinToken(typed);
-        const state =
+        const state: ChineseDecoderState =
           !typed
             ? "pending"
             : typedToken.exact === targetToken.exact
@@ -13864,6 +14019,15 @@ function ChineseView() {
   const voiceWeaknesses = getChineseVoiceWeaknesses(speechAttempts);
   const activeVoiceWeakness = voiceWeaknesses[0];
   const voiceHeatmap = useMemo(() => getChineseVoiceHeatmap(speechAttempts), [speechAttempts]);
+  const missedCharacterLedger = getChineseMissedCharacterLedger({
+    decoderResults,
+    activePhraseUnits,
+    activePinyinUnits,
+    voiceHotspots: voiceHeatmap.hanziHotspots,
+    reviewItems: reviewQueue,
+  });
+  const topMissedCharacter = missedCharacterLedger[0];
+  const missedCharacterSources = Array.from(new Set(missedCharacterLedger.flatMap((signal) => signal.sources)));
   const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
   const activeVoiceToneWeakness = adaptiveRepairMission.tone;
   const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
@@ -13929,6 +14093,8 @@ function ChineseView() {
         ? "Run one focus-tunnel placement sample."
         : adaptiveRepairMission.hasSignal && !repairMissionLocked
           ? `Lock repair mission for T${adaptiveRepairMission.tone.tone}.`
+          : topMissedCharacter
+            ? `Repair ${topMissedCharacter.hanzi} from ${topMissedCharacter.sources.join("+")} misses.`
           : dueReviewCount > 0
             ? `Clear ${dueReviewCount} due SRS cards.`
             : "Continue the daily guided circuit.";
@@ -13940,6 +14106,9 @@ function ChineseView() {
       speechAttempts.length,
       repairHistory.length,
       memoryReviewGateCount,
+      missedCharacterLedger.length,
+      topMissedCharacter?.hanzi ?? "clear",
+      topMissedCharacter?.risk ?? 0,
       placementHistory.length,
       placementOutcome.status,
       placementOutcome.deltaAverage,
@@ -13988,6 +14157,15 @@ function ChineseView() {
         comparison: repairComparison.label,
         delta: repairComparison.delta,
       },
+      missLedger: {
+        count: missedCharacterLedger.length,
+        topHanzi: missedCharacterLedger.slice(0, 3).map((signal) => signal.hanzi),
+        topRisk: topMissedCharacter?.risk ?? 0,
+        sources: missedCharacterSources,
+        recommendation: topMissedCharacter
+          ? `${topMissedCharacter.hanzi} · ${topMissedCharacter.detail} · ${topMissedCharacter.action}`
+          : "No merged miss signal yet.",
+      },
       placement: {
         status: placementProfile.status,
         readiness: placementProfile.readiness,
@@ -14032,6 +14210,8 @@ function ChineseView() {
     memoryCoachCount,
     memoryReviewGateCount,
     memoryVoiceCount,
+    missedCharacterLedger,
+    missedCharacterSources,
     placementHistory.length,
     placementOutcome.deltaAverage,
     placementOutcome.label,
@@ -14053,6 +14233,7 @@ function ChineseView() {
     selectedPracticeRecord.phaseTitle,
     sessionXp,
     speechAttempts,
+    topMissedCharacter,
     voiceHeatmap.hanziHotspots,
   ]);
   const coachEvidenceText = useMemo(() => JSON.stringify(coachEvidencePacket, null, 2), [coachEvidencePacket]);
@@ -14272,6 +14453,23 @@ function ChineseView() {
   function openReviewUnlockEntry(entry: ChineseReviewUnlockEntry) {
     selectPracticeDay(entry.day);
     setRewardMessage(`review gate loaded · ${entry.status} · ${entry.reviewedCards}/${entry.target}`);
+  }
+
+  function loadMissedCharacterSignal(signal: ChineseMissedCharacterSignal) {
+    openDictionary(signal.hanzi);
+    if (signal.reviewCardId) {
+      const card = reviewCards.find((item) => item.id === signal.reviewCardId);
+      if (card) {
+        loadReviewFirstCard(card, signal.sources.includes("srs"));
+      }
+    } else if (signal.sources.includes("voice")) {
+      setLessonFocusActive(true);
+      setActiveLessonStep("recall");
+    } else {
+      setActiveLessonStep("build");
+      setPinyinDecoderInput("");
+    }
+    setRewardMessage(`miss ledger loaded · ${signal.hanzi} · ${signal.sources.join("+")}`);
   }
 
   function logPlacementHistory(profile: ChinesePlacementProfile) {
@@ -14937,6 +15135,28 @@ function ChineseView() {
                     ))
                   ) : (
                     <p>clear a review-first gate to start behavior evidence</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="zh-miss-ledger" aria-label="Merged Chinese missed character ledger">
+                <div>
+                  <span>miss ledger</span>
+                  <strong>{topMissedCharacter ? `${topMissedCharacter.risk}%` : "--"}</strong>
+                  <em>{topMissedCharacter ? topMissedCharacter.sources.join("+") : "clear"}</em>
+                </div>
+                <div>
+                  {missedCharacterLedger.length ? (
+                    missedCharacterLedger.map((signal) => (
+                      <button key={signal.id} type="button" onClick={() => loadMissedCharacterSignal(signal)}>
+                        <strong className="zh-cn">{signal.hanzi}</strong>
+                        <span className={getChineseToneClass(signal.pinyin)}>{signal.pinyin}</span>
+                        <em>{signal.detail}</em>
+                        <i>{signal.action}</i>
+                      </button>
+                    ))
+                  ) : (
+                    <p>pinyin, voice, and SRS misses will merge here</p>
                   )}
                 </div>
               </div>
