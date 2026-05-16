@@ -17270,6 +17270,28 @@ type PromptPortfolioExportPacket = {
   markdown: string;
 };
 
+type PromptPortfolioGalleryItem = {
+  id: string;
+  source: "active" | "archived";
+  taskId: string;
+  day: number;
+  title: string;
+  score: number;
+  verdict: string;
+  scenarioTitle: string;
+  primaryWeakness: string;
+  polishAction: string;
+  markdown: string;
+};
+
+type PromptPortfolioGallery = {
+  items: PromptPortfolioGalleryItem[];
+  best: PromptPortfolioGalleryItem;
+  polishTarget: PromptPortfolioGalleryItem;
+  averageScore: number;
+  readyCount: number;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -18856,6 +18878,85 @@ function buildPromptPortfolioExportPacket({
   };
 }
 
+function getPromptTaskByArchiveEntry(entry: PromptIncidentReportArchiveEntry) {
+  return getPromptDailyTasks(entry.day).find((task) => task.id === entry.taskId) ?? null;
+}
+
+function getPromptGalleryPolishAction(score: number, weakness: string) {
+  if (score >= 90) return "Polish the 30-second pitch and keep this as a showcase artifact.";
+  if (/injection|adversary|ticket|override/i.test(weakness)) return "Add one hostile-ticket replay and explain how the prompt quarantines injected instructions.";
+  if (/missing|unknown|omitted|stress/i.test(weakness)) return "Strengthen missing-data and stress-case notes before sharing this artifact.";
+  if (score >= 78) return "Ask for mentor review, then archive one final improved version.";
+  return "Complete the remediation checklist, rerun the report review gate, and save a cleaner case study.";
+}
+
+function buildPromptPortfolioGallery({
+  activeExport,
+  activeTask,
+  selectedDay,
+  archive,
+  review,
+}: {
+  activeExport: PromptPortfolioExportPacket;
+  activeTask: PromptDailyTask;
+  selectedDay: number;
+  archive: PromptIncidentReportArchiveEntry[];
+  review: PromptReportPortfolioReview;
+}): PromptPortfolioGallery {
+  const activeWeakness = review.checklist[0] ?? review.reviewerBrief;
+  const activeItem: PromptPortfolioGalleryItem = {
+    id: `${activeExport.exportId}-active-gallery`,
+    source: "active",
+    taskId: activeTask.id,
+    day: selectedDay,
+    title: activeExport.title,
+    score: activeExport.readinessScore,
+    verdict: activeExport.verdict,
+    scenarioTitle: activeTask.scenario.title,
+    primaryWeakness: activeWeakness,
+    polishAction: getPromptGalleryPolishAction(activeExport.readinessScore, activeWeakness),
+    markdown: activeExport.markdown,
+  };
+  const archivedItems = archive.map((entry): PromptPortfolioGalleryItem => {
+    const task = getPromptTaskByArchiveEntry(entry);
+    const movementScore = Math.min(100, Math.max(45, 72 + entry.replayMovement * 3));
+    const hasCaseStudy = /portfolio case study/i.test(entry.markdown);
+    const score = Math.min(100, Math.round(entry.readinessScore * 0.78 + movementScore * 0.14 + (hasCaseStudy ? 8 : 0)));
+    const primaryWeakness = /needs|risk|compromised|fails|missing|unknown/i.test(entry.weakestAdversary)
+      ? entry.weakestAdversary
+      : entry.weakestStress;
+    return {
+      id: `${entry.id}-gallery`,
+      source: "archived",
+      taskId: entry.taskId,
+      day: entry.day,
+      title: `D${String(entry.day).padStart(2, "0")} ${task?.label ?? "Archived case"}`,
+      score,
+      verdict: entry.verdict,
+      scenarioTitle: entry.scenarioTitle,
+      primaryWeakness,
+      polishAction: getPromptGalleryPolishAction(score, primaryWeakness),
+      markdown: entry.markdown,
+    };
+  });
+  const deduped = [activeItem, ...archivedItems].filter((item, index, items) => items.findIndex((candidate) => candidate.taskId === item.taskId && candidate.markdown === item.markdown) === index);
+  const items = deduped.sort((a, b) => b.score - a.score).slice(0, 9);
+  const best = items[0] ?? activeItem;
+  const polishTarget = [...items].sort((a, b) => {
+    const aNeedsPolish = a.score >= 62 && a.score < 90 ? 0 : 1;
+    const bNeedsPolish = b.score >= 62 && b.score < 90 ? 0 : 1;
+    return aNeedsPolish - bNeedsPolish || a.score - b.score;
+  })[0] ?? activeItem;
+
+  return {
+    items,
+    best,
+    polishTarget,
+    averageScore: average(items.map((item) => item.score)),
+    readyCount: items.filter((item) => item.score >= 90).length,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -19316,6 +19417,16 @@ function PromptView() {
       selectedDay,
     ],
   );
+  const portfolioGallery = useMemo(
+    () => buildPromptPortfolioGallery({
+      activeExport: activePortfolioExport,
+      activeTask: activeDailyTask,
+      selectedDay,
+      archive: incidentReportArchive,
+      review: activeReportReview,
+    }),
+    [activeDailyTask, activePortfolioExport, activeReportReview, incidentReportArchive, selectedDay],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -19652,6 +19763,21 @@ function PromptView() {
     });
     setActiveDailyPanel("journal");
     setPlaygroundStatus(`portfolio case journaled: ${activePortfolioExport.verdict}`);
+  }
+
+  function openPortfolioGalleryItem(item: PromptPortfolioGalleryItem) {
+    setSelectedDay(item.day);
+    setActiveDailyTaskId(item.taskId);
+    setActiveDailyPanel("packet");
+    setPlaygroundStatus(`portfolio gallery opened: ${item.title}`);
+  }
+
+  function stagePortfolioGalleryItem(item: PromptPortfolioGalleryItem) {
+    setSelectedDay(item.day);
+    setActiveDailyTaskId(item.taskId);
+    setPlaygroundPrompt(item.markdown);
+    setActiveDailyPanel("lab");
+    setPlaygroundStatus(`portfolio artifact staged: ${item.score}/100`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -20525,6 +20651,47 @@ function PromptView() {
               {masteryHistoryStats.latest ? (
                 <button type="button" onClick={() => setReviewCheckpointDay(masteryHistoryStats.latest?.day ?? null)}>review latest</button>
               ) : null}
+            </div>
+          </div>
+          <div className="prompt-portfolio-gallery" aria-label="Prompt portfolio case study gallery">
+            <div className="prompt-portfolio-gallery-head">
+              <div>
+                <span>portfolio gallery</span>
+                <strong>{portfolioGallery.items.length} case studies</strong>
+                <em>{portfolioGallery.readyCount} showcase-ready · avg {portfolioGallery.averageScore}/100</em>
+              </div>
+              <p>Ranks active and archived prompt case studies across the bootcamp so the best artifacts and highest-impact polish targets are visible without digging through task journals.</p>
+            </div>
+            <div className="prompt-portfolio-gallery-summary">
+              <div>
+                <span>best artifact</span>
+                <strong>{portfolioGallery.best.score}/100</strong>
+                <p>{portfolioGallery.best.title}: {portfolioGallery.best.verdict}</p>
+                <button type="button" onClick={() => openPortfolioGalleryItem(portfolioGallery.best)}>open best</button>
+              </div>
+              <div>
+                <span>polish first</span>
+                <strong>{portfolioGallery.polishTarget.score}/100</strong>
+                <p>{portfolioGallery.polishTarget.polishAction}</p>
+                <button type="button" onClick={() => openPortfolioGalleryItem(portfolioGallery.polishTarget)}>open target</button>
+              </div>
+            </div>
+            <div className="prompt-portfolio-gallery-list">
+              {portfolioGallery.items.map((item) => (
+                <div key={item.id} className={item.source}>
+                  <div>
+                    <span>D{String(item.day).padStart(2, "0")} · {item.source}</span>
+                    <strong>{item.score}/100</strong>
+                  </div>
+                  <p>{item.title}</p>
+                  <em>{item.scenarioTitle}</em>
+                  <i>{item.primaryWeakness}</i>
+                  <div>
+                    <button type="button" onClick={() => openPortfolioGalleryItem(item)}>open</button>
+                    <button type="button" onClick={() => stagePortfolioGalleryItem(item)}>stage</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           <div className={`prompt-checkpoint-compare ${checkpointComparison ? "ready" : "waiting"}`} aria-label="Prompt checkpoint comparison mode">

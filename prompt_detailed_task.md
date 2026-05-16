@@ -466,3 +466,29 @@ Implemented:
 
 Next likely upgrade:
 - Add a portfolio gallery route or panel that ranks all prompt case studies across the bootcamp and highlights the top artifacts to polish first.
+
+### 2026-05-16 - Prompt Portfolio Gallery
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because case studies existed inside the Packet panel, but the learner still needed a high-level portfolio surface to decide which artifacts deserve polish.
+
+Problem observed:
+- Portfolio case studies were strong as individual artifacts, but discoverability was weak across a 90-day bootcamp.
+- The learner could not quickly see the best showcase artifact, the highest-impact polish target, or ranked case cards across active and archived work.
+- UI/UX needed a smoother jump from portfolio overview to the exact task/day that needs attention.
+
+Decision:
+- More future-facing portfolio organization was needed. This fit the 70% rule because a mature bootcamp should not only generate case studies; it should help the learner curate, rank, and polish the strongest ones.
+
+Implemented:
+- Added a prompt portfolio gallery panel to the Daily Mastery Ledger.
+- The gallery ranks the active portfolio case plus archived incident reports across the bootcamp.
+- Added best-artifact and polish-first summary cards with quick open actions.
+- Added ranked gallery cards showing day, source, score, scenario, primary weakness, and actions to open the originating Packet panel or stage the artifact in the lab.
+- Added deterministic gallery scoring that blends readiness, replay movement, and whether an archived artifact already contains a case study.
+- Added polish recommendations that respond to injection risk, missing-data weakness, stress weakness, mentor-readiness, or showcase-readiness.
+- Styled the gallery as a quiet cyber portfolio layer with responsive cards and smooth entry.
+
+Next likely upgrade:
+- Add a case-study polish workflow that opens the selected gallery target and walks the learner through pitch, evidence boundary, red-team proof, and final export cleanup step by step.

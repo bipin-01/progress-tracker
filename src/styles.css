@@ -15830,6 +15830,116 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.prompt-portfolio-gallery {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.04), transparent 46%),
+    rgba(2, 7, 15, 0.3);
+  padding: 11px;
+  animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-portfolio-gallery-head,
+.prompt-portfolio-gallery-summary,
+.prompt-portfolio-gallery-list {
+  display: grid;
+  gap: 8px;
+}
+
+.prompt-portfolio-gallery-head {
+  grid-template-columns: minmax(180px, 0.3fr) minmax(0, 1fr);
+}
+
+.prompt-portfolio-gallery-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-portfolio-gallery-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.prompt-portfolio-gallery-head > div,
+.prompt-portfolio-gallery-summary > div,
+.prompt-portfolio-gallery-list > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.03);
+  padding: 9px;
+}
+
+.prompt-portfolio-gallery-list > div.active {
+  border-color: rgba(53, 215, 255, 0.2);
+  background: rgba(53, 215, 255, 0.045);
+}
+
+.prompt-portfolio-gallery-list > div.archived {
+  border-color: rgba(158, 255, 102, 0.14);
+  background: rgba(158, 255, 102, 0.025);
+}
+
+.prompt-portfolio-gallery-head span,
+.prompt-portfolio-gallery-summary span,
+.prompt-portfolio-gallery-list span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-portfolio-gallery-head strong,
+.prompt-portfolio-gallery-summary strong,
+.prompt-portfolio-gallery-list strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.prompt-portfolio-gallery-head p,
+.prompt-portfolio-gallery-summary p,
+.prompt-portfolio-gallery-list p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.55;
+  text-transform: none;
+}
+
+.prompt-portfolio-gallery-head em,
+.prompt-portfolio-gallery-list em,
+.prompt-portfolio-gallery-list i {
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.prompt-portfolio-gallery-list i {
+  color: var(--zh-gold);
+}
+
+.prompt-portfolio-gallery-list > div > div:first-child,
+.prompt-portfolio-gallery-list > div > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-portfolio-gallery button {
+  width: fit-content;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
 .prompt-checkpoint-compare {
   display: grid;
   gap: 10px;
@@ -16051,7 +16161,8 @@ button.load-forecast-day:hover {
 
 .prompt-checkpoint-review-head button,
 .prompt-checkpoint-drill button,
-.prompt-checkpoint-attempts button {
+.prompt-checkpoint-attempts button,
+.prompt-portfolio-gallery button {
   border: 1px solid rgba(53, 215, 255, 0.2);
   background: rgba(2, 7, 15, 0.36);
   color: var(--cyan);
@@ -16114,6 +16225,7 @@ button.load-forecast-day:hover {
 .prompt-checkpoint-attempts button:hover,
 .prompt-checkpoint-drill button:hover,
 .prompt-checkpoint-review-head button:hover,
+.prompt-portfolio-gallery button:hover,
 .prompt-mastery-archive button:hover {
   border-color: rgba(53, 215, 255, 0.42);
   background: rgba(53, 215, 255, 0.08);
@@ -17967,6 +18079,9 @@ button.load-forecast-day:hover {
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
+  .prompt-portfolio-gallery-head,
+  .prompt-portfolio-gallery-summary,
+  .prompt-portfolio-gallery-list,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-review-grid,
   .prompt-evidence-builder-head,
@@ -18038,6 +18153,9 @@ button.load-forecast-day:hover {
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
+  .prompt-portfolio-gallery-head,
+  .prompt-portfolio-gallery-summary,
+  .prompt-portfolio-gallery-list,
   .prompt-checkpoint-compare-grid,
   .prompt-checkpoint-compare-head,
   .prompt-checkpoint-review-grid,
