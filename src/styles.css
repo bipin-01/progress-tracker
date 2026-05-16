@@ -12221,6 +12221,32 @@ button.load-forecast-day:hover {
   color: var(--zh-gold);
 }
 
+.zh-miss-followups button.status-improved {
+  border-color: rgba(158, 255, 102, 0.3);
+  background: rgba(158, 255, 102, 0.045);
+}
+
+.zh-miss-followups button.status-improved i {
+  color: var(--lime);
+}
+
+.zh-miss-followups button.status-stable {
+  border-color: rgba(53, 215, 255, 0.22);
+}
+
+.zh-miss-followups button.status-stable i {
+  color: var(--cyan);
+}
+
+.zh-miss-followups button.status-hot {
+  border-color: rgba(255, 91, 140, 0.32);
+  background: rgba(255, 91, 140, 0.045);
+}
+
+.zh-miss-followups button.status-hot i {
+  color: var(--red);
+}
+
 .zh-miss-drill-core {
   display: grid;
   align-content: center;

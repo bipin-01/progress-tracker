@@ -548,6 +548,16 @@ type ChineseMissDrillHistoryEntry = {
   score: number;
 };
 
+type ChineseMissFollowUpOutcomeStatus = "waiting" | "improved" | "stable" | "hot";
+
+type ChineseMissFollowUpOutcome = {
+  status: ChineseMissFollowUpOutcomeStatus;
+  label: string;
+  delta: number;
+  afterRisk: number;
+  afterSources: ChineseMissLedgerSource[];
+};
+
 type ChineseMissDrillFollowUpEntry = {
   id: string;
   signalId: string;
@@ -555,11 +565,16 @@ type ChineseMissDrillFollowUpEntry = {
   pinyin: string;
   sources: ChineseMissLedgerSource[];
   risk: number;
+  baselineRisk: number;
   createdDay: number;
   dueDay: number;
   interval: number;
   attempts: number;
   lastCompletedDay: number;
+  lastOutcome: ChineseMissFollowUpOutcomeStatus;
+  lastDelta: number;
+  lastSignalRisk: number;
+  lastSources: ChineseMissLedgerSource[];
 };
 
 type ChineseAdaptiveRepairDrill = {
@@ -746,6 +761,7 @@ type ChineseCoachEvidencePacket = {
     sources: string[];
     followUpsDue: number;
     nextFollowUp: string;
+    followUpOutcome: string;
     recommendation: string;
   };
   placement: {
@@ -1780,6 +1796,10 @@ function isChineseMissLedgerSource(value: unknown): value is ChineseMissLedgerSo
   return value === "pinyin" || value === "voice" || value === "srs";
 }
 
+function isChineseMissFollowUpOutcomeStatus(value: unknown): value is ChineseMissFollowUpOutcomeStatus {
+  return value === "waiting" || value === "improved" || value === "stable" || value === "hot";
+}
+
 function isChineseLoadForecastStatus(value: unknown): value is ChineseLoadForecastStatus {
   return value === "light" || value === "steady" || value === "heavy" || value === "overload";
 }
@@ -1929,6 +1949,8 @@ function getChineseStoredMissDrillFollowUpEntry(value: unknown): ChineseMissDril
   const sources = Array.isArray(value.sources) ? value.sources.filter(isChineseMissLedgerSource) : [];
   const createdDay = getChineseStoredDay(value.createdDay);
   const interval = Math.max(1, Math.trunc(getChineseClampedNumber(value.interval, 1, 1, 30)));
+  const risk = getChineseClampedNumber(value.risk, 0, 0, 100);
+  const baselineRisk = getChineseClampedNumber(value.baselineRisk, risk, 0, 100);
 
   return {
     id: typeof value.id === "string" ? value.id : `${signalId}-follow-up`,
@@ -1936,12 +1958,17 @@ function getChineseStoredMissDrillFollowUpEntry(value: unknown): ChineseMissDril
     hanzi,
     pinyin,
     sources,
-    risk: getChineseClampedNumber(value.risk, 0, 0, 100),
+    risk,
+    baselineRisk,
     createdDay,
     dueDay: getChineseStoredDay(value.dueDay ?? createdDay + interval),
     interval,
     attempts: Math.max(0, Math.trunc(getChineseNumber(value.attempts, 0))),
     lastCompletedDay: getChineseStoredDay(value.lastCompletedDay ?? createdDay),
+    lastOutcome: isChineseMissFollowUpOutcomeStatus(value.lastOutcome) ? value.lastOutcome : "waiting",
+    lastDelta: Math.round(getChineseClampedNumber(value.lastDelta, 0, -100, 100)),
+    lastSignalRisk: getChineseClampedNumber(value.lastSignalRisk, risk, 0, 100),
+    lastSources: Array.isArray(value.lastSources) ? value.lastSources.filter(isChineseMissLedgerSource) : sources,
   };
 }
 
@@ -1970,6 +1997,37 @@ function getChineseMissFollowUpSignal(entry: ChineseMissDrillFollowUpEntry): Chi
     count: entry.attempts + 1,
     detail: `D${String(entry.dueDay).padStart(3, "0")} follow-up`,
     action: "rerun micro drill",
+  };
+}
+
+function getChineseMissFollowUpOutcome(
+  entry: ChineseMissDrillFollowUpEntry,
+  currentSignal?: ChineseMissedCharacterSignal,
+): ChineseMissFollowUpOutcome {
+  const afterRisk = currentSignal?.risk ?? 0;
+  const afterSources = currentSignal?.sources ?? [];
+  const delta = entry.baselineRisk - afterRisk;
+  const clearedSources = entry.sources.filter((source) => !afterSources.includes(source)).length;
+  const addedSources = afterSources.filter((source) => !entry.sources.includes(source)).length;
+  const status: ChineseMissFollowUpOutcomeStatus =
+    afterRisk === 0 || delta >= 20 || clearedSources >= 2
+      ? "improved"
+      : afterRisk >= entry.baselineRisk - 5 || addedSources > 0
+        ? "hot"
+        : "stable";
+  const label =
+    status === "improved"
+      ? "improved"
+      : status === "hot"
+        ? "still hot"
+        : "stable";
+
+  return {
+    status,
+    label,
+    delta,
+    afterRisk,
+    afterSources,
   };
 }
 
@@ -14178,6 +14236,9 @@ function ChineseView() {
   const dueMissFollowUps = activeMissFollowUps.filter((entry) => entry.dueDay <= selectedPracticeRecord.day);
   const nextMissFollowUp = dueMissFollowUps[0] ?? activeMissFollowUps[0];
   const missFollowUpStrip = (dueMissFollowUps.length ? dueMissFollowUps : activeMissFollowUps).slice(0, 3);
+  const latestMissFollowUpOutcome = activeMissFollowUps
+    .filter((entry) => entry.lastOutcome !== "waiting")
+    .sort((a, b) => b.lastCompletedDay - a.lastCompletedDay || b.attempts - a.attempts)[0];
   const adaptiveRepairMission = getChineseAdaptiveRepairMission(voiceHeatmap, voiceWeaknesses, selectedPracticeRecord.day);
   const activeVoiceToneWeakness = adaptiveRepairMission.tone;
   const repairDrillDoneCount = adaptiveRepairMission.drills.filter((drill) => completedRepairDrills.has(drill.id)).length;
@@ -14260,6 +14321,8 @@ function ChineseView() {
       dueMissFollowUps.length,
       nextMissFollowUp?.hanzi ?? "clear",
       nextMissFollowUp?.dueDay ?? 0,
+      latestMissFollowUpOutcome?.lastOutcome ?? "waiting",
+      latestMissFollowUpOutcome?.lastDelta ?? 0,
       missedCharacterLedger.length,
       topMissedCharacter?.hanzi ?? "clear",
       topMissedCharacter?.risk ?? 0,
@@ -14324,6 +14387,11 @@ function ChineseView() {
               selectedPracticeRecord.day,
             )}`
           : "clear",
+        followUpOutcome: latestMissFollowUpOutcome
+          ? `${latestMissFollowUpOutcome.hanzi} ${latestMissFollowUpOutcome.lastOutcome} ${latestMissFollowUpOutcome.lastDelta >= 0 ? "-" : "+"}${Math.abs(
+              latestMissFollowUpOutcome.lastDelta,
+            )}%`
+          : "waiting",
         recommendation: topMissedCharacter
           ? `${topMissedCharacter.hanzi} · ${topMissedCharacter.detail} · ${topMissedCharacter.action}`
           : nextMissFollowUp
@@ -14371,6 +14439,7 @@ function ChineseView() {
     loadForecast.recommendedDay,
     loadForecast.status,
     loadForecast.summary,
+    latestMissFollowUpOutcome,
     memoryCardCount,
     memoryCoachCount,
     memoryMissDrillCount,
@@ -14713,20 +14782,33 @@ function ChineseView() {
     setMissDrillFollowUps((current) => {
       const existing = current.find((entry) => entry.signalId === signal.id);
       const isActiveFollowUp = Boolean(activeMissFollowUpId && existing?.id === activeMissFollowUpId);
+      const currentSignal = missedCharacterLedger.find((entry) => entry.id === signal.id);
+      const outcome = existing && isActiveFollowUp ? getChineseMissFollowUpOutcome(existing, currentSignal) : null;
       const attempts = isActiveFollowUp ? (existing?.attempts ?? 0) + 1 : existing?.attempts ?? 0;
-      const interval = getChineseMissFollowUpInterval(signal, attempts);
+      const nextSignal = outcome
+        ? {
+            risk: outcome.afterRisk,
+            sources: outcome.afterSources,
+          }
+        : signal;
+      const interval = getChineseMissFollowUpInterval(nextSignal, attempts);
       const nextEntry: ChineseMissDrillFollowUpEntry = {
         id: existing?.id ?? `${signal.id}-follow-up`,
         signalId: signal.id,
         hanzi: signal.hanzi,
         pinyin: signal.pinyin,
         sources: signal.sources,
-        risk: signal.risk,
+        risk: outcome ? outcome.afterRisk : signal.risk,
+        baselineRisk: existing?.baselineRisk ?? signal.risk,
         createdDay: existing?.createdDay ?? completedDay,
         dueDay: Math.min(CHINESE_PRACTICE_TOTAL_DAYS, completedDay + interval),
         interval,
         attempts,
         lastCompletedDay: completedDay,
+        lastOutcome: outcome?.status ?? "waiting",
+        lastDelta: outcome?.delta ?? 0,
+        lastSignalRisk: outcome?.afterRisk ?? signal.risk,
+        lastSources: outcome?.afterSources ?? signal.sources,
       };
 
       return [nextEntry, ...current.filter((entry) => entry.id !== nextEntry.id)]
@@ -14802,7 +14884,7 @@ function ChineseView() {
       setReviewCombo((combo) => combo + 1);
       setRewardMessage(
         activeMissFollowUpId
-          ? `follow-up locked · ${signal.hanzi} · next D+${getChineseMissFollowUpInterval(signal, (missDrillFollowUps.find((item) => item.id === activeMissFollowUpId)?.attempts ?? 0) + 1)}`
+          ? `follow-up checked · ${signal.hanzi}`
           : `micro drill locked · ${signal.hanzi} · follow-up queued`,
       );
       setActiveMissFollowUpId("");
@@ -15525,14 +15607,16 @@ function ChineseView() {
                           <button
                             key={entry.id}
                             type="button"
-                            className={due ? "due" : ""}
+                            className={`${due ? "due" : ""} status-${entry.lastOutcome}`}
                             onClick={() => loadMissFollowUp(entry)}
                           >
                             <strong className="zh-cn">{entry.hanzi}</strong>
                             <span className={getChineseToneClass(entry.pinyin)}>{entry.pinyin}</span>
                             <em>{getChineseMissFollowUpDueLabel(entry, selectedPracticeRecord.day)}</em>
                             <i>
-                              {entry.interval}d · r{entry.attempts + 1}
+                              {entry.lastOutcome === "waiting"
+                                ? `${entry.interval}d · r${entry.attempts + 1}`
+                                : `${entry.lastOutcome} · ${entry.lastDelta >= 0 ? "-" : "+"}${Math.abs(entry.lastDelta)}%`}
                             </i>
                           </button>
                         );
