@@ -415,3 +415,28 @@ Implemented:
 
 Next likely upgrade:
 - Add a guided report review rubric that grades archived incident reports against portfolio standards and generates a focused remediation checklist before the learner exports or shares the report.
+
+### 2026-05-16 - Portfolio Report Review Rubric
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- Applied the 70% default decision rule and chose the listed next upgrade because the report archive could save and search artifacts, but it did not yet judge whether those artifacts were worth showing.
+
+Problem observed:
+- Archived incident reports showed readiness scores, weak cases, and search results, but the learner still had to infer what a real reviewer would reject.
+- UI/UX needed a smoother gate between "archive report" and "share/export report".
+- Task content needed richer portfolio-standard explanations, including real SOC reviewer risks and scenario-based remediation.
+
+Decision:
+- More relevant content and real-life examples were needed. This fit the 70% rule because the goal is not only making reports, but learning how to defend them under mentor, hiring, or SOC lead review.
+
+Implemented:
+- Added a portfolio review rubric for `/prompt` incident reports.
+- The rubric grades six criteria: Evidence Chain, Unknown Boundary, Reproducible Output, Red-Team Resilience, Reviewer Story, and Archive Progression.
+- Each criterion now shows score, status, supporting evidence, reviewer risk, realistic SOC scenario example, and remediation guidance.
+- Added an overall portfolio review gate with verdict, share gate, weakest criterion briefing, and focused checklist.
+- Added a checklist action that loads the remediation list into the active task journal as the next repair task.
+- Styled the rubric as a compact amber review layer inside the report archive, with responsive cards and smooth panel entry.
+
+Next likely upgrade:
+- Add a portfolio export packet that bundles the report, review rubric, remediation history, and final prompt versions into one recruiter/mentor-ready case study view.

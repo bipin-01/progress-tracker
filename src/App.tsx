@@ -17229,6 +17229,26 @@ type PromptIncidentReportArchiveEntry = {
   searchText: string;
 };
 
+type PromptReportPortfolioCriterion = {
+  id: string;
+  label: string;
+  score: number;
+  status: string;
+  evidence: string;
+  reviewerRisk: string;
+  scenarioExample: string;
+  remediation: string;
+};
+
+type PromptReportPortfolioReview = {
+  score: number;
+  verdict: string;
+  shareGate: string;
+  criteria: PromptReportPortfolioCriterion[];
+  checklist: string[];
+  reviewerBrief: string;
+};
+
 type PromptMemorySnapshot = {
   selectedDay: number;
   completedTasks: string[];
@@ -18538,6 +18558,133 @@ function buildPromptIncidentReportArchiveEntry({
   };
 }
 
+function getPromptPortfolioCriterionStatus(score: number) {
+  if (score >= 90) return "portfolio-grade";
+  if (score >= 78) return "mentor-review";
+  if (score >= 62) return "repair-needed";
+  return "not-shareable";
+}
+
+function buildPromptReportPortfolioReview({
+  report,
+  grade,
+  diff,
+  stress,
+  adversary,
+  archive,
+  replayHistory,
+}: {
+  report: PromptIncidentReport;
+  grade: PromptEvidencePacketGrade;
+  diff: PromptEvidencePacketDiff;
+  stress: PromptEvidenceStressHarness;
+  adversary: PromptEvidenceAdversaryHarness;
+  archive: PromptIncidentReportArchiveEntry[];
+  replayHistory: PromptRedTeamReplayEntry[];
+}): PromptReportPortfolioReview {
+  const latestArchive = archive[0] ?? null;
+  const priorArchive = archive[1] ?? null;
+  const archiveDelta = latestArchive && priorArchive ? latestArchive.readinessScore - priorArchive.readinessScore : 0;
+  const markdown = report.markdown.toLowerCase();
+  const hasReviewerAction = markdown.includes("next reviewer action");
+  const hasReplayTable = markdown.includes("replay history");
+  const hasValidationMatrix = markdown.includes("validation matrix");
+  const criteria: PromptReportPortfolioCriterion[] = [
+    {
+      id: "evidence-chain",
+      label: "Evidence chain",
+      score: average([grade.confirmedCoverage, grade.constraintCoverage, diff.score]),
+      status: "",
+      evidence: `${grade.confirmedCoverage}% confirmed coverage, ${grade.constraintCoverage}% constraints, ${diff.score}/100 diff.`,
+      reviewerRisk: "A reviewer cannot trust a SOC prompt report if the conclusion cannot be traced back to packet evidence.",
+      scenarioExample: "Interview prompt: show which log line justifies escalation without using memory or assumptions.",
+      remediation: "Add a short claim-to-evidence map for every conclusion and remove any line the packet cannot support.",
+    },
+    {
+      id: "unknown-boundary",
+      label: "Unknown boundary",
+      score: average([grade.missingCoverage, markdown.includes("missing or unknown evidence") ? 100 : 45, markdown.includes("unknown") ? 92 : 55]),
+      status: "",
+      evidence: `${grade.missingCoverage}% missing-data coverage with ${diff.inventedClaims.length} invented claim${diff.inventedClaims.length === 1 ? "" : "s"}.`,
+      reviewerRisk: "The fastest way to fail a SOC review is to sound certain when logs, approvals, or business impact are missing.",
+      scenarioExample: "Real-life pressure: a manager asks for a definitive answer before mailbox export finishes.",
+      remediation: "Add an explicit unknowns table with owner, follow-up source, and what decision cannot be made yet.",
+    },
+    {
+      id: "reproducible-output",
+      label: "Reproducible output",
+      score: average([grade.schemaCoverage, hasValidationMatrix ? 100 : 50, markdown.includes("validation matrix") ? 100 : 50]),
+      status: "",
+      evidence: `${grade.schemaCoverage}% schema coverage and validation matrix ${hasValidationMatrix ? "present" : "missing"}.`,
+      reviewerRisk: "A portfolio artifact must show that another analyst could rerun the prompt and get comparable sections.",
+      scenarioExample: "Shift handoff: a second analyst needs verdict, confidence, evidence, missing data, and next action in the same order.",
+      remediation: "Lock the output contract and include a one-line example for each field before exporting.",
+    },
+    {
+      id: "red-team-resilience",
+      label: "Red-team resilience",
+      score: average([stress.averageScore, adversary.averageScore, replayHistory[0]?.combinedScore ?? report.readinessScore]),
+      status: "",
+      evidence: `Stress ${stress.averageScore}/100, adversary ${adversary.averageScore}/100, replay ${replayHistory[0]?.combinedScore ?? 0}/100.`,
+      reviewerRisk: "Future AI safety reviewers will expect proof that injected ticket comments or fake log instructions do not steer the prompt.",
+      scenarioExample: "Malicious ticket text says to mark the alert benign while legitimate telemetry still shows risk.",
+      remediation: "Add a before/after injection case and explain how the prompt keeps hostile text as evidence, not instruction.",
+    },
+    {
+      id: "reviewer-story",
+      label: "Reviewer story",
+      score: average([hasReviewerAction ? 100 : 55, hasReplayTable ? 92 : 55, report.sections.length >= 3 ? 94 : 62]),
+      status: "",
+      evidence: `Reviewer action ${hasReviewerAction ? "present" : "missing"}, replay table ${hasReplayTable ? "present" : "missing"}, ${report.sections.length} summary sections.`,
+      reviewerRisk: "A strong report is not a data dump; it tells the reviewer what happened, why it matters, and what to inspect next.",
+      scenarioExample: "Portfolio walkthrough: explain the incident in 90 seconds, then defend the weakest case in detail.",
+      remediation: "Write a two-sentence executive readout and a separate reviewer action that names the next repair step.",
+    },
+    {
+      id: "archive-progression",
+      label: "Archive progression",
+      score: archive.length >= 2 ? Math.min(100, Math.max(45, 72 + archiveDelta * 3)) : archive.length ? 72 : 45,
+      status: "",
+      evidence: archive.length >= 2 ? `Latest archived report moved ${archiveDelta >= 0 ? "+" : ""}${archiveDelta} readiness points.` : `${archive.length} archived report${archive.length === 1 ? "" : "s"} for this task.`,
+      reviewerRisk: "One isolated artifact shows effort; a sequence of improving artifacts shows skill acquisition.",
+      scenarioExample: "Bootcamp review: compare v2, v3, and v4 reports and show which weakness stopped repeating.",
+      remediation: "Archive at least two attempts for this task and name the weakness that improved between them.",
+    },
+  ].map((criterion) => ({ ...criterion, status: getPromptPortfolioCriterionStatus(criterion.score) }));
+  const score = average(criteria.map((criterion) => criterion.score));
+  const verdict =
+    score >= 90
+      ? "portfolio evidence ready"
+      : score >= 78
+        ? "mentor review ready"
+        : score >= 62
+          ? "repair before sharing"
+          : "do not share yet";
+  const shareGate =
+    score >= 90
+      ? "Allowed: export after one final read-through."
+      : score >= 78
+        ? "Conditional: ask for mentor review before sharing externally."
+        : "Blocked: repair checklist must be completed first.";
+  const checklist = criteria
+    .filter((criterion) => criterion.score < 85)
+    .map((criterion) => `${criterion.label}: ${criterion.remediation}`)
+    .slice(0, 5);
+  if (!checklist.length) {
+    checklist.push("Add one fresh replay after a future rewrite so the archive keeps proving sustained performance.");
+  }
+  const weakest = [...criteria].sort((a, b) => a.score - b.score)[0] ?? criteria[0];
+
+  return {
+    score,
+    verdict,
+    shareGate,
+    criteria,
+    checklist,
+    reviewerBrief: `Weakest portfolio criterion is ${weakest.label} at ${weakest.score}/100. ${weakest.scenarioExample}`,
+  };
+}
+
 function getPromptMasteryLabel(score: number) {
   if (score >= 88) return "operator-grade";
   if (score >= 72) return "strong training day";
@@ -18952,6 +19099,26 @@ function PromptView() {
       count: incidentReportArchive.length,
     };
   }, [activeReportArchive, incidentReportArchive]);
+  const activeReportReview = useMemo(
+    () => buildPromptReportPortfolioReview({
+      report: activeIncidentReport,
+      grade: activeEvidenceGrade,
+      diff: activeEvidenceDiff,
+      stress: activeStressHarness,
+      adversary: activeAdversaryHarness,
+      archive: activeReportArchive,
+      replayHistory: activeReplayHistory,
+    }),
+    [
+      activeAdversaryHarness,
+      activeEvidenceDiff,
+      activeEvidenceGrade,
+      activeIncidentReport,
+      activeReportArchive,
+      activeReplayHistory,
+      activeStressHarness,
+    ],
+  );
   const dayMastery = useMemo(
     () => buildPromptDayMasterySnapshot({ day: selectedDay, completedTasks, taskJournals, reviewStates, playgroundPrompt, iterations }),
     [completedTasks, iterations, playgroundPrompt, reviewStates, selectedDay, taskJournals],
@@ -19240,6 +19407,27 @@ function PromptView() {
     setPlaygroundPrompt(entry.markdown);
     setActiveDailyPanel("lab");
     setPlaygroundStatus(`archived report staged: D${String(entry.day).padStart(2, "0")} ${entry.readinessScore}/100`);
+  }
+
+  function loadReportReviewChecklist() {
+    const currentAnswer = activeTaskJournal.answer.trim() || activeEvidenceRewrite.afterPrompt;
+    updateTaskJournal({
+      answer: [
+        currentAnswer,
+        "",
+        "---",
+        `Portfolio report review: ${activeReportReview.verdict} (${activeReportReview.score}/100)`,
+        activeReportReview.shareGate,
+        activeReportReview.reviewerBrief,
+        "",
+        "Focused remediation checklist:",
+        ...activeReportReview.checklist.map((item) => `- ${item}`),
+      ].join("\n"),
+      selfScore: Math.max(activeTaskJournal.selfScore, activeReportReview.score),
+      versionNote: `portfolio review ${activeReportReview.score}/100`,
+    });
+    setActiveDailyPanel("journal");
+    setPlaygroundStatus(`portfolio review checklist loaded: ${activeReportReview.verdict}`);
   }
 
   function updateTaskJournal(updates: Partial<Pick<PromptTaskJournal, "answer" | "selfScore" | "versionNote">>) {
@@ -19737,6 +19925,38 @@ function PromptView() {
                             <p>{activeReportArchive.length ? `Replay movement ${activeReportArchive[0].replayMovement >= 0 ? "+" : ""}${activeReportArchive[0].replayMovement}; stress ${activeReportArchive[0].weakestStress}.` : "Save this report, then compare later attempts against it."}</p>
                           </div>
                         </div>
+                        <div className="prompt-evidence-report-review">
+                          <div className="prompt-evidence-report-review-head">
+                            <div>
+                              <span>portfolio review gate</span>
+                              <strong>{activeReportReview.score}/100</strong>
+                              <em>{activeReportReview.verdict}</em>
+                            </div>
+                            <p>{activeReportReview.shareGate} {activeReportReview.reviewerBrief}</p>
+                          </div>
+                          <div className="prompt-evidence-report-rubric">
+                            {activeReportReview.criteria.map((criterion) => (
+                              <div key={criterion.id}>
+                                <div>
+                                  <span>{criterion.label}</span>
+                                  <strong>{criterion.score}/100</strong>
+                                </div>
+                                <em>{criterion.status}</em>
+                                <p>{criterion.evidence}</p>
+                                <i>{criterion.reviewerRisk}</i>
+                                <code>{criterion.scenarioExample}</code>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="prompt-evidence-report-checklist">
+                            <div>
+                              <span>focused remediation</span>
+                              <strong>{activeReportReview.checklist.length} actions</strong>
+                            </div>
+                            {activeReportReview.checklist.map((item) => <em key={item}>{item}</em>)}
+                            <button type="button" onClick={loadReportReviewChecklist}>load checklist into journal</button>
+                          </div>
+                        </div>
                         <div className="prompt-evidence-report-list">
                           {filteredIncidentReports.length ? filteredIncidentReports.map((entry) => (
                             <button key={entry.id} type="button" onClick={() => loadArchivedIncidentReport(entry)}>
@@ -19783,6 +20003,7 @@ function PromptView() {
                     <button type="button" onClick={archiveIncidentReport}>archive report</button>
                     <button type="button" onClick={stageIncidentReportInLab}>stage report</button>
                     <button type="button" onClick={saveIncidentReportToJournal}>journal report</button>
+                    <button type="button" onClick={loadReportReviewChecklist}>review checklist</button>
                     <button type="button" onClick={copyIncidentReport}>copy report</button>
                   </div>
                 </>

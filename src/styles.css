@@ -16138,6 +16138,7 @@ button.load-forecast-day:hover {
 .prompt-daily-panel-tabs button,
 .prompt-daily-actions button,
 .prompt-evidence-actions button,
+.prompt-evidence-report-checklist button,
 .prompt-evidence-report-archive input,
 .prompt-task-journal-actions button,
 .prompt-grade-row button,
@@ -16362,6 +16363,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-replay span,
 .prompt-evidence-report span,
 .prompt-evidence-report-archive span,
+.prompt-evidence-report-review span,
 .prompt-daily-mentor span,
 .prompt-daily-proof span,
 .prompt-daily-done span,
@@ -16390,6 +16392,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-replay strong,
 .prompt-evidence-report strong,
 .prompt-evidence-report-archive strong,
+.prompt-evidence-report-review strong,
 .prompt-skill-head strong,
 .prompt-bootcamp-card h2 {
   margin: 0;
@@ -16411,6 +16414,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-replay p,
 .prompt-evidence-report p,
 .prompt-evidence-report-archive p,
+.prompt-evidence-report-review p,
 .prompt-daily-proof p,
 .prompt-daily-lab p,
 .prompt-daily-future p,
@@ -16506,6 +16510,9 @@ button.load-forecast-day:hover {
 .prompt-evidence-report-sections > div,
 .prompt-evidence-report-archive-head > div,
 .prompt-evidence-report-compare > div,
+.prompt-evidence-report-review-head > div,
+.prompt-evidence-report-rubric > div,
+.prompt-evidence-report-checklist,
 .prompt-evidence-report-list > div,
 .prompt-evidence-report-list button {
   display: grid;
@@ -16537,7 +16544,9 @@ button.load-forecast-day:hover {
 .prompt-evidence-replay i,
 .prompt-evidence-report em,
 .prompt-evidence-report-archive em,
-.prompt-evidence-report-archive i {
+.prompt-evidence-report-archive i,
+.prompt-evidence-report-review em,
+.prompt-evidence-report-review i {
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.035);
   color: var(--ink-1);
@@ -16579,6 +16588,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-rewrite pre,
 .prompt-evidence-stress code,
 .prompt-evidence-adversary code,
+.prompt-evidence-report-review code,
 .prompt-evidence-report pre,
 .prompt-evidence-builder pre {
   display: block;
@@ -16984,6 +16994,71 @@ button.load-forecast-day:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
+}
+
+.prompt-evidence-report-review {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 181, 74, 0.14);
+  background:
+    linear-gradient(135deg, rgba(255, 181, 74, 0.035), transparent 46%),
+    rgba(2, 7, 15, 0.3);
+  padding: 9px;
+  animation: prompt-panel-enter 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-evidence-report-review-head {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.25fr) minmax(0, 1fr);
+  gap: 7px;
+}
+
+.prompt-evidence-report-review-head > div,
+.prompt-evidence-report-rubric > div,
+.prompt-evidence-report-checklist {
+  border: 1px solid rgba(255, 181, 74, 0.14);
+  background: rgba(255, 181, 74, 0.03);
+  padding: 8px;
+}
+
+.prompt-evidence-report-review-head strong {
+  color: var(--zh-gold);
+  font-size: 20px;
+}
+
+.prompt-evidence-report-rubric {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.prompt-evidence-report-rubric > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.prompt-evidence-report-rubric > div > div:first-child,
+.prompt-evidence-report-checklist > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-evidence-report-review code {
+  border-color: rgba(255, 181, 74, 0.16);
+  background: rgba(255, 181, 74, 0.035);
+}
+
+.prompt-evidence-report-checklist {
+  display: grid;
+  gap: 6px;
+}
+
+.prompt-evidence-report-checklist button {
+  width: fit-content;
+  padding: 0 12px;
 }
 
 .prompt-evidence-report-list {
@@ -17841,6 +17916,8 @@ button.load-forecast-day:hover {
   .prompt-evidence-report-sections,
   .prompt-evidence-report-archive-head,
   .prompt-evidence-report-compare,
+  .prompt-evidence-report-review-head,
+  .prompt-evidence-report-rubric,
   .prompt-daily-rubric,
   .prompt-daily-scenario,
   .prompt-daily-lab,
@@ -17912,6 +17989,8 @@ button.load-forecast-day:hover {
   .prompt-evidence-report-sections,
   .prompt-evidence-report-archive-head,
   .prompt-evidence-report-compare,
+  .prompt-evidence-report-review-head,
+  .prompt-evidence-report-rubric,
   .prompt-evidence-report-list,
   .prompt-evidence-grade-grid,
   .prompt-evidence-actions,
