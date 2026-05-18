@@ -5037,6 +5037,8 @@ type TodayLane = "morning" | "midday" | "evening" | "anytime";
 
 type TodayQueueKind = "task" | "habit" | "event" | "kanban" | "study" | "agent" | "goal";
 
+type TodayWorkspaceId = "focus" | "queue" | "schedule" | "systems";
+
 type SavedFlashcardSignal = {
   noteId: string;
   noteTitle: string;
@@ -5114,6 +5116,7 @@ function TodayView({
   const [protocolStatus, setProtocolStatus] = useState("");
   const [forecastStatus, setForecastStatus] = useState("");
   const [coachStatus, setCoachStatus] = useState("");
+  const [activeTodayWorkspace, setActiveTodayWorkspace] = useState<TodayWorkspaceId>("focus");
   const [lastForecastBalance, setLastForecastBalance] = useState<ForecastBalanceSnapshot | null>(null);
   const todayLabel = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -5192,6 +5195,32 @@ function TodayView({
     () => getTodayProtocolPacket(projects, calendarEvents, kanbanCards, now),
     [calendarEvents, kanbanCards, projects, todayKey],
   );
+  const todayWorkspaceTabs: Array<{ id: TodayWorkspaceId; label: string; metric: string; detail: string }> = [
+    {
+      id: "focus",
+      label: "Focus",
+      metric: `${readiness}%`,
+      detail: primaryItem ? `Next: ${primaryItem.title}` : "Command brief ready",
+    },
+    {
+      id: "queue",
+      label: "Queue",
+      metric: `${activeQueue.length}`,
+      detail: `${topQueueItems.length} ranked actions`,
+    },
+    {
+      id: "schedule",
+      label: "Schedule",
+      metric: `${todayEvents.length + context.upcomingEvents.length}`,
+      detail: `${todayEvents.length} today / ${context.upcomingEvents.length} upcoming`,
+    },
+    {
+      id: "systems",
+      label: "Systems",
+      metric: `${blockedCount + pendingReports.length}`,
+      detail: `${agentLearningMemory.totalTrust}% trust / forecast online`,
+    },
+  ];
 
   function completeTask(task: DashboardTask) {
     void taskProjectCrud.updateTask(task.projectId, task.day, task.id, (item) => ({ ...item, done: true }));
@@ -5575,7 +5604,23 @@ function TodayView({
   }
 
   return (
-    <>
+    <div className={`today-route today-workspace-${activeTodayWorkspace}`}>
+      <section className="today-workspace-switcher" aria-label="Today workspace selector">
+        {todayWorkspaceTabs.map((tab) => (
+          <button
+            type="button"
+            className={activeTodayWorkspace === tab.id ? "active" : ""}
+            aria-pressed={activeTodayWorkspace === tab.id}
+            onClick={() => setActiveTodayWorkspace(tab.id)}
+            key={tab.id}
+          >
+            <span>{tab.label}</span>
+            <strong>{tab.metric}</strong>
+            <em>{tab.detail}</em>
+          </button>
+        ))}
+      </section>
+
       <section className="today-command-grid">
         <HudCard className="today-command-card" active>
           <CardHeader title="Daily Command Brief" meta={todayLabel} />
@@ -5620,96 +5665,98 @@ function TodayView({
         </HudCard>
       </section>
 
-      <LoadForecastPanel
-        forecast={context.loadForecast}
-        lastBalance={lastForecastBalance}
-        mitigationStatus={forecastStatus}
-        onMitigate={(forecast) => void stabilizeForecastLoad(forecast)}
-        onUndo={lastForecastBalance ? () => void undoForecastBalance() : undefined}
-        onNavigate={onNavigate}
-      />
+      <section className="today-systems-stack" aria-label="Today systems workspace">
+        <LoadForecastPanel
+          forecast={context.loadForecast}
+          lastBalance={lastForecastBalance}
+          mitigationStatus={forecastStatus}
+          onMitigate={(forecast) => void stabilizeForecastLoad(forecast)}
+          onUndo={lastForecastBalance ? () => void undoForecastBalance() : undefined}
+          onNavigate={onNavigate}
+        />
 
-      <HudCard className="today-coach-card" active>
-        <CardHeader title="Coach Autopilot" meta={`${agentLearningMemory.totalTrust}% trust`} />
-        <div className="today-coach-layout">
-          <div className="today-coach-score">
-            <strong>{agentLearningMemory.totalTrust}</strong>
-            <span>agent trust</span>
-          </div>
-          <div className="today-coach-main">
-            <span className="today-eyebrow">Memory-weighted decisions</span>
-            <strong>{getTodayCoachHeadline(agentLearningMemory, trustedCoachReport)}</strong>
-            <p>{getTodayCoachDirective(agentLearningMemory, trustedCoachReport)}</p>
-            {trustedCoachReport && (
-              <div className="today-coach-report">
-                <span>{trustedCoachReport.agentName} - {trustedCoachReport.confidence ?? 0}% confidence</span>
-                <strong>{trustedCoachReport.title}</strong>
-                <em>{trustedCoachReport.source}</em>
-              </div>
-            )}
-          </div>
-          <div className="today-coach-actions">
-            <button type="button" onClick={() => void refreshCoachBrief()}>Refresh Coach Brief</button>
-            {topFollowUpDebt && (
-              <button type="button" onClick={() => void scheduleOutcomeRescue(topFollowUpDebt)}>Schedule Rescue</button>
-            )}
-            {trustedCoachReport?.action && (
-              <button type="button" onClick={() => void acceptRecommendation(trustedCoachReport)}>Accept Trusted Report</button>
-            )}
-            <button type="button" onClick={() => onNavigate("agents")}>Open Agents</button>
-          </div>
-        </div>
-        <div className="today-coach-metrics">
-          <span><strong>{agentLearningMemory.strongest.name}</strong> strongest</span>
-          <span><strong>{agentLearningMemory.impactRate}%</strong> outcome impact</span>
-          <span><strong>{agentLearningMemory.pendingCount}</strong> pending</span>
-          <span><strong>{agentLearningMemory.staleOutcomeCount}</strong> follow-up debt</span>
-        </div>
-        {coachStatus && <div className="today-coach-status">{coachStatus}</div>}
-      </HudCard>
-
-      {protocolPacket && (
-        <HudCard className="today-protocol-card" active>
-          <CardHeader title="Weekly Protocol Packet" meta={`D${protocolPacket.day} - ${protocolPacket.dateLabel}`} />
-          <div className="today-protocol-layout">
-            <div className="today-protocol-gauge">
-              <strong>{protocolPacket.progress}%</strong>
-              <span>{protocolPacket.status}</span>
+        <HudCard className="today-coach-card" active>
+          <CardHeader title="Coach Autopilot" meta={`${agentLearningMemory.totalTrust}% trust`} />
+          <div className="today-coach-layout">
+            <div className="today-coach-score">
+              <strong>{agentLearningMemory.totalTrust}</strong>
+              <span>agent trust</span>
             </div>
-            <div className="today-protocol-main">
-              <span className="today-eyebrow">Active operating packet</span>
-              <strong>{protocolPacket.project.name}</strong>
-              <p>{protocolPacket.directive}</p>
-              <div className="today-protocol-meta">
-                <span><strong>{protocolPacket.completedTasks}/{protocolPacket.totalTasks}</strong> today tasks</span>
-                <span><strong>{protocolPacket.daysLeft}</strong> days left</span>
-                <span><strong>{protocolPacket.event ? "yes" : "missing"}</strong> calendar anchor</span>
-                <span><strong>{protocolPacket.card ? "linked" : "missing"}</strong> board card</span>
-              </div>
+            <div className="today-coach-main">
+              <span className="today-eyebrow">Memory-weighted decisions</span>
+              <strong>{getTodayCoachHeadline(agentLearningMemory, trustedCoachReport)}</strong>
+              <p>{getTodayCoachDirective(agentLearningMemory, trustedCoachReport)}</p>
+              {trustedCoachReport && (
+                <div className="today-coach-report">
+                  <span>{trustedCoachReport.agentName} - {trustedCoachReport.confidence ?? 0}% confidence</span>
+                  <strong>{trustedCoachReport.title}</strong>
+                  <em>{trustedCoachReport.source}</em>
+                </div>
+              )}
             </div>
-            <div className="today-protocol-actions">
-              <button type="button" onClick={() => syncProtocolDay(protocolPacket)}>Sync Day</button>
-              <button type="button" onClick={() => void sealProtocolDay(protocolPacket)}>Seal Day</button>
-              <button type="button" onClick={() => onNavigate("calendar")}>Calendar</button>
-              <button type="button" onClick={() => onNavigate("kanban")}>Board</button>
-              <button type="button" onClick={() => onNavigate("progress")}>Review</button>
+            <div className="today-coach-actions">
+              <button type="button" onClick={() => void refreshCoachBrief()}>Refresh Coach Brief</button>
+              {topFollowUpDebt && (
+                <button type="button" onClick={() => void scheduleOutcomeRescue(topFollowUpDebt)}>Schedule Rescue</button>
+              )}
+              {trustedCoachReport?.action && (
+                <button type="button" onClick={() => void acceptRecommendation(trustedCoachReport)}>Accept Trusted Report</button>
+              )}
+              <button type="button" onClick={() => onNavigate("agents")}>Open Agents</button>
             </div>
           </div>
-          <div className="today-protocol-task-strip">
-            {protocolPacket.tasks.length === 0 ? (
-              <div className="kanban-empty">// no protocol tasks assigned to this day</div>
-            ) : (
-              protocolPacket.tasks.map((task) => (
-                <button className={`today-protocol-task ${task.done ? "done" : ""}`} type="button" onClick={() => toggleProtocolTask(protocolPacket, task)} key={task.id}>
-                  <span className="checkbox">{task.done && <Check />}</span>
-                  <strong>{task.name}</strong>
-                </button>
-              ))
-            )}
+          <div className="today-coach-metrics">
+            <span><strong>{agentLearningMemory.strongest.name}</strong> strongest</span>
+            <span><strong>{agentLearningMemory.impactRate}%</strong> outcome impact</span>
+            <span><strong>{agentLearningMemory.pendingCount}</strong> pending</span>
+            <span><strong>{agentLearningMemory.staleOutcomeCount}</strong> follow-up debt</span>
           </div>
-          {protocolStatus && <div className="today-protocol-status">{protocolStatus}</div>}
+          {coachStatus && <div className="today-coach-status">{coachStatus}</div>}
         </HudCard>
-      )}
+
+        {protocolPacket && (
+          <HudCard className="today-protocol-card" active>
+            <CardHeader title="Weekly Protocol Packet" meta={`D${protocolPacket.day} - ${protocolPacket.dateLabel}`} />
+            <div className="today-protocol-layout">
+              <div className="today-protocol-gauge">
+                <strong>{protocolPacket.progress}%</strong>
+                <span>{protocolPacket.status}</span>
+              </div>
+              <div className="today-protocol-main">
+                <span className="today-eyebrow">Active operating packet</span>
+                <strong>{protocolPacket.project.name}</strong>
+                <p>{protocolPacket.directive}</p>
+                <div className="today-protocol-meta">
+                  <span><strong>{protocolPacket.completedTasks}/{protocolPacket.totalTasks}</strong> today tasks</span>
+                  <span><strong>{protocolPacket.daysLeft}</strong> days left</span>
+                  <span><strong>{protocolPacket.event ? "yes" : "missing"}</strong> calendar anchor</span>
+                  <span><strong>{protocolPacket.card ? "linked" : "missing"}</strong> board card</span>
+                </div>
+              </div>
+              <div className="today-protocol-actions">
+                <button type="button" onClick={() => syncProtocolDay(protocolPacket)}>Sync Day</button>
+                <button type="button" onClick={() => void sealProtocolDay(protocolPacket)}>Seal Day</button>
+                <button type="button" onClick={() => onNavigate("calendar")}>Calendar</button>
+                <button type="button" onClick={() => onNavigate("kanban")}>Board</button>
+                <button type="button" onClick={() => onNavigate("progress")}>Review</button>
+              </div>
+            </div>
+            <div className="today-protocol-task-strip">
+              {protocolPacket.tasks.length === 0 ? (
+                <div className="kanban-empty">// no protocol tasks assigned to this day</div>
+              ) : (
+                protocolPacket.tasks.map((task) => (
+                  <button className={`today-protocol-task ${task.done ? "done" : ""}`} type="button" onClick={() => toggleProtocolTask(protocolPacket, task)} key={task.id}>
+                    <span className="checkbox">{task.done && <Check />}</span>
+                    <strong>{task.name}</strong>
+                  </button>
+                ))
+              )}
+            </div>
+            {protocolStatus && <div className="today-protocol-status">{protocolStatus}</div>}
+          </HudCard>
+        )}
+      </section>
 
       <section className="today-command-center-grid">
         <HudCard className="today-queue-card">
@@ -5839,7 +5886,7 @@ function TodayView({
       </section>
 
       <SystemTrace label="Today command brief online" />
-    </>
+    </div>
   );
 }
 
