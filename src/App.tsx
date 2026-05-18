@@ -81,6 +81,12 @@ import {
   promptTheoryQuestions,
 } from "./promptEngineeringPlan";
 import type { PromptDailyTask, PromptDrill, PromptTheoryQuestion } from "./promptEngineeringPlan";
+import {
+  getPentestDailyTasks,
+  pentestMethodCards,
+  pentestReferenceCards,
+  pentestRoadmapWeeks,
+} from "./pentestingPlan";
 import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
@@ -3307,6 +3313,7 @@ const navItems = [
   { id: "notes", label: "Notes", Icon: NotebookText },
   { id: "chinese", label: "Chinese", Icon: Languages },
   { id: "prompt", label: "Prompt", Icon: Code2 },
+  { id: "pentesting", label: "Pentest", Icon: Target },
   { id: "calendar", label: "Calendar", Icon: CalendarDays },
   { id: "progress", label: "Progress", Icon: TrendingUp },
   { id: "insights", label: "Insights", Icon: Gauge },
@@ -3354,6 +3361,9 @@ const routeViewMap: Record<string, View> = {
   "/prompt": "prompt",
   "/prompts": "prompt",
   "/prompt-engineering": "prompt",
+  "/pentesting": "pentesting",
+  "/pentest": "pentesting",
+  "/red-team": "pentesting",
   "/calendar": "calendar",
   "/calender": "calendar",
   "/progress": "progress",
@@ -3768,15 +3778,17 @@ function App() {
                 ? { title: "Chinese Lab", subtitle: "Mandarin from zero // sound to sentences" }
                 : activeView === "prompt"
                   ? { title: "Prompt Ops Academy", subtitle: "SOC prompt engineering // 100-level mastery" }
-                  : activeView === "calendar"
-                    ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
-                    : activeView === "progress"
-                      ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
-                      : activeView === "insights"
-                        ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
-                        : activeView === "agents"
-                          ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
-                        : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+                  : activeView === "pentesting"
+                    ? { title: "Pentest Ops Academy", subtitle: "Authorized testing // scope evidence report" }
+                    : activeView === "calendar"
+                      ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
+                      : activeView === "progress"
+                        ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
+                        : activeView === "insights"
+                          ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
+                          : activeView === "agents"
+                            ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
+                            : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
   const appCommands: AppCommand[] = [
     { id: "quick-capture", group: "Capture", title: "Universal Quick Capture", hint: "Open Cmd+J capture and route an idea to notes, tasks, calendar, goals, or board.", action: () => openQuickCapture() },
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
@@ -3788,6 +3800,7 @@ function App() {
     { id: "nav-kanban", group: "Navigate", title: "Execution Board", hint: "Open Kanban workflow state.", action: () => navigateTo("kanban") },
     { id: "nav-chinese", group: "Navigate", title: "Chinese Lab", hint: "Open Mandarin lessons from sound to sentences.", action: () => navigateTo("chinese") },
     { id: "nav-prompt", group: "Navigate", title: "Prompt Ops Academy", hint: "Open SOC prompt engineering mastery.", action: () => navigateTo("prompt") },
+    { id: "nav-pentesting", group: "Navigate", title: "Pentest Ops Academy", hint: "Open authorized pentesting bootcamp.", action: () => navigateTo("pentesting") },
     { id: "nav-calendar", group: "Navigate", title: "Calendar", hint: "Open deadlines, appointments, and projects.", action: () => navigateTo("calendar") },
     { id: "nav-progress", group: "Navigate", title: "Progress Metrics", hint: "Review streak, focus, and momentum.", action: () => navigateTo("progress") },
     { id: "nav-insights", group: "Navigate", title: "Pattern Analysis", hint: "Open behavior and completion insights.", action: () => navigateTo("insights") },
@@ -4120,6 +4133,8 @@ function App() {
             <ChineseView />
           ) : activeView === "prompt" ? (
             <PromptView />
+          ) : activeView === "pentesting" ? (
+            <PentestingView />
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
@@ -20777,6 +20792,380 @@ function buildPromptLabSimulation(prompt: string, scenario: PromptDrill) {
     "next iteration:",
     `Add ${analysis.missing.slice(0, 2).join(" + ") || "a sharper eval case"} and require the model to separate confirmed evidence from assumptions.`,
   ].join("\n");
+}
+
+const pentestDailyPanels = [
+  { id: "brief", label: "Brief" },
+  { id: "scope", label: "Scope" },
+  { id: "runbook", label: "Runbook" },
+  { id: "evidence", label: "Evidence" },
+  { id: "report", label: "Report" },
+] as const;
+
+type PentestDailyPanel = (typeof pentestDailyPanels)[number]["id"];
+
+const pentestWorkspaces = [
+  { id: "today", label: "Today", detail: "authorized daily mission" },
+  { id: "method", label: "Method", detail: "scope + evidence craft" },
+  { id: "lab", label: "Lab", detail: "safe operator drills" },
+  { id: "report", label: "Report", detail: "finding + retest system" },
+  { id: "reference", label: "Reference", detail: "field checklists" },
+] as const;
+
+type PentestWorkspace = (typeof pentestWorkspaces)[number]["id"];
+
+function PentestingView() {
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(() => new Set());
+  const [activeTaskId, setActiveTaskId] = useState("pt-1-scope");
+  const [activePanel, setActivePanel] = useState<PentestDailyPanel>("brief");
+  const [activeWorkspace, setActiveWorkspace] = useState<PentestWorkspace>("today");
+  const [workpad, setWorkpad] = useState("");
+
+  const dailyTasks = useMemo(() => getPentestDailyTasks(selectedDay), [selectedDay]);
+  const activeTask = dailyTasks.find((task) => task.id === activeTaskId) ?? dailyTasks[0];
+  const completedToday = dailyTasks.filter((task) => completedTasks.has(task.id)).length;
+  const dailyProgress = Math.round((completedToday / Math.max(dailyTasks.length, 1)) * 100);
+  const phaseProgress = Math.round((selectedDay / 90) * 100);
+  const totalMinutes = dailyTasks.reduce((total, task) => total + task.minutes, 0);
+  const scopeReady = activeTask.scenario.prohibitedActions.length + activeTask.scenario.allowedActions.length;
+
+  useEffect(() => {
+    setActiveTaskId((current) => (dailyTasks.some((task) => task.id === current) ? current : dailyTasks[0]?.id ?? current));
+  }, [dailyTasks]);
+
+  useEffect(() => {
+    setActivePanel("brief");
+  }, [activeTaskId]);
+
+  function togglePentestTask(taskId: string) {
+    setCompletedTasks((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+
+  function loadActiveTemplate() {
+    setWorkpad(activeTask.template);
+    setActivePanel("report");
+  }
+
+  function appendProofChecklist() {
+    const proofBlock = [
+      workpad.trim(),
+      "",
+      "Proof checklist:",
+      ...activeTask.proof.map((item) => `- ${item}`),
+      "",
+      "Done checks:",
+      ...activeTask.doneLooksLike.map((item) => `- ${item}`),
+    ].filter(Boolean).join("\n");
+    setWorkpad(proofBlock);
+    setActivePanel("report");
+  }
+
+  return (
+    <main className={`prompt-academy-page prompt-workspace-${activeWorkspace} pentest-academy-page`} aria-label="Authorized pentesting academy cockpit">
+      <section className="prompt-command-grid">
+        <HudCard className="prompt-hero-card pentest-hero-card">
+          <div className="prompt-hero-copy">
+            <span>authorized pentesting bootcamp</span>
+            <strong>Pentest Ops Academy</strong>
+            <p>Same command-center rhythm as Prompt Ops, but the operator loop is different: confirm scope, map only what is allowed, run one safe check, capture clean evidence, and write a finding that can be retested.</p>
+          </div>
+          <div className="prompt-hero-metrics">
+            <div>
+              <span>Phase 1</span>
+              <strong>{phaseProgress}%</strong>
+              <em>D{String(selectedDay).padStart(2, "0")} / 90</em>
+            </div>
+            <div>
+              <span>Scope guard</span>
+              <strong>{scopeReady}</strong>
+              <em>allowed + prohibited rules</em>
+            </div>
+            <div>
+              <span>Daily lock</span>
+              <strong>{dailyProgress}%</strong>
+              <em>{completedToday}/{dailyTasks.length} drills · {totalMinutes}m</em>
+            </div>
+          </div>
+          <div className="prompt-workspace-switcher" role="tablist" aria-label="Pentesting workspace sections">
+            {pentestWorkspaces.map((workspace) => (
+              <button
+                key={workspace.id}
+                type="button"
+                role="tab"
+                aria-selected={activeWorkspace === workspace.id}
+                className={activeWorkspace === workspace.id ? "active" : ""}
+                onClick={() => setActiveWorkspace(workspace.id)}
+              >
+                <span>{workspace.label}</span>
+                <em>{workspace.detail}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-day-card">
+          <CardHeader title="Daily Pentest Bootcamp" meta={`D${String(selectedDay).padStart(2, "0")}`} />
+          <div className="prompt-day-control">
+            <button type="button" onClick={() => setSelectedDay((day) => Math.max(1, day - 1))}>-</button>
+            <input
+              aria-label="Pentesting bootcamp day"
+              type="number"
+              min={1}
+              max={90}
+              value={selectedDay}
+              onChange={(event) => setSelectedDay(Math.min(90, Math.max(1, Number(event.target.value) || 1)))}
+            />
+            <button type="button" onClick={() => setSelectedDay((day) => Math.min(90, day + 1))}>+</button>
+          </div>
+          <div className="prompt-daily-list">
+            {dailyTasks.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                className={`${completedTasks.has(task.id) ? "done" : ""} ${task.id === activeTask.id ? "active" : ""}`}
+                onClick={() => {
+                  setActiveTaskId(task.id);
+                  setActivePanel("brief");
+                }}
+              >
+                <span>{completedTasks.has(task.id) ? <Check /> : String(task.minutes)}</span>
+                <strong>{task.label}</strong>
+                <em>{task.detail}</em>
+              </button>
+            ))}
+          </div>
+          <div key={activeTask.id} className="prompt-daily-detail">
+            <div className="prompt-daily-detail-head">
+              <span>{activeTask.mode} · {activeTask.minutes} min · authorized lab only</span>
+              <strong>{activeTask.label}</strong>
+            </div>
+            <div className="prompt-daily-panel-tabs" role="tablist" aria-label="Daily pentesting task detail sections">
+              {pentestDailyPanels.map((panel) => (
+                <button
+                  key={panel.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePanel === panel.id}
+                  className={activePanel === panel.id ? "active" : ""}
+                  onClick={() => setActivePanel(panel.id)}
+                >
+                  {panel.label}
+                </button>
+              ))}
+            </div>
+
+            <div key={`${activeTask.id}-${activePanel}`} className="prompt-daily-panel">
+              {activePanel === "brief" && (
+                <>
+                  <p>{activeTask.lesson}</p>
+                  <div className="prompt-daily-scenario">
+                    <div className="prompt-daily-scenario-copy">
+                      <span>real-life scenario</span>
+                      <strong>{activeTask.scenario.title}</strong>
+                      <p>{activeTask.scenario.context}</p>
+                      <em>{activeTask.scenario.pressure}</em>
+                    </div>
+                    <div className="prompt-daily-evidence">
+                      <span>case artifacts</span>
+                      {activeTask.scenario.artifacts.map((item) => <code key={item}>{item}</code>)}
+                    </div>
+                  </div>
+                  <div className="prompt-daily-mentor">
+                    <span>mentor walkthrough</span>
+                    {activeTask.mentorScript.map((line, index) => (
+                      <em key={line}>{String(index + 1).padStart(2, "0")} {line}</em>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {activePanel === "scope" && (
+                <>
+                  <div className="prompt-daily-deliverable">
+                    <span>authorized target</span>
+                    <strong>{activeTask.scenario.target}</strong>
+                  </div>
+                  <div className="prompt-daily-lab">
+                    <div>
+                      <span>allowed actions</span>
+                      {activeTask.scenario.allowedActions.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                    <div>
+                      <span>stop conditions</span>
+                      {activeTask.scenario.prohibitedActions.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                  </div>
+                  <div className="prompt-daily-future">
+                    <span>scope line</span>
+                    <p>{activeTask.scenario.scope}</p>
+                    <strong>{activeTask.scenario.successMove}</strong>
+                  </div>
+                </>
+              )}
+
+              {activePanel === "runbook" && (
+                <>
+                  <div className="prompt-daily-steps">
+                    {activeTask.steps.map((step, index) => (
+                      <span key={step}>{String(index + 1).padStart(2, "0")} {step}</span>
+                    ))}
+                  </div>
+                  <div className="prompt-daily-lab">
+                    <div>
+                      <span>safe lab</span>
+                      {activeTask.lab.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                    <div>
+                      <span>operator boundary</span>
+                      <code>No production systems. No brute force. No data extraction. No destructive checks. Stop when scope changes.</code>
+                      <p>A strong pentester is not the person who goes farthest. It is the person who can prove the exact risk inside the exact authorization boundary.</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activePanel === "evidence" && (
+                <>
+                  <div className="prompt-daily-mentor">
+                    <span>proof checklist</span>
+                    {activeTask.proof.map((item, index) => (
+                      <em key={item}>{String(index + 1).padStart(2, "0")} {item}</em>
+                    ))}
+                  </div>
+                  <div className="prompt-daily-rubric">
+                    {activeTask.rubric.map((item) => (
+                      <div key={item.label}>
+                        <span>{item.label}</span>
+                        <p><b>Weak:</b> {item.weak}</p>
+                        <p><b>Strong:</b> {item.strong}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {activePanel === "report" && (
+                <>
+                  <div className="prompt-daily-deliverable">
+                    <span>deliverable</span>
+                    <strong>{activeTask.deliverable}</strong>
+                  </div>
+                  <div className="prompt-task-journal">
+                    <div className="prompt-task-journal-head">
+                      <span>field workpad</span>
+                      <strong>{workpad.trim() ? `${workpad.trim().split(/\s+/).length} words` : "template ready"}</strong>
+                    </div>
+                    <textarea
+                      value={workpad}
+                      onChange={(event) => setWorkpad(event.target.value)}
+                      placeholder={activeTask.template}
+                    />
+                    <div className="prompt-task-journal-actions">
+                      <button type="button" onClick={loadActiveTemplate}>load template</button>
+                      <button type="button" onClick={appendProofChecklist}>append proof checks</button>
+                      <button type="button" onClick={() => togglePentestTask(activeTask.id)}>{completedTasks.has(activeTask.id) ? "reopen task" : "mark done"}</button>
+                    </div>
+                  </div>
+                  <div className="prompt-daily-done">
+                    <span>done looks like</span>
+                    {activeTask.doneLooksLike.map((item) => <em key={item}>{item}</em>)}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </HudCard>
+
+        {activeWorkspace === "today" && (
+          <section className="pentest-workspace-grid" aria-label="Pentest daily operating board">
+            <div className="pentest-work-card">
+              <span>active case</span>
+              <strong>{activeTask.scenario.title}</strong>
+              <p>{activeTask.scenario.context}</p>
+              <em>{activeTask.scenario.successMove}</em>
+            </div>
+            <div className="pentest-work-card">
+              <span>operator sequence</span>
+              {dailyTasks.map((task, index) => (
+                <code key={task.id}>{String(index + 1).padStart(2, "0")} · {task.mode} · {task.detail}</code>
+              ))}
+            </div>
+            <div className="pentest-work-card">
+              <span>daily closeout</span>
+              <strong>{completedToday}/{dailyTasks.length} tasks locked</strong>
+              <p>Close the day only when scope, observation, evidence, and report language agree with each other.</p>
+              <button type="button" onClick={loadActiveTemplate}>stage current template</button>
+            </div>
+          </section>
+        )}
+
+        {activeWorkspace === "method" && (
+          <section className="pentest-workspace-grid wide" aria-label="Pentesting method roadmap">
+            {pentestRoadmapWeeks.map((week) => (
+              <div className="pentest-work-card" key={week.week}>
+                <span>week {String(week.week).padStart(2, "0")}</span>
+                <strong>{week.title}</strong>
+                <p>{week.focus}</p>
+                <code>{week.deliverable}</code>
+                <em>{week.operatorHabit}</em>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {activeWorkspace === "lab" && (
+          <section className="pentest-workspace-grid" aria-label="Pentesting safe lab">
+            {pentestMethodCards.map((card) => (
+              <div className="pentest-work-card" key={card.id}>
+                <span>{card.title}</span>
+                <strong>{card.signal}</strong>
+                {card.rules.map((rule) => <em key={rule}>{rule}</em>)}
+              </div>
+            ))}
+          </section>
+        )}
+
+        {activeWorkspace === "report" && (
+          <section className="pentest-workspace-grid" aria-label="Pentesting report system">
+            <div className="pentest-work-card double">
+              <span>finding skeleton</span>
+              <strong>asset · weakness · evidence · risk · fix · retest</strong>
+              <p>Every report should make the engineer’s next action obvious and make the executive risk decision boringly clear.</p>
+              <pre>{activeTask.template}</pre>
+            </div>
+            <div className="pentest-work-card">
+              <span>report quality gate</span>
+              {activeTask.rubric.map((item) => <code key={item.label}>{item.label}: {item.strong}</code>)}
+            </div>
+          </section>
+        )}
+
+        {activeWorkspace === "reference" && (
+          <section className="pentest-workspace-grid" aria-label="Pentesting reference cards">
+            {pentestReferenceCards.map((card) => (
+              <div className="pentest-work-card" key={card.id}>
+                <span>{card.title}</span>
+                <strong>{card.summary}</strong>
+                {card.checks.map((check) => <em key={check}>{check}</em>)}
+              </div>
+            ))}
+          </section>
+        )}
+      </section>
+
+      <footer className="prompt-sysline">
+        <span>// authorized testing mode</span>
+        <strong>scope before signal</strong>
+        <span>evidence before exploit</span>
+      </footer>
+    </main>
+  );
 }
 
 const promptDailyPanels = [

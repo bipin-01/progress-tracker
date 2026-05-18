@@ -18857,6 +18857,108 @@ button.load-forecast-day:hover {
   color: var(--lime);
 }
 
+.pentest-academy-page .prompt-hero-copy strong {
+  max-width: 980px;
+}
+
+.pentest-workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.pentest-workspace-grid.wide {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.pentest-work-card {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.045), transparent 54%),
+    rgba(2, 7, 15, 0.34);
+  padding: 12px;
+}
+
+.pentest-work-card.double {
+  grid-column: span 2;
+}
+
+.pentest-work-card span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pentest-work-card strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.pentest-work-card p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.65;
+  text-transform: none;
+}
+
+.pentest-work-card em,
+.pentest-work-card code {
+  display: block;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 7px;
+  text-transform: none;
+  white-space: normal;
+}
+
+.pentest-work-card em {
+  color: var(--lime);
+}
+
+.pentest-work-card pre {
+  overflow: auto;
+  max-height: 260px;
+  margin: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.52);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+.pentest-work-card button {
+  justify-self: start;
+  min-height: 32px;
+  border: 1px solid rgba(53, 215, 255, 0.26);
+  background: rgba(53, 215, 255, 0.06);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 1280px) {
   .zh-main-grid,
   .zh-bottom-grid {
@@ -18891,6 +18993,10 @@ button.load-forecast-day:hover {
     grid-area: auto;
     grid-column: 1;
     grid-row: auto;
+  }
+
+  .pentest-work-card.double {
+    grid-column: auto;
   }
 
   .prompt-anatomy-card,
@@ -18966,6 +19072,11 @@ button.load-forecast-day:hover {
   .prompt-daily-lab,
   .prompt-skill-columns,
   .prompt-walkthrough {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pentest-workspace-grid,
+  .pentest-workspace-grid.wide {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -19084,6 +19195,8 @@ button.load-forecast-day:hover {
   .prompt-mistake-tabs,
   .prompt-mistake-body div,
   .prompt-walkthrough,
+  .pentest-workspace-grid,
+  .pentest-workspace-grid.wide,
   .zh-decomp-grid,
   .zh-lesson-steps,
   .zh-guided-circuit,
