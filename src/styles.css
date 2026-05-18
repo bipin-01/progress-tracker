@@ -11443,6 +11443,8 @@ button.load-forecast-day:hover {
 .zh-review-first-lane button,
 .zh-load-forecast,
 .zh-load-forecast button,
+.zh-workspace-switcher,
+.zh-workspace-switcher button,
 .zh-practice-word-list button {
   font-family: "Orbitron", sans-serif;
 }
@@ -11578,6 +11580,185 @@ button.load-forecast-day:hover {
   border-color: rgba(170, 114, 255, 0.62);
   background: var(--zh-magenta);
   box-shadow: 0 0 10px rgba(170, 114, 255, 0.34);
+}
+
+.zh-workspace-switcher {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.zh-workspace-switcher button {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 82px;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.04), transparent 58%),
+    rgba(2, 7, 15, 0.34);
+  color: var(--ink-2);
+  padding: 12px;
+  text-align: left;
+  transition:
+    border-color 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    background 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    box-shadow 0.22s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.zh-workspace-switcher button::before {
+  content: "";
+  position: absolute;
+  inset: auto 12px 8px 12px;
+  height: 2px;
+  background: rgba(53, 215, 255, 0.1);
+}
+
+.zh-workspace-switcher button::after {
+  content: "";
+  position: absolute;
+  inset: auto auto 8px 12px;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+  box-shadow: 0 0 10px rgba(53, 215, 255, 0.28);
+  transition: width 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.zh-workspace-switcher button:hover,
+.zh-workspace-switcher button.active {
+  border-color: rgba(53, 215, 255, 0.42);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.09), transparent 58%),
+    rgba(5, 17, 31, 0.62);
+  box-shadow: inset 0 0 24px rgba(53, 215, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+.zh-workspace-switcher button.active::after {
+  width: calc(100% - 24px);
+}
+
+.zh-workspace-switcher span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-workspace-switcher strong {
+  overflow: hidden;
+  color: var(--cyan);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-workspace-switcher strong.zh-cn {
+  color: var(--zh-gold);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: 26px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.zh-workspace-switcher em {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.zh-workspace-daily .zh-bottom-grid,
+.zh-workspace-daily .zh-practice-database-grid,
+.zh-workspace-study .zh-mission-control,
+.zh-workspace-study .zh-bottom-grid,
+.zh-workspace-study .zh-practice-database-grid,
+.zh-workspace-review .zh-mission-control,
+.zh-workspace-review .zh-main-grid,
+.zh-workspace-review .zh-practice-database-grid,
+.zh-workspace-database .zh-mission-control,
+.zh-workspace-database .zh-main-grid,
+.zh-workspace-database .zh-bottom-grid,
+.zh-workspace-systems .zh-bottom-grid,
+.zh-workspace-systems .zh-practice-database-grid {
+  display: none;
+}
+
+.zh-workspace-daily .zh-main-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.zh-workspace-daily .zh-right-col,
+.zh-workspace-systems .zh-main-grid > .zh-hud-wrap.active {
+  display: none;
+}
+
+.zh-workspace-daily .zh-flashcard-panel {
+  min-height: 0;
+}
+
+.zh-workspace-daily .zh-repair-uplink,
+.zh-workspace-daily .zh-behavior-history-grid,
+.zh-workspace-daily .zh-repair-compare,
+.zh-workspace-daily .zh-load-forecast,
+.zh-workspace-daily .zh-memory-core,
+.zh-workspace-study .zh-right-col .zh-hud-wrap:first-child {
+  display: none;
+}
+
+.zh-workspace-daily .zh-mission-footer {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.32fr);
+}
+
+.zh-workspace-systems .zh-mission-primary {
+  display: none;
+}
+
+.zh-workspace-systems .zh-main-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.zh-workspace-systems .zh-right-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.zh-workspace-systems .zh-right-col .zh-hud-wrap:first-child {
+  grid-column: 1 / -1;
+}
+
+.zh-mission-control,
+.zh-main-grid,
+.zh-bottom-grid,
+.zh-practice-database-grid {
+  animation: zhWorkspaceEnter 0.24s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@keyframes zhWorkspaceEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .zh-mission-control {

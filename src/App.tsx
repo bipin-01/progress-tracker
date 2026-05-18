@@ -14233,6 +14233,8 @@ function ReflectionCard({ reflection }: { reflection: ReturnType<typeof getDashb
   );
 }
 
+type ChineseWorkspaceId = "daily" | "study" | "review" | "database" | "systems";
+
 function ChineseView() {
   const [activeLessonId, setActiveLessonId] = useState(chineseLessons[0].id);
   const [selectedOption, setSelectedOption] = useState("");
@@ -14270,6 +14272,7 @@ function ChineseView() {
   const [speechConfidence, setSpeechConfidence] = useState(0);
   const [speechAttempts, setSpeechAttempts] = useState<ChineseSpeechAttempt[]>([]);
   const [coachPacketOpen, setCoachPacketOpen] = useState(false);
+  const [activeChineseWorkspace, setActiveChineseWorkspace] = useState<ChineseWorkspaceId>("daily");
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -15585,9 +15588,49 @@ function ChineseView() {
     active: index < 6 || reviewedToday > 0,
     today: index === 6,
   }));
+  const chineseWorkspaceTabs: Array<{
+    id: ChineseWorkspaceId;
+    label: string;
+    metric: string;
+    detail: string;
+  }> = [
+    {
+      id: "daily",
+      label: "daily flow",
+      metric: `D${String(selectedPracticeRecord.day).padStart(3, "0")}`,
+      detail: `${selectedPracticeRecord.wordsPerDay} words · ${practiceMissionLoad} load · ${dailyProgress}% circuit`,
+    },
+    {
+      id: "study",
+      label: "study surface",
+      metric: activeDictionaryEntry.hanzi,
+      detail: `${activeCircuitCopy.title} · ${circuitProgress}% · HSK ${activeDictionaryEntry.hsk}`,
+    },
+    {
+      id: "review",
+      label: "SRS review",
+      metric: `${dueReviewCount} due`,
+      detail: `${reviewMastery}% retention · ${reviewedToday}/${CHINESE_DAILY_REVIEW_TARGET} today`,
+    },
+    {
+      id: "database",
+      label: "500-day plan",
+      metric: `${selectedPracticeRecord.wordsPerDay}/day`,
+      detail: `phase ${selectedPracticeRecord.phase} · ${practicePhaseProgress}% · ${CHINESE_PRACTICE_TOTAL_DAYS} days`,
+    },
+    {
+      id: "systems",
+      label: "mentor systems",
+      metric: placementProfile.hskLabel,
+      detail: `${memoryCoreLabel} · ${coachEvidenceChecksum} · ${loadForecast.label}`,
+    },
+  ];
 
   return (
-    <main className={`chinese-protocol-page ${lessonFocusActive ? "zh-lesson-focus-live" : ""}`} aria-label="Chinese protocol learning cockpit">
+    <main
+      className={`chinese-protocol-page zh-workspace-${activeChineseWorkspace} ${lessonFocusActive ? "zh-lesson-focus-live" : ""}`}
+      aria-label="Chinese protocol learning cockpit"
+    >
       <div className="zh-data-noise zh-data-noise-left" aria-hidden="true">
         4F7A 6E49 5B66 4E60 58F0 97F3 8BED 6C49 5B57
       </div>
@@ -15669,6 +15712,22 @@ function ChineseView() {
             <em>{dailyProgress}% daily circuit · {reviewMastery}% retention</em>
           </div>
         </div>
+      </section>
+
+      <section className="zh-workspace-switcher" aria-label="Chinese workspace selector">
+        {chineseWorkspaceTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={activeChineseWorkspace === tab.id ? "active" : ""}
+            aria-pressed={activeChineseWorkspace === tab.id}
+            onClick={() => setActiveChineseWorkspace(tab.id)}
+          >
+            <span>{tab.label}</span>
+            <strong className={tab.id === "study" ? "zh-cn" : undefined}>{tab.metric}</strong>
+            <em>{tab.detail}</em>
+          </button>
+        ))}
       </section>
 
       <section className="zh-mission-control" aria-label="Chinese daily mission control">
