@@ -487,6 +487,22 @@ type ChineseLesson = {
   };
 };
 
+type ChineseHskLearningTrack = {
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  title: string;
+  cn: string;
+  dayRange: string;
+  startDay: number;
+  endDay: number;
+  target: string;
+  outcome: string;
+  grammar: string[];
+  missions: string[];
+  sampleWords: Array<{ hanzi: string; pinyin: string; meaning: string; tag: string }>;
+  checkpoints: string[];
+  lessonId: string;
+};
+
 type ChineseReviewRating = "again" | "hard" | "ok" | "easy";
 
 type ChineseReviewState = {
@@ -1178,6 +1194,141 @@ const chineseHskLevels = [
   { name: "HSK 4", known: 280, total: 1200, progress: 23 },
   { name: "HSK 5", known: 31, total: 1500, progress: 2, locked: true },
   { name: "HSK 6", known: 0, total: 1250, progress: 0, locked: true },
+];
+
+const chineseHskLearningTracks: ChineseHskLearningTrack[] = [
+  {
+    level: 1,
+    title: "Survival signal",
+    cn: "生存中文",
+    dayRange: "D001-D050",
+    startDay: 1,
+    endDay: 50,
+    target: "150 core words",
+    outcome: "Say who you are, ask simple questions, read dates, numbers, and family words without panic.",
+    grammar: ["pronouns + 是", "有 / 没有", "basic questions 吗 / 什么 / 谁", "numbers, dates, measure words"],
+    missions: ["Tone shadow before vocabulary", "Read pinyin aloud every day", "Write 3 anchor characters", "Speak one identity sentence"],
+    sampleWords: [
+      { hanzi: "你", pinyin: "nǐ", meaning: "you", tag: "pronoun" },
+      { hanzi: "好", pinyin: "hǎo", meaning: "good", tag: "greeting" },
+      { hanzi: "我", pinyin: "wǒ", meaning: "I / me", tag: "pronoun" },
+      { hanzi: "是", pinyin: "shì", meaning: "to be", tag: "verb" },
+      { hanzi: "学", pinyin: "xué", meaning: "study", tag: "school" },
+      { hanzi: "书", pinyin: "shū", meaning: "book", tag: "object" },
+    ],
+    checkpoints: ["Read 20 pinyin syllables with tones", "Introduce yourself in 4 sentences", "Recognize 50 high-frequency characters"],
+    lessonId: "sound-boot",
+  },
+  {
+    level: 2,
+    title: "Daily routine engine",
+    cn: "日常引擎",
+    dayRange: "D051-D100",
+    startDay: 51,
+    endDay: 100,
+    target: "300 active words",
+    outcome: "Handle ordinary life: time, work, plans, simple preferences, and direct requests.",
+    grammar: ["了 for completed actions", "要 / 想 / 会 modal verbs", "time before verb", "simple comparisons and adverbs"],
+    missions: ["Narrate yesterday and today", "Ask for help using polite requests", "Build 5 routine sentences", "Review old HSK 1 words through SRS"],
+    sampleWords: [
+      { hanzi: "今天", pinyin: "jīn tiān", meaning: "today", tag: "time" },
+      { hanzi: "明天", pinyin: "míng tiān", meaning: "tomorrow", tag: "time" },
+      { hanzi: "工作", pinyin: "gōng zuò", meaning: "work", tag: "routine" },
+      { hanzi: "时间", pinyin: "shí jiān", meaning: "time", tag: "planning" },
+      { hanzi: "可以", pinyin: "kě yǐ", meaning: "can / may", tag: "modal" },
+      { hanzi: "问题", pinyin: "wèn tí", meaning: "question / problem", tag: "support" },
+    ],
+    checkpoints: ["Explain today's schedule", "Use 了 in a completed action", "Hold a 90-second routine monologue"],
+    lessonId: "pinyin-grid",
+  },
+  {
+    level: 3,
+    title: "Independent sentence builder",
+    cn: "独立句子",
+    dayRange: "D101-D200",
+    startDay: 101,
+    endDay: 200,
+    target: "600 word bridge",
+    outcome: "Move from isolated sentences into reasons, preferences, choices, and short explanations.",
+    grammar: ["因为 / 所以 cause and result", "比 comparisons", "把 intro for disposal", "direction and result complements"],
+    missions: ["Explain one choice with a reason", "Retell a tiny story from notes", "Contrast two options", "Create one sentence from every new word cluster"],
+    sampleWords: [
+      { hanzi: "觉得", pinyin: "jué de", meaning: "to feel / think", tag: "opinion" },
+      { hanzi: "选择", pinyin: "xuǎn zé", meaning: "choice", tag: "decision" },
+      { hanzi: "需要", pinyin: "xū yào", meaning: "need", tag: "modal" },
+      { hanzi: "帮助", pinyin: "bāng zhù", meaning: "help", tag: "action" },
+      { hanzi: "准备", pinyin: "zhǔn bèi", meaning: "prepare", tag: "planning" },
+      { hanzi: "完成", pinyin: "wán chéng", meaning: "complete", tag: "result" },
+    ],
+    checkpoints: ["Write a 6-sentence diary", "Explain why you chose something", "Review 30 due cards without looking up pinyin"],
+    lessonId: "identity-core",
+  },
+  {
+    level: 4,
+    title: "Paragraph control",
+    cn: "段落控制",
+    dayRange: "D201-D350",
+    startDay: 201,
+    endDay: 350,
+    target: "1200 word operating range",
+    outcome: "Read and produce structured paragraphs about work, study, health, travel, and personal goals.",
+    grammar: ["虽然 / 但是 contrast", "不仅 / 而且 expansion", "被 passive", "formal connectors and topic chains"],
+    missions: ["Summarize a short article", "Turn a paragraph into bullet evidence", "Speak for 3 minutes from an outline", "Write corrections after each SRS lapse"],
+    sampleWords: [
+      { hanzi: "经验", pinyin: "jīng yàn", meaning: "experience", tag: "work" },
+      { hanzi: "影响", pinyin: "yǐng xiǎng", meaning: "influence", tag: "analysis" },
+      { hanzi: "解决", pinyin: "jiě jué", meaning: "solve", tag: "action" },
+      { hanzi: "机会", pinyin: "jī huì", meaning: "opportunity", tag: "future" },
+      { hanzi: "提高", pinyin: "tí gāo", meaning: "improve", tag: "growth" },
+      { hanzi: "习惯", pinyin: "xí guàn", meaning: "habit", tag: "behavior" },
+    ],
+    checkpoints: ["Read one graded paragraph", "Produce a contrast paragraph", "Explain a problem and solution"],
+    lessonId: "number-time",
+  },
+  {
+    level: 5,
+    title: "Long-form reading bridge",
+    cn: "长文桥梁",
+    dayRange: "D351-D450",
+    startDay: 351,
+    endDay: 450,
+    target: "2500 word analysis band",
+    outcome: "Read essays and news-like passages, extract claims, and discuss abstract opinions with less translation.",
+    grammar: ["nominalization with 的", "advanced conjunction chains", "rhetorical questions", "abstract nouns and stance markers"],
+    missions: ["Read one long paragraph slowly", "Extract claim, reason, evidence", "Record 5 unknowns and repair them", "Speak a structured opinion"],
+    sampleWords: [
+      { hanzi: "复杂", pinyin: "fù zá", meaning: "complex", tag: "abstract" },
+      { hanzi: "观点", pinyin: "guān diǎn", meaning: "viewpoint", tag: "argument" },
+      { hanzi: "资料", pinyin: "zī liào", meaning: "materials / data", tag: "evidence" },
+      { hanzi: "改善", pinyin: "gǎi shàn", meaning: "improve", tag: "change" },
+      { hanzi: "效率", pinyin: "xiào lǜ", meaning: "efficiency", tag: "work" },
+      { hanzi: "态度", pinyin: "tài du", meaning: "attitude", tag: "opinion" },
+    ],
+    checkpoints: ["Summarize an article in Chinese", "Defend an opinion with examples", "Repair the 10 highest-risk unknown words"],
+    lessonId: "character-logic",
+  },
+  {
+    level: 6,
+    title: "Fluency command layer",
+    cn: "流利指挥层",
+    dayRange: "D451-D500",
+    startDay: 451,
+    endDay: 500,
+    target: "5000 word recognition target",
+    outcome: "Operate with dense authentic text, specialized topics, faster speech, and argument-level output.",
+    grammar: ["dense clause compression", "idiom and register control", "implicit subject recovery", "argument structure and rhetorical flow"],
+    missions: ["Read authentic material with a claim map", "Shadow fast audio for rhythm", "Write a 250-character response", "Turn unknown phrases into SRS cards"],
+    sampleWords: [
+      { hanzi: "逻辑", pinyin: "luó ji", meaning: "logic", tag: "reasoning" },
+      { hanzi: "证据", pinyin: "zhèng jù", meaning: "evidence", tag: "analysis" },
+      { hanzi: "趋势", pinyin: "qū shì", meaning: "trend", tag: "systems" },
+      { hanzi: "体系", pinyin: "tǐ xì", meaning: "system", tag: "structure" },
+      { hanzi: "策略", pinyin: "cè lüè", meaning: "strategy", tag: "planning" },
+      { hanzi: "风险", pinyin: "fēng xiǎn", meaning: "risk", tag: "judgment" },
+    ],
+    checkpoints: ["Read for meaning before dictionary lookup", "Produce a structured argument", "Maintain review stability under heavy load"],
+    lessonId: "character-logic",
+  },
 ];
 
 const chineseDecks = [
@@ -14233,7 +14384,7 @@ function ReflectionCard({ reflection }: { reflection: ReturnType<typeof getDashb
   );
 }
 
-type ChineseWorkspaceId = "daily" | "study" | "review" | "database" | "systems";
+type ChineseWorkspaceId = "daily" | "hsk" | "study" | "review" | "database" | "systems";
 
 function ChineseView() {
   const [activeLessonId, setActiveLessonId] = useState(chineseLessons[0].id);
@@ -14273,6 +14424,7 @@ function ChineseView() {
   const [speechAttempts, setSpeechAttempts] = useState<ChineseSpeechAttempt[]>([]);
   const [coachPacketOpen, setCoachPacketOpen] = useState(false);
   const [activeChineseWorkspace, setActiveChineseWorkspace] = useState<ChineseWorkspaceId>("daily");
+  const [activeHskLevel, setActiveHskLevel] = useState<ChineseHskLearningTrack["level"]>(1);
   const activeLesson = chineseLessons.find((lesson) => lesson.id === activeLessonId) ?? chineseLessons[0];
   const lessonIndex = chineseLessons.findIndex((lesson) => lesson.id === activeLesson.id);
   const activeCharacter = activeLesson.characters[selectedCharacterIndex] ?? activeLesson.characters[0];
@@ -15582,7 +15734,23 @@ function ChineseView() {
     window.speechSynthesis.speak(utterance);
   }
 
+  function activateHskTrack(track: ChineseHskLearningTrack) {
+    setActiveHskLevel(track.level);
+    selectPracticeDay(track.startDay);
+    selectLesson(track.lessonId);
+    setActiveChineseWorkspace("hsk");
+    setRewardMessage(`HSK ${track.level} path armed · ${track.dayRange} · ${track.target}`);
+  }
+
   const reviewRows = reviewQueue.slice(0, 10);
+  const activeHskTrack = chineseHskLearningTracks.find((track) => track.level === activeHskLevel) ?? chineseHskLearningTracks[0];
+  const activeHskMeta = chineseHskLevels[activeHskTrack.level - 1] ?? chineseHskLevels[0];
+  const activeHskProgress = getChineseHskProgress(activeHskMeta, masteredCharacterSet.size);
+  const activeHskSpan = activeHskTrack.endDay - activeHskTrack.startDay + 1;
+  const activeHskDayProgress = Math.min(
+    100,
+    Math.max(0, Math.round(((selectedPracticeRecord.day - activeHskTrack.startDay + 1) / Math.max(activeHskSpan, 1)) * 100)),
+  );
   const streakCells = Array.from({ length: 7 }, (_, index) => ({
     id: `streak-${index}`,
     active: index < 6 || reviewedToday > 0,
@@ -15599,6 +15767,12 @@ function ChineseView() {
       label: "daily flow",
       metric: `D${String(selectedPracticeRecord.day).padStart(3, "0")}`,
       detail: `${selectedPracticeRecord.wordsPerDay} words · ${practiceMissionLoad} load · ${dailyProgress}% circuit`,
+    },
+    {
+      id: "hsk",
+      label: "HSK path",
+      metric: `HSK ${activeHskTrack.level}`,
+      detail: `${activeHskTrack.dayRange} · ${activeHskTrack.target} · ${activeHskProgress.progress}%`,
     },
     {
       id: "study",
@@ -15728,6 +15902,149 @@ function ChineseView() {
             <em>{tab.detail}</em>
           </button>
         ))}
+      </section>
+
+      <section className="zh-hsk-learning-grid" aria-label="HSK 1 to HSK 6 learning path">
+        <div className="zh-hud-wrap active">
+          <div className="zh-hud zh-hsk-learning-panel">
+            <span className="zh-brackets" aria-hidden="true" />
+            <div className="zh-section-head">
+              <span>HSK 1-6 learning path</span>
+              <em>
+                {activeHskTrack.dayRange} · {activeHskTrack.target}
+              </em>
+            </div>
+
+            <div className="zh-hsk-learning-shell">
+              <div className="zh-hsk-level-rail" aria-label="Select HSK learning level">
+                {chineseHskLearningTracks.map((track) => {
+                  const levelMeta = chineseHskLevels[track.level - 1] ?? chineseHskLevels[0];
+                  const trackProgress = getChineseHskProgress(levelMeta, masteredCharacterSet.size);
+                  return (
+                    <button
+                      key={track.level}
+                      type="button"
+                      className={track.level === activeHskTrack.level ? "active" : ""}
+                      style={{ "--hsk-path-progress": `${trackProgress.progress}%` } as CSSProperties}
+                      onClick={() => activateHskTrack(track)}
+                    >
+                      <span>HSK {track.level}</span>
+                      <strong className="zh-cn">{track.cn}</strong>
+                      <em>{track.dayRange}</em>
+                      <i aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                className="zh-hsk-learning-stage"
+                style={
+                  {
+                    "--hsk-path-progress": `${activeHskProgress.progress}%`,
+                    "--hsk-day-progress": `${activeHskDayProgress}%`,
+                  } as CSSProperties
+                }
+              >
+                <div className="zh-hsk-learning-hero">
+                  <span>active level</span>
+                  <strong>
+                    HSK {activeHskTrack.level} · {activeHskTrack.title}
+                  </strong>
+                  <p>{activeHskTrack.outcome}</p>
+                  <div>
+                    <button type="button" onClick={() => activateHskTrack(activeHskTrack)}>
+                      launch level plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectLesson(activeHskTrack.lessonId);
+                        setActiveChineseWorkspace("study");
+                      }}
+                    >
+                      open study card
+                    </button>
+                  </div>
+                </div>
+
+                <div className="zh-hsk-learning-metrics">
+                  <div>
+                    <span>vocab target</span>
+                    <strong>{activeHskTrack.target}</strong>
+                    <em>{activeHskProgress.known}/{activeHskMeta.total} tracked in app</em>
+                  </div>
+                  <div>
+                    <span>level progress</span>
+                    <strong>{activeHskProgress.progress}%</strong>
+                    <i aria-hidden="true" />
+                  </div>
+                  <div>
+                    <span>day band</span>
+                    <strong>{activeHskDayProgress}%</strong>
+                    <em>
+                      {activeHskTrack.startDay}-{activeHskTrack.endDay} · {activeHskSpan} days
+                    </em>
+                    <i aria-hidden="true" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="zh-hsk-learning-columns">
+              <div className="zh-hsk-learning-card">
+                <span>grammar gates</span>
+                {activeHskTrack.grammar.map((item, index) => (
+                  <button key={item} type="button" onClick={() => setRewardMessage(`HSK ${activeHskTrack.level} grammar ${index + 1} · ${item}`)}>
+                    <strong>{String(index + 1).padStart(2, "0")}</strong>
+                    <em>{item}</em>
+                  </button>
+                ))}
+              </div>
+
+              <div className="zh-hsk-learning-card">
+                <span>daily missions</span>
+                {activeHskTrack.missions.map((mission, index) => (
+                  <button key={mission} type="button" onClick={() => setRewardMessage(`HSK ${activeHskTrack.level} mission loaded · ${mission}`)}>
+                    <strong>{String(index + 1).padStart(2, "0")}</strong>
+                    <em>{mission}</em>
+                  </button>
+                ))}
+              </div>
+
+              <div className="zh-hsk-learning-card sample">
+                <span>sample word bank</span>
+                <div className="zh-hsk-word-bank">
+                  {activeHskTrack.sampleWords.map((word) => (
+                    <button
+                      key={`${activeHskTrack.level}-${word.hanzi}`}
+                      type="button"
+                      onClick={() => {
+                        openDictionary(word.hanzi);
+                        speakMandarin(word.hanzi);
+                      }}
+                    >
+                      <strong className="zh-cn">{word.hanzi}</strong>
+                      <em className={getChineseToneClass(word.pinyin)}>{word.pinyin}</em>
+                      <span>{word.meaning}</span>
+                      <i>{word.tag}</i>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="zh-hsk-learning-card checkpoints">
+                <span>checkpoint proof</span>
+                {activeHskTrack.checkpoints.map((checkpoint, index) => (
+                  <button key={checkpoint} type="button" onClick={() => setRewardMessage(`checkpoint ${index + 1} armed · ${checkpoint}`)}>
+                    <strong>{String(index + 1).padStart(2, "0")}</strong>
+                    <em>{checkpoint}</em>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="zh-mission-control" aria-label="Chinese daily mission control">

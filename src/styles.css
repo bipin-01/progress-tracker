@@ -11445,6 +11445,8 @@ button.load-forecast-day:hover {
 .zh-load-forecast button,
 .zh-workspace-switcher,
 .zh-workspace-switcher button,
+.zh-hsk-learning-panel,
+.zh-hsk-learning-panel button,
 .zh-practice-word-list button {
   font-family: "Orbitron", sans-serif;
 }
@@ -11685,8 +11687,306 @@ button.load-forecast-day:hover {
   -webkit-line-clamp: 2;
 }
 
+.zh-hsk-learning-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background:
+    linear-gradient(90deg, rgba(255, 209, 102, 0.055), transparent 34%),
+    linear-gradient(270deg, rgba(53, 215, 255, 0.06), transparent 48%),
+    rgba(12, 22, 45, 0.66);
+}
+
+.zh-hsk-learning-shell {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.zh-hsk-level-rail {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.zh-hsk-level-rail button {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.4);
+  padding: 9px 10px 13px;
+  text-align: left;
+}
+
+.zh-hsk-level-rail button:hover,
+.zh-hsk-level-rail button.active {
+  border-color: rgba(255, 209, 102, 0.42);
+  background:
+    linear-gradient(90deg, rgba(255, 209, 102, 0.07), transparent 56%),
+    rgba(2, 7, 15, 0.52);
+}
+
+.zh-hsk-level-rail button::before {
+  content: "";
+  position: absolute;
+  inset: auto 8px 7px 8px;
+  height: 2px;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-hsk-level-rail button i {
+  position: absolute;
+  inset: auto auto 7px 8px;
+  width: var(--hsk-path-progress);
+  max-width: calc(100% - 16px);
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--zh-gold));
+  box-shadow: 0 0 8px rgba(255, 209, 102, 0.24);
+}
+
+.zh-hsk-level-rail span,
+.zh-hsk-level-rail em,
+.zh-hsk-learning-hero span,
+.zh-hsk-learning-metrics span,
+.zh-hsk-learning-metrics em,
+.zh-hsk-learning-card > span,
+.zh-hsk-learning-card em,
+.zh-hsk-learning-card i {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.11em;
+  line-height: 1.42;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-hsk-level-rail span {
+  color: var(--cyan);
+}
+
+.zh-hsk-level-rail strong.zh-cn {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zh-hsk-learning-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 0.42fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.zh-hsk-learning-hero,
+.zh-hsk-learning-metrics,
+.zh-hsk-learning-card {
+  min-width: 0;
+  border: 1px solid var(--hair-soft);
+  background: rgba(2, 7, 15, 0.38);
+}
+
+.zh-hsk-learning-hero {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 18px;
+}
+
+.zh-hsk-learning-hero strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(20px, 3vw, 44px);
+  letter-spacing: 0.09em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(53, 215, 255, 0.28);
+}
+
+.zh-hsk-learning-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 13px;
+  line-height: 1.7;
+  text-transform: none;
+}
+
+.zh-hsk-learning-hero div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zh-hsk-learning-hero button,
+.zh-hsk-learning-card button {
+  min-height: 32px;
+  border: 1px solid rgba(53, 215, 255, 0.2);
+  background: rgba(53, 215, 255, 0.045);
+  color: var(--cyan);
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.zh-hsk-learning-hero button:hover,
+.zh-hsk-learning-card button:hover {
+  border-color: var(--cyan-dim);
+  background: rgba(53, 215, 255, 0.085);
+}
+
+.zh-hsk-learning-metrics {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.zh-hsk-learning-metrics > div {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(53, 215, 255, 0.1);
+  background: rgba(53, 215, 255, 0.03);
+  padding: 9px 9px 13px;
+}
+
+.zh-hsk-learning-metrics strong {
+  overflow: hidden;
+  color: var(--zh-gold);
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zh-hsk-learning-metrics i {
+  position: absolute;
+  inset: auto 9px 6px 9px;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(53, 215, 255, 0.08);
+}
+
+.zh-hsk-learning-metrics i::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--hsk-path-progress);
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--zh-gold));
+  box-shadow: 0 0 10px rgba(255, 209, 102, 0.24);
+}
+
+.zh-hsk-learning-metrics > div:last-child i::before {
+  width: var(--hsk-day-progress);
+  background: linear-gradient(90deg, var(--cyan), var(--zh-magenta));
+}
+
+.zh-hsk-learning-columns {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(210px, 0.8fr) minmax(320px, 1.2fr) minmax(220px, 0.8fr);
+  gap: 10px;
+}
+
+.zh-hsk-learning-card {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 10px;
+}
+
+.zh-hsk-learning-card > span {
+  color: var(--cyan);
+}
+
+.zh-hsk-learning-card button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 40px;
+  text-align: left;
+}
+
+.zh-hsk-learning-card button strong {
+  color: var(--zh-gold);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.zh-hsk-learning-card button em {
+  color: var(--ink-1);
+  text-transform: none;
+  white-space: normal;
+}
+
+.zh-hsk-word-bank {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.zh-hsk-word-bank button {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-height: 112px;
+  border-color: rgba(255, 209, 102, 0.14);
+  background: rgba(255, 209, 102, 0.025);
+}
+
+.zh-hsk-word-bank button:hover {
+  border-color: rgba(255, 209, 102, 0.42);
+  background: rgba(255, 209, 102, 0.06);
+}
+
+.zh-hsk-word-bank strong.zh-cn {
+  color: var(--ink);
+  font-family: "Noto Serif SC", "Noto Sans SC", serif;
+  font-size: 34px;
+  letter-spacing: 0;
+  line-height: 0.95;
+  text-transform: none;
+}
+
+.zh-hsk-word-bank span {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+.zh-hsk-word-bank i {
+  width: fit-content;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  color: var(--cyan);
+  padding: 3px 5px;
+}
+
 .zh-workspace-daily .zh-bottom-grid,
 .zh-workspace-daily .zh-practice-database-grid,
+.zh-workspace-hsk .zh-mission-control,
+.zh-workspace-hsk .zh-main-grid,
+.zh-workspace-hsk .zh-bottom-grid,
+.zh-workspace-hsk .zh-practice-database-grid,
 .zh-workspace-study .zh-mission-control,
 .zh-workspace-study .zh-bottom-grid,
 .zh-workspace-study .zh-practice-database-grid,
@@ -11699,6 +11999,14 @@ button.load-forecast-day:hover {
 .zh-workspace-systems .zh-bottom-grid,
 .zh-workspace-systems .zh-practice-database-grid {
   display: none;
+}
+
+.zh-hsk-learning-grid {
+  display: none;
+}
+
+.zh-workspace-hsk .zh-hsk-learning-grid {
+  display: grid;
 }
 
 .zh-workspace-daily .zh-main-grid {
@@ -11746,7 +12054,8 @@ button.load-forecast-day:hover {
 .zh-mission-control,
 .zh-main-grid,
 .zh-bottom-grid,
-.zh-practice-database-grid {
+.zh-practice-database-grid,
+.zh-hsk-learning-grid {
   animation: zhWorkspaceEnter 0.24s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
@@ -19706,6 +20015,11 @@ button.load-forecast-day:hover {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .zh-hsk-learning-stage,
+  .zh-hsk-learning-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .zh-mission-primary,
   .zh-repair-uplink,
   .zh-review-first-head,
@@ -19732,6 +20046,10 @@ button.load-forecast-day:hover {
   .zh-protocol-topbar,
   .zh-streak-strip,
   .zh-right-col,
+  .zh-hsk-learning-shell,
+  .zh-hsk-learning-stage,
+  .zh-hsk-learning-columns,
+  .zh-hsk-word-bank,
   .prompt-hero-metrics,
   .prompt-workspace-switcher,
   .prompt-mastery-core,
