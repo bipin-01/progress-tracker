@@ -18959,6 +18959,76 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.pentest-ai-subject-card .pentest-ai-mentor-brief {
+  grid-area: control;
+}
+
+.pentest-ai-mentor-brief,
+.pentest-ai-story,
+.pentest-ai-grid > div {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.045), transparent 56%),
+    rgba(2, 7, 15, 0.34);
+  padding: 12px;
+}
+
+.pentest-ai-mentor-brief span,
+.pentest-ai-story span,
+.pentest-ai-grid span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pentest-ai-mentor-brief strong,
+.pentest-ai-story strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.pentest-ai-mentor-brief em,
+.pentest-ai-grid em,
+.pentest-ai-grid code {
+  display: block;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 7px;
+  text-transform: none;
+  white-space: pre-wrap;
+}
+
+.pentest-ai-story p,
+.pentest-ai-grid p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.65;
+  text-transform: none;
+}
+
+.pentest-ai-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 @media (max-width: 1280px) {
   .zh-main-grid,
   .zh-bottom-grid {
@@ -18989,7 +19059,8 @@ button.load-forecast-day:hover {
   .prompt-workspace-portfolio .prompt-mastery-archive,
   .prompt-workspace-portfolio .prompt-portfolio-gallery,
   .prompt-workspace-portfolio .prompt-checkpoint-compare,
-  .prompt-workspace-portfolio .prompt-checkpoint-review {
+  .prompt-workspace-portfolio .prompt-checkpoint-review,
+  .pentest-ai-subject-card .pentest-ai-mentor-brief {
     grid-area: auto;
     grid-column: 1;
     grid-row: auto;
@@ -19076,7 +19147,8 @@ button.load-forecast-day:hover {
   }
 
   .pentest-workspace-grid,
-  .pentest-workspace-grid.wide {
+  .pentest-workspace-grid.wide,
+  .pentest-ai-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -19197,6 +19269,7 @@ button.load-forecast-day:hover {
   .prompt-walkthrough,
   .pentest-workspace-grid,
   .pentest-workspace-grid.wide,
+  .pentest-ai-grid,
   .zh-decomp-grid,
   .zh-lesson-steps,
   .zh-guided-circuit,

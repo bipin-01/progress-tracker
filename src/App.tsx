@@ -87,6 +87,11 @@ import {
   pentestReferenceCards,
   pentestRoadmapWeeks,
 } from "./pentestingPlan";
+import {
+  pentestAiPhases,
+  pentestAiPrinciples,
+  pentestAiSubjects,
+} from "./pentestAiPlan";
 import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
@@ -3314,6 +3319,7 @@ const navItems = [
   { id: "chinese", label: "Chinese", Icon: Languages },
   { id: "prompt", label: "Prompt", Icon: Code2 },
   { id: "pentesting", label: "Pentest", Icon: Target },
+  { id: "pentestAi", label: "Pentest AI", Icon: Bot },
   { id: "calendar", label: "Calendar", Icon: CalendarDays },
   { id: "progress", label: "Progress", Icon: TrendingUp },
   { id: "insights", label: "Insights", Icon: Gauge },
@@ -3364,6 +3370,10 @@ const routeViewMap: Record<string, View> = {
   "/pentesting": "pentesting",
   "/pentest": "pentesting",
   "/red-team": "pentesting",
+  "/pentestai": "pentestAi",
+  "/pentest-ai": "pentestAi",
+  "/ai-pentest": "pentestAi",
+  "/ai-pentesting": "pentestAi",
   "/calendar": "calendar",
   "/calender": "calendar",
   "/progress": "progress",
@@ -3780,15 +3790,17 @@ function App() {
                   ? { title: "Prompt Ops Academy", subtitle: "SOC prompt engineering // 100-level mastery" }
                   : activeView === "pentesting"
                     ? { title: "Pentest Ops Academy", subtitle: "Authorized testing // scope evidence report" }
-                    : activeView === "calendar"
-                      ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
-                      : activeView === "progress"
-                        ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
-                        : activeView === "insights"
-                          ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
-                          : activeView === "agents"
-                            ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
-                            : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+                    : activeView === "pentestAi"
+                      ? { title: "Pentest AI Field Notes", subtitle: "Manual craft // AI-assisted operator system" }
+                      : activeView === "calendar"
+                        ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
+                        : activeView === "progress"
+                          ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
+                          : activeView === "insights"
+                            ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
+                            : activeView === "agents"
+                              ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
+                              : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
   const appCommands: AppCommand[] = [
     { id: "quick-capture", group: "Capture", title: "Universal Quick Capture", hint: "Open Cmd+J capture and route an idea to notes, tasks, calendar, goals, or board.", action: () => openQuickCapture() },
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
@@ -3801,6 +3813,7 @@ function App() {
     { id: "nav-chinese", group: "Navigate", title: "Chinese Lab", hint: "Open Mandarin lessons from sound to sentences.", action: () => navigateTo("chinese") },
     { id: "nav-prompt", group: "Navigate", title: "Prompt Ops Academy", hint: "Open SOC prompt engineering mastery.", action: () => navigateTo("prompt") },
     { id: "nav-pentesting", group: "Navigate", title: "Pentest Ops Academy", hint: "Open authorized pentesting bootcamp.", action: () => navigateTo("pentesting") },
+    { id: "nav-pentest-ai", group: "Navigate", title: "Pentest AI Field Notes", hint: "Open the manual-to-AI pentesting journey.", action: () => navigateTo("pentestAi") },
     { id: "nav-calendar", group: "Navigate", title: "Calendar", hint: "Open deadlines, appointments, and projects.", action: () => navigateTo("calendar") },
     { id: "nav-progress", group: "Navigate", title: "Progress Metrics", hint: "Review streak, focus, and momentum.", action: () => navigateTo("progress") },
     { id: "nav-insights", group: "Navigate", title: "Pattern Analysis", hint: "Open behavior and completion insights.", action: () => navigateTo("insights") },
@@ -4135,6 +4148,8 @@ function App() {
             <PromptView />
           ) : activeView === "pentesting" ? (
             <PentestingView />
+          ) : activeView === "pentestAi" ? (
+            <PentestAiView />
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
@@ -21163,6 +21178,342 @@ function PentestingView() {
         <span>// authorized testing mode</span>
         <strong>scope before signal</strong>
         <span>evidence before exploit</span>
+      </footer>
+    </main>
+  );
+}
+
+const pentestAiPanels = [
+  { id: "story", label: "Story" },
+  { id: "why", label: "Why First" },
+  { id: "manual", label: "Manual" },
+  { id: "ai", label: "AI Shift" },
+  { id: "lab", label: "Lab" },
+] as const;
+
+type PentestAiPanel = (typeof pentestAiPanels)[number]["id"];
+
+const pentestAiWorkspaces = [
+  { id: "journey", label: "Journey", detail: "manual to AI operator" },
+  { id: "subjects", label: "Subjects", detail: "deep field modules" },
+  { id: "principles", label: "Principles", detail: "rules that do not move" },
+  { id: "system", label: "System", detail: "AI workbench design" },
+  { id: "archive", label: "Archive", detail: "case-study outputs" },
+] as const;
+
+type PentestAiWorkspace = (typeof pentestAiWorkspaces)[number]["id"];
+
+function PentestAiView() {
+  const [activeSubjectId, setActiveSubjectId] = useState(pentestAiSubjects[0].id);
+  const [activePanel, setActivePanel] = useState<PentestAiPanel>("story");
+  const [activeWorkspace, setActiveWorkspace] = useState<PentestAiWorkspace>("journey");
+  const [mentorNotebook, setMentorNotebook] = useState("");
+
+  const activeSubject = pentestAiSubjects.find((subject) => subject.id === activeSubjectId) ?? pentestAiSubjects[0];
+  const activePhase = [...pentestAiPhases].reverse().find((phase) => {
+    const start = Number(phase.days.match(/D(\d+)/)?.[1] ?? 1);
+    const subjectDay = Number(activeSubject.dayRange.match(/D(\d+)/)?.[1] ?? 1);
+    return subjectDay >= start;
+  }) ?? pentestAiPhases[0];
+  const averageLevel = Math.round(pentestAiSubjects.reduce((sum, subject) => sum + subject.level, 0) / pentestAiSubjects.length);
+  const totalGuardrails = pentestAiSubjects.reduce((sum, subject) => sum + subject.guardrails.length, 0);
+
+  function loadSubjectTemplate() {
+    setMentorNotebook(activeSubject.outputTemplate);
+    setActivePanel("lab");
+  }
+
+  function loadDecisionLog() {
+    setMentorNotebook([
+      `${activeSubject.title} decision log`,
+      "",
+      "Why this step first:",
+      activeSubject.whyFirst,
+      "",
+      "Decision reasons:",
+      ...activeSubject.decisionReasons.map((reason) => `- ${reason}`),
+      "",
+      "Guardrails:",
+      ...activeSubject.guardrails.map((rule) => `- ${rule}`),
+    ].join("\n"));
+    setActivePanel("why");
+  }
+
+  return (
+    <main className={`prompt-academy-page pentest-ai-page pentest-ai-workspace-${activeWorkspace}`} aria-label="Pentest AI field notes">
+      <section className="prompt-command-grid">
+        <HudCard className="prompt-hero-card pentest-ai-hero-card">
+          <div className="prompt-hero-copy">
+            <span>10+ year big-tech pentester field notebook</span>
+            <strong>Pentest AI Field Notes</strong>
+            <p>A senior tester documents the shift from manual pentesting to AI-assisted work: not as shortcuts, but as stricter scope control, faster evidence review, sharper reporting, and safer operator systems.</p>
+          </div>
+          <div className="prompt-hero-metrics">
+            <div>
+              <span>Journey</span>
+              <strong>{pentestAiSubjects.length}</strong>
+              <em>deep subjects</em>
+            </div>
+            <div>
+              <span>Operator level</span>
+              <strong>{averageLevel}</strong>
+              <em>manual + AI maturity</em>
+            </div>
+            <div>
+              <span>Guardrails</span>
+              <strong>{totalGuardrails}</strong>
+              <em>safety checks embedded</em>
+            </div>
+          </div>
+          <div className="prompt-workspace-switcher" role="tablist" aria-label="Pentest AI workspace sections">
+            {pentestAiWorkspaces.map((workspace) => (
+              <button
+                key={workspace.id}
+                type="button"
+                role="tab"
+                aria-selected={activeWorkspace === workspace.id}
+                className={activeWorkspace === workspace.id ? "active" : ""}
+                onClick={() => setActiveWorkspace(workspace.id)}
+              >
+                <span>{workspace.label}</span>
+                <em>{workspace.detail}</em>
+              </button>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="prompt-day-card pentest-ai-subject-card">
+          <CardHeader title="Mentor Journey" meta={activeSubject.dayRange} />
+          <div className="pentest-ai-mentor-brief">
+            <span>{activePhase.title}</span>
+            <strong>{activePhase.outcome}</strong>
+            <em>{activePhase.focus.join(" / ")}</em>
+          </div>
+          <div className="prompt-daily-list">
+            {pentestAiSubjects.map((subject) => (
+              <button
+                key={subject.id}
+                type="button"
+                className={subject.id === activeSubject.id ? "active" : ""}
+                onClick={() => {
+                  setActiveSubjectId(subject.id);
+                  setActivePanel("story");
+                }}
+              >
+                <span>{subject.level}</span>
+                <strong>{subject.title}</strong>
+                <em>{subject.dayRange} · {subject.whyFirst}</em>
+              </button>
+            ))}
+          </div>
+          <div key={activeSubject.id} className="prompt-daily-detail">
+            <div className="prompt-daily-detail-head">
+              <span>{activeSubject.dayRange} · level {activeSubject.level} · senior field note</span>
+              <strong>{activeSubject.title}</strong>
+            </div>
+            <div className="prompt-daily-panel-tabs pentest-ai-tabs" role="tablist" aria-label="Pentest AI subject detail sections">
+              {pentestAiPanels.map((panel) => (
+                <button
+                  key={panel.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePanel === panel.id}
+                  className={activePanel === panel.id ? "active" : ""}
+                  onClick={() => setActivePanel(panel.id)}
+                >
+                  {panel.label}
+                </button>
+              ))}
+            </div>
+
+            <div key={`${activeSubject.id}-${activePanel}`} className="prompt-daily-panel">
+              {activePanel === "story" && (
+                <>
+                  <div className="pentest-ai-story">
+                    <span>field note</span>
+                    <strong>{activeSubject.fieldNote}</strong>
+                    <p>{activeSubject.whyFirst}</p>
+                  </div>
+                  <div className="pentest-ai-grid">
+                    <div>
+                      <span>small details that matter</span>
+                      {activeSubject.minuteDetails.map((detail) => <em key={detail}>{detail}</em>)}
+                    </div>
+                    <div>
+                      <span>decision reasons</span>
+                      {activeSubject.decisionReasons.map((reason) => <em key={reason}>{reason}</em>)}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activePanel === "why" && (
+                <>
+                  <div className="prompt-daily-future">
+                    <span>why this step comes first</span>
+                    <p>{activeSubject.whyFirst}</p>
+                    <strong>Sequence matters because AI speeds up both good judgment and bad assumptions.</strong>
+                  </div>
+                  <div className="prompt-daily-mentor">
+                    <span>decision log</span>
+                    {activeSubject.decisionReasons.map((reason, index) => (
+                      <em key={reason}>{String(index + 1).padStart(2, "0")} {reason}</em>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {activePanel === "manual" && (
+                <div className="pentest-ai-grid">
+                  <div>
+                    <span>manual foundation</span>
+                    {activeSubject.manualFoundation.map((item) => <em key={item}>{item}</em>)}
+                  </div>
+                  <div>
+                    <span>mentor warning</span>
+                    <p>Do this manually first. If you cannot explain the control, evidence, or risk without AI, the model will only make weak reasoning look polished.</p>
+                    <code>Manual note first, AI review second, human decision last.</code>
+                  </div>
+                </div>
+              )}
+
+              {activePanel === "ai" && (
+                <div className="pentest-ai-grid">
+                  <div>
+                    <span>AI shift</span>
+                    {activeSubject.aiShift.map((item) => <em key={item}>{item}</em>)}
+                  </div>
+                  <div>
+                    <span>guardrails</span>
+                    {activeSubject.guardrails.map((rule) => <em key={rule}>{rule}</em>)}
+                  </div>
+                </div>
+              )}
+
+              {activePanel === "lab" && (
+                <>
+                  <div className="prompt-daily-lab">
+                    <div>
+                      <span>practice lab</span>
+                      {activeSubject.lab.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                    <div>
+                      <span>output template</span>
+                      <code>{activeSubject.outputTemplate}</code>
+                    </div>
+                  </div>
+                  <div className="prompt-task-journal">
+                    <div className="prompt-task-journal-head">
+                      <span>mentor notebook</span>
+                      <strong>{mentorNotebook.trim() ? `${mentorNotebook.trim().split(/\s+/).length} words` : "empty"}</strong>
+                    </div>
+                    <textarea
+                      value={mentorNotebook}
+                      onChange={(event) => setMentorNotebook(event.target.value)}
+                      placeholder={activeSubject.outputTemplate}
+                    />
+                    <div className="prompt-task-journal-actions">
+                      <button type="button" onClick={loadSubjectTemplate}>load template</button>
+                      <button type="button" onClick={loadDecisionLog}>load decision log</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </HudCard>
+
+        {activeWorkspace === "journey" && (
+          <section className="pentest-workspace-grid wide" aria-label="Pentest AI journey phases">
+            {pentestAiPhases.map((phase) => (
+              <div className="pentest-work-card" key={phase.id}>
+                <span>{phase.days}</span>
+                <strong>{phase.title}</strong>
+                <p>{phase.outcome}</p>
+                {phase.focus.map((focus) => <em key={focus}>{focus}</em>)}
+              </div>
+            ))}
+          </section>
+        )}
+
+        {activeWorkspace === "subjects" && (
+          <section className="pentest-workspace-grid" aria-label="Pentest AI subject index">
+            {pentestAiSubjects.map((subject) => (
+              <div className="pentest-work-card" key={subject.id}>
+                <span>{subject.dayRange} · level {subject.level}</span>
+                <strong>{subject.title}</strong>
+                <p>{subject.whyFirst}</p>
+                <button type="button" onClick={() => {
+                  setActiveSubjectId(subject.id);
+                  setActivePanel("story");
+                }}>
+                  open subject
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {activeWorkspace === "principles" && (
+          <section className="pentest-workspace-grid" aria-label="Pentest AI principles">
+            {pentestAiPrinciples.map((principle) => (
+              <div className="pentest-work-card" key={principle.id}>
+                <span>{principle.title}</span>
+                <strong>{principle.summary}</strong>
+                {principle.rules.map((rule) => <em key={rule}>{rule}</em>)}
+              </div>
+            ))}
+          </section>
+        )}
+
+        {activeWorkspace === "system" && (
+          <section className="pentest-workspace-grid" aria-label="Pentest AI system design">
+            <div className="pentest-work-card double">
+              <span>AI-assisted pentest workbench</span>
+              <strong>scope gate → surface map → safe plan → evidence QA → report review → retest log</strong>
+              <p>The system is intentionally ordered. Each stage produces an artifact the next stage is allowed to use. That is how AI becomes useful without becoming an uncontrolled operator.</p>
+              <pre>{[
+                "1. Scope gate refuses unclear authorization.",
+                "2. Surface map groups only approved assets.",
+                "3. Safe plan ranks non-destructive checks.",
+                "4. Evidence QA rejects unsupported claims.",
+                "5. Report review separates executive and engineer language.",
+                "6. Retest log closes exact issues and tracks adjacent questions.",
+              ].join("\n")}</pre>
+            </div>
+            <div className="pentest-work-card">
+              <span>human approval gates</span>
+              <em>before active testing</em>
+              <em>before severity changes</em>
+              <em>before client delivery</em>
+              <em>before scope expansion</em>
+            </div>
+          </section>
+        )}
+
+        {activeWorkspace === "archive" && (
+          <section className="pentest-workspace-grid" aria-label="Pentest AI case study archive">
+            <div className="pentest-work-card double">
+              <span>public-safe case study</span>
+              <strong>show judgment, not exploit detail</strong>
+              <p>A portfolio-worthy AI pentest case study should show the manual baseline, the AI-assisted workflow, the quality gates, and the measurable improvement without exposing client data or reusable misuse steps.</p>
+              <pre>{pentestAiSubjects[pentestAiSubjects.length - 1].outputTemplate}</pre>
+            </div>
+            <div className="pentest-work-card">
+              <span>archive checklist</span>
+              <em>no client identifiers</em>
+              <em>no secrets or tokens</em>
+              <em>no exploit walkthroughs</em>
+              <em>human-reviewed conclusions</em>
+            </div>
+          </section>
+        )}
+      </section>
+
+      <footer className="prompt-sysline">
+        <span>// manual judgment retained</span>
+        <strong>AI accelerates evidence, not permission</strong>
+        <span>scope · proof · review</span>
       </footer>
     </main>
   );
