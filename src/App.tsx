@@ -21203,11 +21203,70 @@ const pentestAiWorkspaces = [
 
 type PentestAiWorkspace = (typeof pentestAiWorkspaces)[number]["id"];
 
+type PentestAiPointerKind = "detail" | "decision" | "sequence" | "manual" | "ai" | "guardrail" | "lab";
+
+type PentestAiPointer = {
+  id: string;
+  kind: PentestAiPointerKind;
+  label: string;
+  index: number;
+};
+
+function getPentestAiLevelRead(level: number) {
+  if (level < 20) return "foundation operator";
+  if (level < 45) return "junior-to-mid operator";
+  if (level < 70) return "professional operator";
+  if (level < 85) return "senior AI-assisted operator";
+  if (level < 95) return "lead operator";
+  return "portfolio-grade lead";
+}
+
+function buildPentestAiPointerInsight(subject: (typeof pentestAiSubjects)[number], pointer: PentestAiPointer) {
+  const kindLabel: Record<PentestAiPointerKind, string> = {
+    detail: "small detail",
+    decision: "decision reason",
+    sequence: "teaching sequence",
+    manual: "manual foundation",
+    ai: "AI shift",
+    guardrail: "guardrail",
+    lab: "practice lab",
+  };
+  const advice: Record<PentestAiPointerKind, string> = {
+    detail: `Treat this detail as an audit control, not a cosmetic note. At level ${subject.level}, the difference between amateur and professional work is whether another reviewer can reconstruct your decision from tiny recorded facts like this one.`,
+    decision: `This is a judgment checkpoint. A 10+ year tester does not keep moving because the work is interesting; they move because this decision still supports the authorized objective and can be explained to the client later.`,
+    sequence: `This step appears in this order because pentesting is a dependency chain. If you skip it, the next step becomes weaker: AI will summarize weak inputs, evidence will support the wrong claim, or the report will sound cleaner than the work deserves.`,
+    manual: `Do this manually first so your brain owns the model. Once you can explain it without help, AI becomes a reviewer, organizer, and pressure tester instead of the source of your judgment.`,
+    ai: `Use AI here as a bounded copilot. Give it the scope, the evidence, the refusal rule, and the output shape. Then review the answer like a senior tester reviewing a junior analyst's draft.`,
+    guardrail: `This is a hard safety rail. If the model, client pressure, or your curiosity points past it, the correct move is to pause, document the reason, and ask for explicit approval or remove the action.`,
+    lab: `Practice this in a fake or approved lab until the move becomes boring. In real work, boring repeatable process is what keeps speed from turning into risk.`,
+  };
+  const mentorMove: Record<PentestAiPointerKind, string> = {
+    detail: `Write one extra sentence beside the artifact: "This matters because ${pointer.label.toLowerCase()}" and link it to the exact screenshot, note, or scope line.`,
+    decision: `Before continuing, write the decision in one line: "Because ${pointer.label.toLowerCase()}, I will / will not proceed with..."`,
+    sequence: `Do the step once without AI, then ask AI to critique only gaps and assumptions. Do not let it choose the next action until your own sequence is visible.`,
+    manual: `Create the raw note yourself. Then ask AI to find ambiguity, missing fields, or unsupported assumptions in that note.`,
+    ai: `Paste only redacted, authorized evidence and ask the model to separate confirmed facts, assumptions, unknowns, and safe next questions.`,
+    guardrail: `Turn this into a checkbox in the workpad. The task cannot move forward until the checkbox is satisfied or the client updates scope.`,
+    lab: `Run the lab twice: first slowly with full notes, then again using the AI prompt pattern. Compare where AI saved time and where it needed correction.`,
+  };
+
+  return {
+    overline: `${kindLabel[pointer.kind]} // ${getPentestAiLevelRead(subject.level)} // level ${subject.level}`,
+    title: pointer.label,
+    advice: advice[pointer.kind],
+    example: `${subject.engagementExample} Applied to this pointer, the mentor read is simple: "${pointer.label}" becomes a real engagement habit only when it changes what you record, what you ask AI, or what you refuse to do.`,
+    mentorMove: mentorMove[pointer.kind],
+    avoid: subject.commonFailure,
+    prompt: subject.aiPromptPattern,
+  };
+}
+
 function PentestAiView() {
   const [activeSubjectId, setActiveSubjectId] = useState(pentestAiSubjects[0].id);
   const [activePanel, setActivePanel] = useState<PentestAiPanel>("story");
   const [activeWorkspace, setActiveWorkspace] = useState<PentestAiWorkspace>("journey");
   const [mentorNotebook, setMentorNotebook] = useState("");
+  const [activePointer, setActivePointer] = useState<PentestAiPointer | null>(null);
 
   const activeSubject = pentestAiSubjects.find((subject) => subject.id === activeSubjectId) ?? pentestAiSubjects[0];
   const activePhase = [...pentestAiPhases].reverse().find((phase) => {
@@ -21217,6 +21276,11 @@ function PentestAiView() {
   }) ?? pentestAiPhases[0];
   const averageLevel = Math.round(pentestAiSubjects.reduce((sum, subject) => sum + subject.level, 0) / pentestAiSubjects.length);
   const totalGuardrails = pentestAiSubjects.reduce((sum, subject) => sum + subject.guardrails.length, 0);
+  const activePointerInsight = activePointer ? buildPentestAiPointerInsight(activeSubject, activePointer) : null;
+
+  useEffect(() => {
+    setActivePointer(null);
+  }, [activeSubjectId, activePanel]);
 
   function loadSubjectTemplate() {
     setMentorNotebook(activeSubject.outputTemplate);
@@ -21237,6 +21301,64 @@ function PentestAiView() {
       ...activeSubject.guardrails.map((rule) => `- ${rule}`),
     ].join("\n"));
     setActivePanel("why");
+  }
+
+  function renderMentorPointer(kind: PentestAiPointerKind, label: string, index: number) {
+    const pointer: PentestAiPointer = {
+      id: `${activeSubject.id}-${kind}-${index}`,
+      kind,
+      label,
+      index,
+    };
+    return (
+      <button
+        key={pointer.id}
+        type="button"
+        className={`pentest-ai-pointer ${activePointer?.id === pointer.id ? "active" : ""}`}
+        onClick={() => setActivePointer(pointer)}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  function renderPointerInsight() {
+    if (!activePointerInsight) {
+      return (
+        <div className="pentest-ai-pointer-detail idle">
+          <span>mentor insight</span>
+          <strong>Click any row above to open the 10+ year operator read.</strong>
+          <p>Each pointer expands into advice, a realistic engagement example, the next move, and the mistake to avoid for this level.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="pentest-ai-pointer-detail">
+        <div className="pentest-ai-pointer-detail-head">
+          <span>{activePointerInsight.overline}</span>
+          <strong>{activePointerInsight.title}</strong>
+        </div>
+        <p>{activePointerInsight.advice}</p>
+        <div className="pentest-ai-pointer-detail-grid">
+          <div>
+            <span>real engagement example</span>
+            <p>{activePointerInsight.example}</p>
+          </div>
+          <div>
+            <span>mentor next move</span>
+            <p>{activePointerInsight.mentorMove}</p>
+          </div>
+          <div>
+            <span>mistake to avoid</span>
+            <p>{activePointerInsight.avoid}</p>
+          </div>
+          <div>
+            <span>AI prompt pattern</span>
+            <code>{activePointerInsight.prompt}</code>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -21341,13 +21463,14 @@ function PentestAiView() {
                   <div className="pentest-ai-grid">
                     <div>
                       <span>small details that matter</span>
-                      {activeSubject.minuteDetails.map((detail) => <em key={detail}>{detail}</em>)}
+                      {activeSubject.minuteDetails.map((detail, index) => renderMentorPointer("detail", detail, index))}
                     </div>
                     <div>
                       <span>decision reasons</span>
-                      {activeSubject.decisionReasons.map((reason) => <em key={reason}>{reason}</em>)}
+                      {activeSubject.decisionReasons.map((reason, index) => renderMentorPointer("decision", reason, index))}
                     </div>
                   </div>
+                  {renderPointerInsight()}
                 </>
               )}
 
@@ -21365,9 +21488,10 @@ function PentestAiView() {
                   <div className="prompt-daily-mentor">
                     <span>teaching sequence</span>
                     {activeSubject.teachingSequence.map((step, index) => (
-                      <em key={step}>{String(index + 1).padStart(2, "0")} {step}</em>
+                      renderMentorPointer("sequence", `${String(index + 1).padStart(2, "0")} ${step}`, index)
                     ))}
                   </div>
+                  {renderPointerInsight()}
                 </>
               )}
 
@@ -21375,7 +21499,7 @@ function PentestAiView() {
                 <div className="pentest-ai-grid">
                   <div>
                     <span>manual foundation</span>
-                    {activeSubject.manualFoundation.map((item) => <em key={item}>{item}</em>)}
+                    {activeSubject.manualFoundation.map((item, index) => renderMentorPointer("manual", item, index))}
                   </div>
                   <div>
                     <span>mentor warning</span>
@@ -21385,6 +21509,9 @@ function PentestAiView() {
                   <div className="pentest-ai-wide">
                     <span>common failure mode</span>
                     <p>{activeSubject.commonFailure}</p>
+                  </div>
+                  <div className="pentest-ai-wide">
+                    {renderPointerInsight()}
                   </div>
                 </div>
               )}
@@ -21398,13 +21525,14 @@ function PentestAiView() {
                   <div className="pentest-ai-grid">
                     <div>
                       <span>AI shift</span>
-                      {activeSubject.aiShift.map((item) => <em key={item}>{item}</em>)}
+                      {activeSubject.aiShift.map((item, index) => renderMentorPointer("ai", item, index))}
                     </div>
                     <div>
                       <span>guardrails</span>
-                      {activeSubject.guardrails.map((rule) => <em key={rule}>{rule}</em>)}
+                      {activeSubject.guardrails.map((rule, index) => renderMentorPointer("guardrail", rule, index))}
                     </div>
                   </div>
+                  {renderPointerInsight()}
                 </>
               )}
 
@@ -21413,7 +21541,7 @@ function PentestAiView() {
                   <div className="prompt-daily-lab">
                     <div>
                       <span>practice lab</span>
-                      {activeSubject.lab.map((item) => <em key={item}>{item}</em>)}
+                      {activeSubject.lab.map((item, index) => renderMentorPointer("lab", item, index))}
                     </div>
                     <div>
                       <span>output template</span>
@@ -21435,6 +21563,7 @@ function PentestAiView() {
                       <button type="button" onClick={loadDecisionLog}>load decision log</button>
                     </div>
                   </div>
+                  {renderPointerInsight()}
                 </>
               )}
             </div>

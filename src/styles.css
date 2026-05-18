@@ -19063,6 +19063,114 @@ button.load-forecast-day:hover {
   grid-column: 1 / -1;
 }
 
+.pentest-ai-pointer {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.035);
+  color: var(--ink-1);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 7px 9px;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  transition:
+    background 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    border-color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.pentest-ai-pointer:hover,
+.pentest-ai-pointer.active {
+  border-color: rgba(53, 215, 255, 0.42);
+  background: rgba(53, 215, 255, 0.085);
+  color: var(--cyan);
+  transform: translateX(2px);
+}
+
+.pentest-ai-pointer.active {
+  box-shadow: inset 3px 0 0 rgba(53, 215, 255, 0.72);
+}
+
+.pentest-ai-pointer-detail {
+  display: grid;
+  gap: 11px;
+  min-width: 0;
+  border: 1px solid rgba(170, 114, 255, 0.2);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.07), transparent 52%),
+    rgba(2, 7, 15, 0.44);
+  padding: 12px;
+  animation: prompt-panel-enter 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.pentest-ai-pointer-detail.idle {
+  border-color: rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.3);
+}
+
+.pentest-ai-pointer-detail-head,
+.pentest-ai-pointer-detail-grid,
+.pentest-ai-pointer-detail-grid > div {
+  display: grid;
+  gap: 8px;
+}
+
+.pentest-ai-pointer-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pentest-ai-pointer-detail-grid > div {
+  min-width: 0;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(53, 215, 255, 0.03);
+  padding: 10px;
+}
+
+.pentest-ai-pointer-detail span,
+.pentest-ai-pointer-detail-grid span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pentest-ai-pointer-detail strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.pentest-ai-pointer-detail p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.7;
+  text-transform: none;
+}
+
+.pentest-ai-pointer-detail code {
+  display: block;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.52);
+  color: var(--cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 1280px) {
   .zh-main-grid,
   .zh-bottom-grid {
@@ -19182,7 +19290,8 @@ button.load-forecast-day:hover {
 
   .pentest-workspace-grid,
   .pentest-workspace-grid.wide,
-  .pentest-ai-grid {
+  .pentest-ai-grid,
+  .pentest-ai-pointer-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -19304,6 +19413,7 @@ button.load-forecast-day:hover {
   .pentest-workspace-grid,
   .pentest-workspace-grid.wide,
   .pentest-ai-grid,
+  .pentest-ai-pointer-detail-grid,
   .zh-decomp-grid,
   .zh-lesson-steps,
   .zh-guided-circuit,
