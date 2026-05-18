@@ -18165,14 +18165,28 @@ button.load-forecast-day:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.prompt-daily-rubric > div {
+.prompt-daily-rubric > div,
+.prompt-daily-rubric > button {
   display: grid;
   align-content: start;
   gap: 7px;
   min-width: 0;
   border: 1px solid rgba(53, 215, 255, 0.12);
   background: rgba(53, 215, 255, 0.035);
+  color: inherit;
   padding: 9px;
+  text-align: left;
+  transition:
+    background 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    border-color 0.18s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.18s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-daily-rubric > button:hover,
+.prompt-daily-rubric > button.active {
+  border-color: rgba(53, 215, 255, 0.42);
+  background: rgba(53, 215, 255, 0.085);
+  transform: translateY(-1px);
 }
 
 .prompt-daily-rubric b {

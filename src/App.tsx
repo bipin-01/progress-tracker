@@ -21687,6 +21687,52 @@ const promptWorkspaces = [
 
 type PromptWorkspace = (typeof promptWorkspaces)[number]["id"];
 
+type PromptPointerKind = "mentor" | "step" | "practice" | "rubric" | "done" | "reflection";
+
+type PromptPointer = {
+  id: string;
+  kind: PromptPointerKind;
+  label: string;
+  index: number;
+};
+
+function buildPromptPointerInsight(task: PromptDailyTask, pointer: PromptPointer) {
+  const kindLabel: Record<PromptPointerKind, string> = {
+    mentor: "mentor walkthrough",
+    step: "baby step",
+    practice: "practice lab",
+    rubric: "rubric checkpoint",
+    done: "done check",
+    reflection: "reflection prompt",
+  };
+  const advice: Record<PromptPointerKind, string> = {
+    mentor: "Treat this line like a senior analyst speaking over your shoulder. The point is not to memorize it; the point is to understand which mistake it prevents before you write the next prompt version.",
+    step: "Do this step slowly once before trying to automate it. If you cannot perform the small move manually, AI will only make the confusion faster and prettier.",
+    practice: "Use the lab as a contained rehearsal. A production prompt should never be trusted because it sounds good; it should survive a small, realistic case with missing data and pressure.",
+    rubric: "Rubrics are how prompt engineering becomes engineering. This row tells you what a reviewer will inspect when deciding whether the prompt is safe to reuse.",
+    done: "A done check is a release gate. Do not mark the task complete because you read the lesson; mark it complete when the artifact would survive a peer review.",
+    reflection: "This reflection is where the skill becomes portable. Answer it with a concrete SOC scenario, not a vague feeling, so tomorrow's prompt can inherit the lesson.",
+  };
+  const mentorMove: Record<PromptPointerKind, string> = {
+    mentor: "Rewrite the line in your own words, then add one sentence explaining how it changes the prompt you are about to write.",
+    step: "Create a v1 artifact from this step only. Keep it small enough that a reviewer can tell whether the step worked in under one minute.",
+    practice: "Run the prompt against the scenario, then write what the output got right, what it invented, and what evidence it ignored.",
+    rubric: "Score your draft weak or strong against this row. If it is weak, write the smallest possible edit that moves it toward strong.",
+    done: "Paste the done check beside your final answer and prove it with one line from the prompt or output.",
+    reflection: "Answer the question, then convert the answer into a future rule you can reuse in the next task.",
+  };
+
+  return {
+    overline: `${kindLabel[pointer.kind]} // ${task.mode} // ${task.minutes} min`,
+    title: pointer.label.replace(/^\d+\s/, ""),
+    advice: advice[pointer.kind],
+    example: `${task.scenario.title}: ${task.scenario.context} In a real SOC workflow, this pointer matters because the analyst is under this pressure: ${task.scenario.pressure}`,
+    mentorMove: mentorMove[pointer.kind],
+    avoid: task.antiPattern.failureMode,
+    prompt: task.template,
+  };
+}
+
 function PromptView() {
   const initialMemory = useMemo(() => loadPromptMemorySnapshot(), []);
   const [selectedDay, setSelectedDay] = useState(initialMemory?.selectedDay ?? 1);
@@ -21700,6 +21746,7 @@ function PromptView() {
   const [activeDailyTaskId, setActiveDailyTaskId] = useState(`d${initialMemory?.selectedDay ?? 1}-read`);
   const [activeDailyPanel, setActiveDailyPanel] = useState<PromptDailyPanel>("mission");
   const [activePromptWorkspace, setActivePromptWorkspace] = useState<PromptWorkspace>("today");
+  const [activePromptPointer, setActivePromptPointer] = useState<PromptPointer | null>(null);
   const [activeConceptId, setActiveConceptId] = useState(promptFoundationConcepts[0].id);
   const [activeMistakeId, setActiveMistakeId] = useState(promptMistakePatterns[0].id);
   const [activeSkillLevel, setActiveSkillLevel] = useState(promptSkillLevels[0].level);
@@ -22022,6 +22069,7 @@ function PromptView() {
   const activePhase = promptMasteryPhases.find((phase) => selectedDay <= phase.days) ?? promptMasteryPhases[0];
   const activeIterations = iterations.filter((iteration) => iteration.drillId === activeDrill.id).slice(0, 3);
   const promptEndpoint = PROMPT_LAB_ENDPOINT;
+  const activePromptPointerInsight = activePromptPointer ? buildPromptPointerInsight(activeDailyTask, activePromptPointer) : null;
 
   useEffect(() => {
     const saved = savePromptMemorySnapshot({
@@ -22049,6 +22097,10 @@ function PromptView() {
   useEffect(() => {
     setActiveDailyPanel("mission");
   }, [activeDailyTaskId]);
+
+  useEffect(() => {
+    setActivePromptPointer(null);
+  }, [activeDailyTaskId, activeDailyPanel]);
 
   useEffect(() => {
     const queued = queuedDefenseRehearsalRef.current;
@@ -22091,6 +22143,64 @@ function PromptView() {
       else next.add(taskId);
       return next;
     });
+  }
+
+  function renderPromptMentorPointer(kind: PromptPointerKind, label: string, index: number) {
+    const pointer: PromptPointer = {
+      id: `${activeDailyTask.id}-${kind}-${index}`,
+      kind,
+      label,
+      index,
+    };
+    return (
+      <button
+        key={pointer.id}
+        type="button"
+        className={`pentest-ai-pointer prompt-mentor-pointer ${activePromptPointer?.id === pointer.id ? "active" : ""}`}
+        onClick={() => setActivePromptPointer(pointer)}
+      >
+        {label}
+      </button>
+    );
+  }
+
+  function renderPromptPointerInsight() {
+    if (!activePromptPointerInsight) {
+      return (
+        <div className="pentest-ai-pointer-detail prompt-mentor-detail idle">
+          <span>mentor insight</span>
+          <strong>Click any prompt pointer to open the senior operator read.</strong>
+          <p>Each row expands into advice, a SOC-style example, the next revision move, and the failure pattern to avoid.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="pentest-ai-pointer-detail prompt-mentor-detail">
+        <div className="pentest-ai-pointer-detail-head">
+          <span>{activePromptPointerInsight.overline}</span>
+          <strong>{activePromptPointerInsight.title}</strong>
+        </div>
+        <p>{activePromptPointerInsight.advice}</p>
+        <div className="pentest-ai-pointer-detail-grid">
+          <div>
+            <span>real SOC example</span>
+            <p>{activePromptPointerInsight.example}</p>
+          </div>
+          <div>
+            <span>mentor next move</span>
+            <p>{activePromptPointerInsight.mentorMove}</p>
+          </div>
+          <div>
+            <span>mistake to avoid</span>
+            <p>{activePromptPointerInsight.avoid}</p>
+          </div>
+          <div>
+            <span>prompt pattern</span>
+            <code>{activePromptPointerInsight.prompt}</code>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   function lockMasterySnapshot() {
@@ -22991,9 +23101,10 @@ function PromptView() {
                   <div className="prompt-daily-mentor">
                     <span>mentor walkthrough</span>
                     {activeDailyTask.mentorScript.map((line, index) => (
-                      <em key={line}>{String(index + 1).padStart(2, "0")} {line}</em>
+                      renderPromptMentorPointer("mentor", `${String(index + 1).padStart(2, "0")} ${line}`, index)
                     ))}
                   </div>
+                  {renderPromptPointerInsight()}
                 </>
               )}
 
@@ -23419,13 +23530,13 @@ function PromptView() {
                 <>
                   <div className="prompt-daily-steps">
                     {activeDailyTask.babySteps.map((step, index) => (
-                      <span key={step}>{String(index + 1).padStart(2, "0")} {step}</span>
+                      renderPromptMentorPointer("step", `${String(index + 1).padStart(2, "0")} ${step}`, index)
                     ))}
                   </div>
                   <div className="prompt-daily-lab">
                     <div>
                       <span>practice lab</span>
-                      {activeDailyTask.practiceLab.map((item) => <em key={item}>{item}</em>)}
+                      {activeDailyTask.practiceLab.map((item, index) => renderPromptMentorPointer("practice", item, index))}
                     </div>
                     <div>
                       <span>anti-pattern</span>
@@ -23444,6 +23555,7 @@ function PromptView() {
                       <code>{activeDailyTask.example}</code>
                     </div>
                   </div>
+                  {renderPromptPointerInsight()}
                 </>
               )}
 
@@ -23454,18 +23566,29 @@ function PromptView() {
                     <strong>{activeDailyTask.deliverable}</strong>
                   </div>
                   <div className="prompt-daily-rubric">
-                    {activeDailyTask.rubric.map((item) => (
-                      <div key={item.label}>
+                    {activeDailyTask.rubric.map((item, index) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        className={`prompt-rubric-pointer ${activePromptPointer?.id === `${activeDailyTask.id}-rubric-${index}` ? "active" : ""}`}
+                        onClick={() => setActivePromptPointer({
+                          id: `${activeDailyTask.id}-rubric-${index}`,
+                          kind: "rubric",
+                          label: `${item.label}: ${item.strong}`,
+                          index,
+                        })}
+                      >
                         <span>{item.label}</span>
                         <p><b>Weak:</b> {item.weak}</p>
                         <p><b>Strong:</b> {item.strong}</p>
-                      </div>
+                      </button>
                     ))}
                   </div>
                   <div className="prompt-daily-done">
                     <span>done looks like</span>
-                    {activeDailyTask.doneLooksLike.map((item) => <em key={item}>{item}</em>)}
+                    {activeDailyTask.doneLooksLike.map((item, index) => renderPromptMentorPointer("done", item, index))}
                   </div>
+                  {renderPromptPointerInsight()}
                 </>
               )}
 
@@ -23550,7 +23673,7 @@ function PromptView() {
                   <div className="prompt-daily-lab">
                     <div>
                       <span>reflection prompts</span>
-                      {activeDailyTask.reflectionQuestions.map((item) => <em key={item}>{item}</em>)}
+                      {activeDailyTask.reflectionQuestions.map((item, index) => renderPromptMentorPointer("reflection", item, index))}
                     </div>
                     <div>
                       <span>success move</span>
@@ -23562,6 +23685,7 @@ function PromptView() {
                     <p>{activeDailyTask.futuristicUpgrade}</p>
                     <strong>Convert this into telemetry later: prompt version, evidence confidence, rubric score, analyst override, and next spaced-review date.</strong>
                   </div>
+                  {renderPromptPointerInsight()}
                 </>
               )}
             </div>
