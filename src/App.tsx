@@ -20790,6 +20790,16 @@ const promptDailyPanels = [
 
 type PromptDailyPanel = (typeof promptDailyPanels)[number]["id"];
 
+const promptWorkspaces = [
+  { id: "today", label: "Today", detail: "daily mission + mastery" },
+  { id: "portfolio", label: "Portfolio", detail: "case studies + mentor defense" },
+  { id: "study", label: "Study", detail: "roadmap + SRS + drills" },
+  { id: "lab", label: "Lab", detail: "playground + iterations" },
+  { id: "reference", label: "Reference", detail: "sheets + scenarios" },
+] as const;
+
+type PromptWorkspace = (typeof promptWorkspaces)[number]["id"];
+
 function PromptView() {
   const initialMemory = useMemo(() => loadPromptMemorySnapshot(), []);
   const [selectedDay, setSelectedDay] = useState(initialMemory?.selectedDay ?? 1);
@@ -20802,6 +20812,7 @@ function PromptView() {
   const [answerOpen, setAnswerOpen] = useState(false);
   const [activeDailyTaskId, setActiveDailyTaskId] = useState(`d${initialMemory?.selectedDay ?? 1}-read`);
   const [activeDailyPanel, setActiveDailyPanel] = useState<PromptDailyPanel>("mission");
+  const [activePromptWorkspace, setActivePromptWorkspace] = useState<PromptWorkspace>("today");
   const [activeConceptId, setActiveConceptId] = useState(promptFoundationConcepts[0].id);
   const [activeMistakeId, setActiveMistakeId] = useState(promptMistakePatterns[0].id);
   const [activeSkillLevel, setActiveSkillLevel] = useState(promptSkillLevels[0].level);
@@ -21981,7 +21992,7 @@ function PromptView() {
   }
 
   return (
-    <main className="prompt-academy-page" aria-label="SOC prompt engineering mastery cockpit">
+    <main className={`prompt-academy-page prompt-workspace-${activePromptWorkspace}`} aria-label="SOC prompt engineering mastery cockpit">
       <section className="prompt-command-grid">
         <HudCard className="prompt-hero-card">
           <div className="prompt-hero-copy">
@@ -22005,6 +22016,21 @@ function PromptView() {
               <strong>{dailyProgress}%</strong>
               <em>{completedToday}/{dailyTasks.length} drills</em>
             </div>
+          </div>
+          <div className="prompt-workspace-switcher" role="tablist" aria-label="Prompt workspace sections">
+            {promptWorkspaces.map((workspace) => (
+              <button
+                key={workspace.id}
+                type="button"
+                role="tab"
+                aria-selected={activePromptWorkspace === workspace.id}
+                className={activePromptWorkspace === workspace.id ? "active" : ""}
+                onClick={() => setActivePromptWorkspace(workspace.id)}
+              >
+                <span>{workspace.label}</span>
+                <em>{workspace.detail}</em>
+              </button>
+            ))}
           </div>
         </HudCard>
 
@@ -22663,6 +22689,7 @@ function PromptView() {
         </HudCard>
       </section>
 
+      {(activePromptWorkspace === "today" || activePromptWorkspace === "portfolio") ? (
       <section className="prompt-mastery-ledger-grid" aria-label="Daily prompt mastery ledger">
         <HudCard className="prompt-mastery-ledger-card">
           <CardHeader title="Daily Mastery Ledger" meta={`D${String(selectedDay).padStart(2, "0")} · ${dayMastery.label}`} />
@@ -22746,6 +22773,8 @@ function PromptView() {
               ) : null}
             </div>
           </div>
+          {activePromptWorkspace === "portfolio" ? (
+          <>
           <div className="prompt-portfolio-gallery" aria-label="Prompt portfolio case study gallery">
             <div className="prompt-portfolio-gallery-head">
               <div>
@@ -23321,9 +23350,14 @@ function PromptView() {
               </div>
             </div>
           ) : null}
+          </>
+          ) : null}
         </HudCard>
       </section>
+      ) : null}
 
+      {activePromptWorkspace === "study" ? (
+      <>
       <section className="prompt-zero-grid" aria-label="Prompt engineering zero-to-one teaching layer">
         <HudCard className="prompt-foundation-card">
           <CardHeader title="Zero Knowledge Primer" meta={`L${activeConcept.level}`} />
@@ -23445,7 +23479,11 @@ function PromptView() {
           </div>
         </HudCard>
       </section>
+      </>
+      ) : null}
 
+      {activePromptWorkspace === "study" ? (
+      <>
       <section className="prompt-phase-grid" aria-label="Prompt engineering mastery phases">
         {promptMasteryPhases.map((phase) => (
           <HudCard key={phase.id} className={`prompt-phase-card ${phase.id === activePhase.id ? "active" : ""}`}>
@@ -23568,7 +23606,10 @@ function PromptView() {
           </div>
         </HudCard>
       </section>
+      </>
+      ) : null}
 
+      {activePromptWorkspace === "lab" ? (
       <section className="prompt-lab-grid">
         <HudCard className="prompt-playground-card">
           <CardHeader title="Live Prompt Playground" meta={playgroundStatus} />
@@ -23637,7 +23678,9 @@ function PromptView() {
           </div>
         </HudCard>
       </section>
+      ) : null}
 
+      {activePromptWorkspace === "reference" ? (
       <section className="prompt-reference-grid">
         <HudCard className="prompt-reference-card">
           <CardHeader title="Reference Sheets" meta={`${promptReferenceSheets.length} cards`} />
@@ -23667,6 +23710,7 @@ function PromptView() {
           </div>
         </HudCard>
       </section>
+      ) : null}
 
       <footer className="prompt-sysline">
         <span>// prompt ops academy</span>

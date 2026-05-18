@@ -802,3 +802,31 @@ Implemented:
 
 Next likely upgrade:
 - Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.
+
+### 2026-05-18 - Prompt Workspace Organization Pass
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- User feedback overrode the listed next upgrade because the page had become powerful but visually messy. Organization was more important than adding another capability.
+
+Problem observed:
+- The `/prompt` route showed daily missions, mastery, portfolio, mentor defense, study curriculum, lab, and references in one long stack.
+- The content was rich, but the lack of hierarchy made it harder to decide where to work next.
+- UI/UX needed smoother section transitions and clearer mental rooms without changing the cyber visual identity.
+
+Decision:
+- A workspace switcher was the best upgrade. It removes visual competition without deleting any feature: Today, Portfolio, Study, Lab, and Reference become focused modes.
+
+Implemented:
+- Added a top-level `/prompt` workspace switcher inside the hero card.
+- Added focused workspace modes: Today, Portfolio, Study, Lab, and Reference.
+- Today shows the daily bootcamp and mastery ledger only.
+- Portfolio shows the mastery context plus portfolio gallery, defense calendar, mentor export, polish workflow, and mentor-defense simulator.
+- Study contains zero-to-one teaching, phases, bootcamp stages, roadmap, SRS queue, and drill deck.
+- Lab contains the live prompt playground and iteration workspace.
+- Reference contains reference sheets and scenario exercises.
+- Added compact switcher styling with quiet hover/active states and responsive collapse.
+- Preserved all existing route features while making the first screen calmer and easier to scan.
+
+Next likely upgrade:
+- Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.

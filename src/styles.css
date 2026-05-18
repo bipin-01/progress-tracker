@@ -15445,7 +15445,7 @@ button.load-forecast-day:hover {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 0.6fr);
   gap: 18px;
   align-items: end;
-  min-height: 210px;
+  min-height: 188px;
 }
 
 .prompt-hero-copy {
@@ -15504,6 +15504,60 @@ button.load-forecast-day:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.prompt-workspace-switcher {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  border-top: 1px solid rgba(53, 215, 255, 0.12);
+  padding-top: 10px;
+}
+
+.prompt-workspace-switcher button {
+  display: grid;
+  gap: 4px;
+  min-height: 54px;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.035), transparent 54%),
+    rgba(2, 7, 15, 0.26);
+  padding: 8px;
+  color: var(--ink-1);
+  text-align: left;
+  transition:
+    border-color 0.2s cubic-bezier(0.19, 1, 0.22, 1),
+    background 0.2s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-workspace-switcher button:hover,
+.prompt-workspace-switcher button.active {
+  transform: translateY(-1px);
+  border-color: rgba(53, 215, 255, 0.36);
+  background:
+    linear-gradient(135deg, rgba(53, 215, 255, 0.08), transparent 52%),
+    rgba(5, 20, 34, 0.56);
+}
+
+.prompt-workspace-switcher span {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prompt-workspace-switcher em {
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
 }
 
 .prompt-hero-metrics div,
@@ -18746,6 +18800,7 @@ button.load-forecast-day:hover {
 
   .prompt-anatomy-grid,
   .prompt-level-rail,
+  .prompt-workspace-switcher,
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
@@ -18844,6 +18899,7 @@ button.load-forecast-day:hover {
   .zh-streak-strip,
   .zh-right-col,
   .prompt-hero-metrics,
+  .prompt-workspace-switcher,
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
