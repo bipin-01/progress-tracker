@@ -15364,7 +15364,7 @@ button.load-forecast-day:hover {
 
 .prompt-academy-page {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   padding-bottom: 34px;
 }
 
@@ -15387,11 +15387,12 @@ button.load-forecast-day:hover {
 .prompt-lab-grid,
 .prompt-reference-grid {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .prompt-command-grid {
-  grid-template-columns: minmax(0, 1.3fr) minmax(340px, 0.7fr);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
 }
 
 .prompt-zero-grid {
@@ -15605,6 +15606,37 @@ button.load-forecast-day:hover {
 .prompt-scenario-card {
   display: grid;
   gap: 12px;
+}
+
+.prompt-day-card {
+  grid-template-columns: minmax(340px, 0.28fr) minmax(0, 1fr);
+  grid-template-rows: auto min-content auto;
+  grid-template-areas:
+    "head head"
+    "control detail"
+    "list detail";
+  align-items: start;
+  align-content: start;
+  gap: 16px 22px;
+}
+
+.prompt-day-card > .card-header {
+  grid-area: head;
+  margin-bottom: 0;
+}
+
+.prompt-day-card .prompt-day-control {
+  grid-area: control;
+}
+
+.prompt-day-card .prompt-daily-list {
+  grid-area: list;
+  align-self: start;
+}
+
+.prompt-day-card .prompt-daily-detail {
+  grid-area: detail;
+  min-width: 0;
 }
 
 .prompt-mastery-ledger-card {
@@ -15884,14 +15916,53 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.prompt-workspace-portfolio .prompt-mastery-ledger-card {
+  grid-template-columns: minmax(300px, 0.34fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 18px 20px;
+}
+
+.prompt-workspace-portfolio .prompt-mastery-ledger-card > .card-header {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.prompt-workspace-portfolio .prompt-mastery-core,
+.prompt-workspace-portfolio .prompt-mastery-signals,
+.prompt-workspace-portfolio .prompt-mastery-archive {
+  grid-column: 1;
+}
+
+.prompt-workspace-portfolio .prompt-mastery-core {
+  grid-template-columns: 1fr;
+}
+
+.prompt-workspace-portfolio .prompt-mastery-signals {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.prompt-workspace-portfolio .prompt-mastery-archive {
+  grid-template-columns: 1fr;
+}
+
+.prompt-workspace-portfolio .prompt-portfolio-gallery {
+  grid-column: 2;
+  grid-row: 2 / span 3;
+}
+
+.prompt-workspace-portfolio .prompt-checkpoint-compare,
+.prompt-workspace-portfolio .prompt-checkpoint-review {
+  grid-column: 1 / -1;
+}
+
 .prompt-portfolio-gallery {
   display: grid;
-  gap: 9px;
+  gap: 16px;
   border: 1px solid rgba(53, 215, 255, 0.16);
   background:
     linear-gradient(135deg, rgba(53, 215, 255, 0.04), transparent 46%),
     rgba(2, 7, 15, 0.3);
-  padding: 11px;
+  padding: 14px;
   animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
@@ -16967,6 +17038,9 @@ button.load-forecast-day:hover {
   display: grid;
   grid-template-columns: 36px 1fr 36px;
   gap: 6px;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background: rgba(2, 7, 15, 0.26);
+  padding: 8px;
 }
 
 .prompt-day-control button,
@@ -17056,6 +17130,15 @@ button.load-forecast-day:hover {
 .prompt-mistake-tabs {
   display: grid;
   gap: 6px;
+}
+
+.prompt-daily-list {
+  gap: 8px;
+  border: 1px solid rgba(53, 215, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(53, 215, 255, 0.04), transparent 74%),
+    rgba(2, 7, 15, 0.26);
+  padding: 8px;
 }
 
 .prompt-daily-list button,
@@ -17166,18 +17249,18 @@ button.load-forecast-day:hover {
 
 .prompt-daily-detail {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   border: 1px solid rgba(53, 215, 255, 0.16);
   background:
     linear-gradient(90deg, rgba(53, 215, 255, 0.05), transparent),
     rgba(2, 7, 15, 0.42);
   animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
-  padding: 12px;
+  padding: 14px;
 }
 
 .prompt-daily-panel {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   animation: prompt-panel-enter 0.2s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
@@ -17273,7 +17356,7 @@ button.load-forecast-day:hover {
 .prompt-daily-scenario {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 8px;
+  gap: 12px;
 }
 
 .prompt-daily-scenario-copy,
@@ -17290,11 +17373,11 @@ button.load-forecast-day:hover {
 .prompt-daily-future {
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 10px;
   min-width: 0;
   border: 1px solid rgba(53, 215, 255, 0.14);
   background: rgba(2, 7, 15, 0.34);
-  padding: 10px;
+  padding: 12px;
 }
 
 .prompt-daily-scenario em {
@@ -17325,7 +17408,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-builder-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(150px, 0.28fr);
-  gap: 8px;
+  gap: 12px;
 }
 
 .prompt-evidence-builder-head > div,
@@ -17361,7 +17444,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-report-list button {
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -17411,7 +17494,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-adversary-cases {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .prompt-evidence-grid > div,
@@ -17460,7 +17543,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff-head {
   display: grid;
   grid-template-columns: minmax(130px, 0.32fr) minmax(0, 1fr);
-  gap: 8px;
+  gap: 10px;
   align-items: stretch;
 }
 
@@ -17478,7 +17561,7 @@ button.load-forecast-day:hover {
 .prompt-evidence-diff-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
 
 .prompt-evidence-diff-stats span {
@@ -18788,8 +18871,26 @@ button.load-forecast-day:hover {
   .prompt-lab-grid,
   .prompt-reference-grid,
   .prompt-hero-card,
+  .prompt-day-card,
+  .prompt-workspace-portfolio .prompt-mastery-ledger-card,
   .prompt-phase-grid {
     grid-template-columns: 1fr;
+    grid-template-areas: none;
+  }
+
+  .prompt-day-card .prompt-day-control,
+  .prompt-day-card .prompt-daily-list,
+  .prompt-day-card .prompt-daily-detail,
+  .prompt-day-card > .card-header,
+  .prompt-workspace-portfolio .prompt-mastery-core,
+  .prompt-workspace-portfolio .prompt-mastery-signals,
+  .prompt-workspace-portfolio .prompt-mastery-archive,
+  .prompt-workspace-portfolio .prompt-portfolio-gallery,
+  .prompt-workspace-portfolio .prompt-checkpoint-compare,
+  .prompt-workspace-portfolio .prompt-checkpoint-review {
+    grid-area: auto;
+    grid-column: 1;
+    grid-row: auto;
   }
 
   .prompt-anatomy-card,

@@ -803,6 +803,31 @@ Implemented:
 Next likely upgrade:
 - Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.
 
+### 2026-05-18 - Prompt Layout Utilization Pass
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- User feedback overrode the listed next upgrade because the Daily Bootcamp packet view had a large unused left side while dense packet content was pushed into a right-side lane.
+
+Problem observed:
+- The command grid placed the hero and Daily Bootcamp side by side, which left a giant quiet hero column while the active bootcamp packet content had to fight inside the right column.
+- The Daily Bootcamp left rail did not read as an intentional task navigator.
+- Packet sections were functional but visually crowded, with too little spacing between evidence blocks, report blocks, and portfolio export blocks.
+
+Decision:
+- Fix layout hierarchy before adding content. This fit the 70% rule because the page already had enough learning material, but the spatial organization was hiding it.
+
+Implemented:
+- Made the prompt command grid stack the hero and bootcamp workbench so the bootcamp can use the full page width.
+- Rebuilt Daily Bootcamp as an explicit two-column grid: day/task navigator on the left, active task detail on the right.
+- Added bordered rail treatment to the day controls and task list so the left side is visibly purposeful.
+- Split the portfolio workspace into left-side mastery signals and right-side portfolio systems.
+- Increased spacing between prompt sections and packet sub-panels without changing the cyber visual identity.
+- Added responsive reset rules so the new two-column layouts collapse cleanly on smaller screens.
+
+Next likely upgrade:
+- Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.
+
 ### 2026-05-18 - Bootcamp Daily Variation Fix
 
 Reference used before work:
