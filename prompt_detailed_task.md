@@ -803,6 +803,30 @@ Implemented:
 Next likely upgrade:
 - Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.
 
+### 2026-05-18 - Bootcamp Daily Variation Fix
+
+Reference used before work:
+- Re-read this file before changing `/prompt`.
+- User feedback overrode the listed next upgrade because moving daily bootcamp from day 1 to 2 to 3 made only the top visible cards feel different.
+
+Problem observed:
+- `getPromptDailyTasks(day)` already changed the daily cycle and scenario data, but the lower three visible task cards kept generic labels: create v2/v3, score against rubric, and review due Q&A.
+- Hidden lesson content had some variation, but the UI made the day feel duplicated because the learner scans card labels and details first.
+- The lower tasks also needed stronger scenario anchoring so each day felt like a different SOC prompt-engineering rep, not the same routine with a new title.
+
+Decision:
+- Make every daily bootcamp card visibly day-specific and scenario-specific before adding another feature. This fit the 70% rule because duplicated-looking tasks reduce trust in the whole curriculum.
+
+Implemented:
+- Added day-coded concept labels such as D01, D02, and D03.
+- Changed the build card label to name the current prompt skill directly.
+- Rewrote the revision, evaluation, and SRS card labels/details so they include the current cycle and scenario.
+- Enriched the lower three task lessons, mentor scripts, baby steps, labs, reflections, and done states with the current SOC scenario, pressure line, and missing-evidence trap.
+- Verified days 1, 2, and 3 now generate five visibly different task cards.
+
+Next likely upgrade:
+- Add an interruption outcome rubric that scores saved rehearsals against the active interruption protocol and shows whether the learner actually recovered from the challenge.
+
 ### 2026-05-18 - Prompt Workspace Organization Pass
 
 Reference used before work:
