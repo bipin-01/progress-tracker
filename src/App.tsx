@@ -3769,6 +3769,107 @@ function App() {
   const ringOffset = circumference * (1 - overall / 100);
   const hexNoise = useMemo(() => makeNoise(), []);
   const habitsDone = habits.filter((habit) => habit.done).length;
+  const pendingAgentCount = agentRecommendations.filter((recommendation) => recommendation.status === "pending").length;
+  const activeKanbanCards = kanbanCards.filter((card) => !card.archivedAt);
+  const dashboardCommandPlan = [
+    {
+      label: "route intelligence",
+      value: "8 nodes",
+      detail: "Academies, notes, board, calendar, and daily command now launch from one cockpit.",
+    },
+    {
+      label: "execution layer",
+      value: `${done}/${dashboardTasks.length}`,
+      detail: "Daily tasks stay first-class while new learning routes feed the operating plan.",
+    },
+    {
+      label: "review loop",
+      value: `${pendingAgentCount}`,
+      detail: "Pending agent signals are visible so recommendations do not disappear into side routes.",
+    },
+  ];
+  const dashboardModuleCards: Array<{
+    id: string;
+    title: string;
+    detail: string;
+    metric: string;
+    signal: string;
+    view: View;
+    Icon: typeof Home;
+  }> = [
+    {
+      id: "today",
+      title: "Today Command",
+      detail: "Daily execution lane for tasks, calendar pressure, agent advice, and recovery.",
+      metric: `${taskProgress}%`,
+      signal: `${done}/${dashboardTasks.length} tasks closed`,
+      view: "today",
+      Icon: Sparkles,
+    },
+    {
+      id: "planner",
+      title: "Focus Planner",
+      detail: "Turns goals, notes, certification tracks, and route priorities into executable blocks.",
+      metric: `${currentObjectives.length}`,
+      signal: "active objective signals",
+      view: "planner",
+      Icon: BriefcaseBusiness,
+    },
+    {
+      id: "notes",
+      title: "Study Notes",
+      detail: "Directory-based study library with reading, writing, review, and certification modes.",
+      metric: `${activeStudyNotes.length}`,
+      signal: `${activeStudyFolders.length} directories online`,
+      view: "notes",
+      Icon: NotebookText,
+    },
+    {
+      id: "chinese",
+      title: "Chinese Lab",
+      detail: "Mandarin learning cockpit with daily practice, tone memory, SRS, and character systems.",
+      metric: `${CHINESE_PRACTICE_TOTAL_DAYS}`,
+      signal: "day practice database",
+      view: "chinese",
+      Icon: Languages,
+    },
+    {
+      id: "prompt",
+      title: "Prompt Ops",
+      detail: "SOC prompt-engineering bootcamp with mentor pointers, SRS, lab, and portfolio review.",
+      metric: `${promptTheoryQuestions.length}`,
+      signal: "SRS theory cards",
+      view: "prompt",
+      Icon: Code2,
+    },
+    {
+      id: "pentesting",
+      title: "Pentest Ops",
+      detail: "Authorized pentesting bootcamp centered on scope, safe checks, evidence, and reporting.",
+      metric: `${pentestRoadmapWeeks.length}`,
+      signal: "method weeks mapped",
+      view: "pentesting",
+      Icon: Target,
+    },
+    {
+      id: "pentestAi",
+      title: "Pentest AI",
+      detail: "Manual-to-AI field notes with mentor examples, pointer advice, and safe operator systems.",
+      metric: `${pentestAiSubjects.length}`,
+      signal: "deep mentor subjects",
+      view: "pentestAi",
+      Icon: Bot,
+    },
+    {
+      id: "kanban",
+      title: "Execution Board",
+      detail: "Workflow board with history, card metadata, subtasks, and movement analytics.",
+      metric: `${activeKanbanCards.length}`,
+      signal: "active cards",
+      view: "kanban",
+      Icon: Columns3,
+    },
+  ];
   const pageMeta =
     activeView === "today"
       ? { title: "Today Command Brief", subtitle: "Daily execution // live operating plan" }
@@ -3892,6 +3993,34 @@ function App() {
 
           {activeView === "dashboard" ? (
             <>
+          <section className="dashboard-command-brief" aria-label="Dashboard upgrade plan">
+            <HudCard className="dashboard-brief-card" active>
+              <CardHeader title="Dashboard Upgrade Plan" meta="v2 cockpit" />
+              <div className="dashboard-brief-layout">
+                <div className="dashboard-brief-copy">
+                  <span>System redesign directive</span>
+                  <strong>One dashboard for goals, learning, security labs, and execution.</strong>
+                  <p>The dashboard now acts as the front door for every major route added to the app: daily command, notes, Chinese, Prompt Ops, Pentest Ops, Pentest AI, Kanban, calendar, and agent review.</p>
+                </div>
+                <div className="dashboard-brief-metrics">
+                  {dashboardCommandPlan.map((item) => (
+                    <div key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <em>{item.detail}</em>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="dashboard-brief-actions">
+                <button type="button" onClick={() => navigateTo("today")}>open today</button>
+                <button type="button" onClick={() => navigateTo("prompt")}>prompt ops</button>
+                <button type="button" onClick={() => navigateTo("pentestAi")}>pentest ai</button>
+                <button type="button" onClick={() => openQuickCapture()}>quick capture</button>
+              </div>
+            </HudCard>
+          </section>
+
           <section className="top-grid" aria-label="Dashboard overview">
             <HudCard className="ring-card" active>
               <CardHeader title="Overall Goal Progress" meta="live" />
@@ -3972,6 +4101,30 @@ function App() {
             </HudCard>
           </section>
 
+          <div className="row-divider">Command Matrix</div>
+
+          <section className="dashboard-module-grid" aria-label="Application command matrix">
+            {dashboardModuleCards.map(({ Icon, ...module }) => (
+              <HudCard className="dashboard-module-card" key={module.id}>
+                <button type="button" onClick={() => navigateTo(module.view)}>
+                  <div className="dashboard-module-icon">
+                    <Icon />
+                  </div>
+                  <div className="dashboard-module-copy">
+                    <span>{module.title}</span>
+                    <p>{module.detail}</p>
+                  </div>
+                  <div className="dashboard-module-stat">
+                    <strong>{module.metric}</strong>
+                    <em>{module.signal}</em>
+                  </div>
+                </button>
+              </HudCard>
+            ))}
+          </section>
+
+          <div className="row-divider">Goal Telemetry</div>
+
           <section className="goals-grid" aria-label="Goal cards">
             {sortedGoals.slice(0, 5).map((goal) => (
               <GoalCard key={goal.title} goal={goal} />
@@ -4033,7 +4186,7 @@ function App() {
             </div>
           </HudCard>
 
-          <div className="row-divider">View All Goals</div>
+          <div className="row-divider">Long Range Systems</div>
 
           <section className="bottom-grid" aria-label="Long range dashboard">
             <MonthlyGoals projects={taskProjects} objectives={currentObjectives} />
