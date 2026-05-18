@@ -21334,6 +21334,10 @@ function PentestAiView() {
                     <strong>{activeSubject.fieldNote}</strong>
                     <p>{activeSubject.whyFirst}</p>
                   </div>
+                  <div className="pentest-ai-narrative">
+                    <span>mentor essay</span>
+                    {activeSubject.mentorEssay.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                  </div>
                   <div className="pentest-ai-grid">
                     <div>
                       <span>small details that matter</span>
@@ -21354,10 +21358,14 @@ function PentestAiView() {
                     <p>{activeSubject.whyFirst}</p>
                     <strong>Sequence matters because AI speeds up both good judgment and bad assumptions.</strong>
                   </div>
+                  <div className="pentest-ai-narrative">
+                    <span>engagement example</span>
+                    <p>{activeSubject.engagementExample}</p>
+                  </div>
                   <div className="prompt-daily-mentor">
-                    <span>decision log</span>
-                    {activeSubject.decisionReasons.map((reason, index) => (
-                      <em key={reason}>{String(index + 1).padStart(2, "0")} {reason}</em>
+                    <span>teaching sequence</span>
+                    {activeSubject.teachingSequence.map((step, index) => (
+                      <em key={step}>{String(index + 1).padStart(2, "0")} {step}</em>
                     ))}
                   </div>
                 </>
@@ -21374,20 +21382,30 @@ function PentestAiView() {
                     <p>Do this manually first. If you cannot explain the control, evidence, or risk without AI, the model will only make weak reasoning look polished.</p>
                     <code>Manual note first, AI review second, human decision last.</code>
                   </div>
+                  <div className="pentest-ai-wide">
+                    <span>common failure mode</span>
+                    <p>{activeSubject.commonFailure}</p>
+                  </div>
                 </div>
               )}
 
               {activePanel === "ai" && (
-                <div className="pentest-ai-grid">
-                  <div>
-                    <span>AI shift</span>
-                    {activeSubject.aiShift.map((item) => <em key={item}>{item}</em>)}
+                <>
+                  <div className="pentest-ai-prompt-pattern">
+                    <span>AI prompt pattern</span>
+                    <pre>{activeSubject.aiPromptPattern}</pre>
                   </div>
-                  <div>
-                    <span>guardrails</span>
-                    {activeSubject.guardrails.map((rule) => <em key={rule}>{rule}</em>)}
+                  <div className="pentest-ai-grid">
+                    <div>
+                      <span>AI shift</span>
+                      {activeSubject.aiShift.map((item) => <em key={item}>{item}</em>)}
+                    </div>
+                    <div>
+                      <span>guardrails</span>
+                      {activeSubject.guardrails.map((rule) => <em key={rule}>{rule}</em>)}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               {activePanel === "lab" && (

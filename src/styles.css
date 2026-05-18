@@ -18965,6 +18965,8 @@ button.load-forecast-day:hover {
 
 .pentest-ai-mentor-brief,
 .pentest-ai-story,
+.pentest-ai-narrative,
+.pentest-ai-prompt-pattern,
 .pentest-ai-grid > div {
   display: grid;
   align-content: start;
@@ -18979,6 +18981,8 @@ button.load-forecast-day:hover {
 
 .pentest-ai-mentor-brief span,
 .pentest-ai-story span,
+.pentest-ai-narrative span,
+.pentest-ai-prompt-pattern span,
 .pentest-ai-grid span {
   color: var(--ink-2);
   font-family: "JetBrains Mono", monospace;
@@ -19015,6 +19019,7 @@ button.load-forecast-day:hover {
 }
 
 .pentest-ai-story p,
+.pentest-ai-narrative p,
 .pentest-ai-grid p {
   margin: 0;
   color: var(--ink-1);
@@ -19023,10 +19028,39 @@ button.load-forecast-day:hover {
   text-transform: none;
 }
 
+.pentest-ai-narrative {
+  border-color: rgba(170, 114, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(170, 114, 255, 0.055), transparent 54%),
+    rgba(2, 7, 15, 0.38);
+}
+
+.pentest-ai-narrative p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.pentest-ai-prompt-pattern pre {
+  overflow: auto;
+  margin: 0;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(2, 7, 15, 0.54);
+  color: var(--cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
 .pentest-ai-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.pentest-ai-grid .pentest-ai-wide {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1280px) {
