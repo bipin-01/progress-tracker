@@ -21,6 +21,7 @@ import {
   RotateCcw,
   Search,
   Settings,
+  ShieldAlert,
   Sparkles,
   Target,
   TrendingUp,
@@ -92,6 +93,19 @@ import {
   pentestAiPrinciples,
   pentestAiSubjects,
 } from "./pentestAiPlan";
+import {
+  sentinelArchitectureLayers,
+  sentinelBuildPhases,
+  sentinelEngines,
+  sentinelFailureModes,
+  sentinelImpactMetrics,
+  sentinelKnowledgeLoops,
+  sentinelLiveAlerts,
+  sentinelOperatingMetrics,
+  sentinelRubric,
+  sentinelWorkspaces,
+} from "./sentinelPlan";
+import type { SentinelWorkspace } from "./sentinelPlan";
 import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
@@ -3471,6 +3485,7 @@ const navItems = [
   { id: "prompt", label: "Prompt", Icon: Code2 },
   { id: "pentesting", label: "Pentest", Icon: Target },
   { id: "pentestAi", label: "Pentest AI", Icon: Bot },
+  { id: "sentinel", label: "Sentinel", Icon: ShieldAlert },
   { id: "calendar", label: "Calendar", Icon: CalendarDays },
   { id: "progress", label: "Progress", Icon: TrendingUp },
   { id: "insights", label: "Insights", Icon: Gauge },
@@ -3525,6 +3540,13 @@ const routeViewMap: Record<string, View> = {
   "/pentest-ai": "pentestAi",
   "/ai-pentest": "pentestAi",
   "/ai-pentesting": "pentestAi",
+  "/sentinel": "sentinel",
+  "/sentinel/live": "sentinel",
+  "/sentinel/investigate": "sentinel",
+  "/sentinel/hunt": "sentinel",
+  "/sentinel/reports": "sentinel",
+  "/sentinel/escalate": "sentinel",
+  "/sentinel/knowledge": "sentinel",
   "/calendar": "calendar",
   "/calender": "calendar",
   "/progress": "progress",
@@ -3881,6 +3903,7 @@ function App() {
         i: "insights",
         a: "agents",
         o: "prompt",
+        s: "sentinel",
       };
       const nextView = shortcutMap[key];
       if (nextView) {
@@ -3925,7 +3948,7 @@ function App() {
   const dashboardCommandPlan = [
     {
       label: "route intelligence",
-      value: "8 nodes",
+      value: "9 nodes",
       detail: "Academies, notes, board, calendar, and daily command now launch from one cockpit.",
     },
     {
@@ -4012,6 +4035,15 @@ function App() {
       Icon: Bot,
     },
     {
+      id: "sentinel",
+      title: "SENTINEL SOC",
+      detail: "AI-augmented SOC analyst system with triage, investigation, correlation, reporting, and escalation engines.",
+      metric: `${sentinelEngines.length}`,
+      signal: "prompt-chain engines",
+      view: "sentinel",
+      Icon: ShieldAlert,
+    },
+    {
       id: "kanban",
       title: "Execution Board",
       detail: "Workflow board with history, card metadata, subtasks, and movement analytics.",
@@ -4044,15 +4076,17 @@ function App() {
                     ? { title: "Pentest Ops Academy", subtitle: "Authorized testing // scope evidence report" }
                     : activeView === "pentestAi"
                       ? { title: "Pentest AI Field Notes", subtitle: "Manual craft // AI-assisted operator system" }
-                      : activeView === "calendar"
-                        ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
-                        : activeView === "progress"
-                          ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
-                          : activeView === "insights"
-                            ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
-                            : activeView === "agents"
-                              ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
-                              : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
+                      : activeView === "sentinel"
+                        ? { title: "SENTINEL SOC", subtitle: "AI-augmented analyst system // capstone control room" }
+                        : activeView === "calendar"
+                          ? { title: "Calendar", subtitle: "Schedule map // future-proof planning" }
+                          : activeView === "progress"
+                            ? { title: "Progress Metrics", subtitle: "Streak · Focus · Momentum" }
+                            : activeView === "insights"
+                              ? { title: "Pattern Analysis", subtitle: "Behavioral insights // 30-day window" }
+                              : activeView === "agents"
+                                ? { title: "Agents Command", subtitle: "Autonomous coach agents // recommendations" }
+                                : { title: "Goals Command Center", subtitle: "Plan. Execute. Track. Achieve." };
   const appCommands: AppCommand[] = [
     { id: "quick-capture", group: "Capture", title: "Universal Quick Capture", hint: "Open Cmd+J capture and route an idea to notes, tasks, calendar, goals, or board.", action: () => openQuickCapture() },
     { id: "nav-dashboard", group: "Navigate", title: "Dashboard", hint: "Open the goals command center.", action: () => navigateTo("dashboard") },
@@ -4066,6 +4100,7 @@ function App() {
     { id: "nav-prompt", group: "Navigate", title: "Prompt Ops Academy", hint: "Open SOC prompt engineering mastery.", action: () => navigateTo("prompt") },
     { id: "nav-pentesting", group: "Navigate", title: "Pentest Ops Academy", hint: "Open authorized pentesting bootcamp.", action: () => navigateTo("pentesting") },
     { id: "nav-pentest-ai", group: "Navigate", title: "Pentest AI Field Notes", hint: "Open the manual-to-AI pentesting journey.", action: () => navigateTo("pentestAi") },
+    { id: "nav-sentinel", group: "Navigate", title: "SENTINEL SOC", hint: "Open the AI-augmented SOC capstone control room.", action: () => navigateTo("sentinel") },
     { id: "nav-calendar", group: "Navigate", title: "Calendar", hint: "Open deadlines, appointments, and projects.", action: () => navigateTo("calendar") },
     { id: "nav-progress", group: "Navigate", title: "Progress Metrics", hint: "Review streak, focus, and momentum.", action: () => navigateTo("progress") },
     { id: "nav-insights", group: "Navigate", title: "Pattern Analysis", hint: "Open behavior and completion insights.", action: () => navigateTo("insights") },
@@ -4454,6 +4489,8 @@ function App() {
             <PentestingView />
           ) : activeView === "pentestAi" ? (
             <PentestAiView />
+          ) : activeView === "sentinel" ? (
+            <SentinelView />
           ) : activeView === "calendar" ? (
             <CalendarView events={calendarEvents} />
           ) : activeView === "progress" ? (
@@ -22237,6 +22274,282 @@ function PentestAiView() {
         <span>// manual judgment retained</span>
         <strong>AI accelerates evidence, not permission</strong>
         <span>scope · proof · review</span>
+      </footer>
+    </main>
+  );
+}
+
+function SentinelView() {
+  const [activeWorkspace, setActiveWorkspace] = useState<SentinelWorkspace>("overview");
+  const [activeEngineId, setActiveEngineId] = useState(sentinelEngines[0].id);
+  const [activeAlertId, setActiveAlertId] = useState(sentinelLiveAlerts[0].id);
+  const activeEngine = sentinelEngines.find((engine) => engine.id === activeEngineId) ?? sentinelEngines[0];
+  const activeAlert = sentinelLiveAlerts.find((alert) => alert.id === activeAlertId) ?? sentinelLiveAlerts[0];
+  const averageRubric = Math.round(
+    sentinelRubric.reduce((sum, item) => sum + item.current, 0) / Math.max(sentinelRubric.length, 1),
+  );
+  const targetRubric = Math.round(
+    sentinelRubric.reduce((sum, item) => sum + item.target, 0) / Math.max(sentinelRubric.length, 1),
+  );
+
+  return (
+    <main className={`sentinel-page sentinel-workspace-${activeWorkspace}`} aria-label="SENTINEL SOC capstone">
+      <section className="sentinel-hero-grid">
+        <HudCard className="sentinel-hero-card" active>
+          <div className="sentinel-hero-copy">
+            <span>AI-augmented SOC analyst system</span>
+            <strong>SENTINEL</strong>
+            <p>SENTINEL sits between the SIEM and the analyst. It does not replace judgment. It compresses triage, investigation, correlation, reporting, and escalation into auditable reasoning packets so a small SOC can operate with senior-level consistency under pressure.</p>
+          </div>
+          <div className="sentinel-metric-grid">
+            {sentinelOperatingMetrics.map((metric) => (
+              <div key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <em>{metric.detail}</em>
+              </div>
+            ))}
+          </div>
+        </HudCard>
+
+        <HudCard className="sentinel-doctrine-card">
+          <CardHeader title="SOC Doctrine" meta="human in loop" />
+          <p>The system thinks in structured chains, but the analyst owns the decision. Every generated answer must preserve evidence, uncertainty, and review state.</p>
+          <div className="sentinel-doctrine-list">
+            <span>Never invent missing fields.</span>
+            <span>Never escalate without evidence.</span>
+            <span>Never auto-act destructively.</span>
+            <span>Never hide why a recommendation exists.</span>
+          </div>
+        </HudCard>
+      </section>
+
+      <section className="sentinel-workspace-switcher" aria-label="SENTINEL workspace selector">
+        {sentinelWorkspaces.map((workspace) => (
+          <button
+            type="button"
+            className={activeWorkspace === workspace.id ? "active" : ""}
+            aria-pressed={activeWorkspace === workspace.id}
+            onClick={() => setActiveWorkspace(workspace.id)}
+            key={workspace.id}
+          >
+            <span>{workspace.label}</span>
+            <strong>{workspace.metric}</strong>
+            <em>{workspace.detail}</em>
+          </button>
+        ))}
+      </section>
+
+      {activeWorkspace === "overview" && (
+        <>
+          <section className="sentinel-overview-grid">
+            <HudCard className="sentinel-architecture-card">
+              <CardHeader title="Architecture Stack" meta="SIEM to analyst" />
+              <div className="sentinel-architecture-list">
+                {sentinelArchitectureLayers.map((layer, index) => (
+                  <div key={layer.layer}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <strong>{layer.layer}</strong>
+                    <p>{layer.responsibility}</p>
+                    <em>{layer.failureRisk}</em>
+                  </div>
+                ))}
+              </div>
+            </HudCard>
+
+            <HudCard className="sentinel-failure-card">
+              <CardHeader title="Failure Modes" meta="what SENTINEL repairs" />
+              <div className="sentinel-failure-list">
+                {sentinelFailureModes.map((mode) => (
+                  <button type="button" key={mode.title}>
+                    <span>{mode.title}</span>
+                    <strong>{mode.root}</strong>
+                    <em>{mode.fix}</em>
+                  </button>
+                ))}
+              </div>
+            </HudCard>
+          </section>
+
+          <section className="sentinel-impact-grid">
+            {sentinelImpactMetrics.map((metric) => (
+              <HudCard className="sentinel-impact-card" key={metric.label}>
+                <span>{metric.label}</span>
+                <div>
+                  <strong>{metric.before}</strong>
+                  <em>before</em>
+                </div>
+                <div>
+                  <strong>{metric.after}</strong>
+                  <em>target</em>
+                </div>
+              </HudCard>
+            ))}
+          </section>
+        </>
+      )}
+
+      {activeWorkspace === "live" && (
+        <section className="sentinel-live-grid">
+          <HudCard className="sentinel-alert-feed-card" active>
+            <CardHeader title="Live Alert Feed" meta="simulated shift" />
+            <div className="sentinel-alert-feed">
+              {sentinelLiveAlerts.map((alert) => (
+                <button
+                  type="button"
+                  className={`${alert.id === activeAlert.id ? "active" : ""} severity-${alert.severity.toLowerCase()}`}
+                  onClick={() => setActiveAlertId(alert.id)}
+                  key={alert.id}
+                >
+                  <span>{alert.id}</span>
+                  <strong>{alert.title}</strong>
+                  <em>{alert.severity} - {alert.asset}</em>
+                </button>
+              ))}
+            </div>
+          </HudCard>
+
+          <HudCard className="sentinel-alert-detail-card">
+            <CardHeader title="Triage Packet" meta={activeAlert.id} />
+            <div className={`sentinel-alert-severity severity-${activeAlert.severity.toLowerCase()}`}>{activeAlert.severity}</div>
+            <strong>{activeAlert.title}</strong>
+            <p>{activeAlert.reason}</p>
+            <div className="sentinel-alert-fields">
+              <span>asset <strong>{activeAlert.asset}</strong></span>
+              <span>source <strong>{activeAlert.source}</strong></span>
+              <span>engine <strong>{activeAlert.engine}</strong></span>
+            </div>
+          </HudCard>
+
+          <HudCard className="sentinel-hunt-card">
+            <CardHeader title="Correlation Narrative" meta="15m batch" />
+            <p>Three alerts are not a story until time and asset relationships are visible. SENTINEL groups recent activity, looks for attack-chain progression, then writes a short hunter narrative for review.</p>
+            <div className="sentinel-hunt-timeline">
+              <span>01 browser download starts script chain</span>
+              <span>02 identity anomaly appears on executive mailbox</span>
+              <span>03 VPN failures retained as possible credential noise</span>
+              <strong>Recommended next move: validate decoded PowerShell and preserve mailbox audit evidence before closure.</strong>
+            </div>
+          </HudCard>
+        </section>
+      )}
+
+      {activeWorkspace === "engines" && (
+        <section className="sentinel-engine-grid">
+          <HudCard className="sentinel-engine-rail-card">
+            <CardHeader title="Five Engines" meta="prompt-chain core" />
+            <div className="sentinel-engine-rail">
+              {sentinelEngines.map((engine) => (
+                <button
+                  type="button"
+                  className={engine.id === activeEngine.id ? "active" : ""}
+                  onClick={() => setActiveEngineId(engine.id)}
+                  key={engine.id}
+                >
+                  <span>{engine.latency}</span>
+                  <strong>{engine.title}</strong>
+                  <em>{engine.role}</em>
+                </button>
+              ))}
+            </div>
+          </HudCard>
+
+          <HudCard className="sentinel-engine-detail-card" active>
+            <CardHeader title={activeEngine.title} meta={`${activeEngine.confidence}% design confidence`} />
+            <div className="sentinel-engine-brief">
+              <span>{activeEngine.role}</span>
+              <strong>{activeEngine.problem}</strong>
+              <p>{activeEngine.operatingRule}</p>
+            </div>
+            <div className="sentinel-chain-grid">
+              {activeEngine.chain.map((step, index) => (
+                <div key={step.label}>
+                  <span>{String(index + 1).padStart(2, "0")} {step.label}</span>
+                  <strong>{step.instruction}</strong>
+                  <em>{step.output}</em>
+                </div>
+              ))}
+            </div>
+            <div className="sentinel-guardrail-grid">
+              {activeEngine.guardrails.map((guardrail) => (
+                <span key={guardrail}>{guardrail}</span>
+              ))}
+            </div>
+            <blockquote>{activeEngine.mentorNote}</blockquote>
+          </HudCard>
+        </section>
+      )}
+
+      {activeWorkspace === "reports" && (
+        <section className="sentinel-report-grid">
+          <HudCard className="sentinel-report-card" active>
+            <CardHeader title="Incident Report Factory" meta="45m to 5m target" />
+            <div className="sentinel-report-layout">
+              <div>
+                <span>executive layer</span>
+                <strong>Three sentences. Zero jargon. What happened, business impact, current state.</strong>
+              </div>
+              <div>
+                <span>technical layer</span>
+                <strong>Exact timestamps, affected assets, IOCs, containment, root cause, and evidence references.</strong>
+              </div>
+              <div>
+                <span>lesson layer</span>
+                <strong>Specific recommendations, honest lessons learned, and follow-up owners.</strong>
+              </div>
+            </div>
+          </HudCard>
+
+          <HudCard className="sentinel-rubric-card">
+            <CardHeader title="Design Scoring Rubric" meta={`${averageRubric}/10 now -> ${targetRubric}/10 target`} />
+            <div className="sentinel-rubric-list">
+              {sentinelRubric.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.current}/10</strong>
+                  <em>{item.focus}</em>
+                  <ProgressBar value={Math.round((item.current / item.target) * 100)} />
+                </div>
+              ))}
+            </div>
+          </HudCard>
+        </section>
+      )}
+
+      {activeWorkspace === "knowledge" && (
+        <section className="sentinel-knowledge-grid">
+          <HudCard className="sentinel-knowledge-card" active>
+            <CardHeader title="Institutional Memory" meta="long-term moat" />
+            <p>Every closed incident becomes future context. SENTINEL should learn what normal looks like in this exact environment: approved scanners, critical assets, recurring false positives, previous attackers, escalation history, and suppression expiry.</p>
+            <div className="sentinel-knowledge-loop">
+              {sentinelKnowledgeLoops.map((loop) => (
+                <div key={loop.signal}>
+                  <span>{loop.signal}</span>
+                  <strong>{loop.memory}</strong>
+                </div>
+              ))}
+            </div>
+          </HudCard>
+
+          <HudCard className="sentinel-phase-card">
+            <CardHeader title="Build Phases" meta="capstone execution path" />
+            <div className="sentinel-phase-list">
+              {sentinelBuildPhases.map((phase) => (
+                <button type="button" key={phase.phase}>
+                  <span>{phase.phase}</span>
+                  <strong>{phase.title}</strong>
+                  <em>{phase.scope}</em>
+                </button>
+              ))}
+            </div>
+          </HudCard>
+        </section>
+      )}
+
+      <footer className="prompt-sysline sentinel-sysline">
+        <span>// SENTINEL capstone</span>
+        <strong>AI accelerates reasoning, analyst keeps judgment</strong>
+        <span>triage - investigate - correlate - report - escalate</span>
       </footer>
     </main>
   );
