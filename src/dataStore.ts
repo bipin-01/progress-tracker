@@ -364,8 +364,11 @@ async function remoteUpsertTaskProject(project: TaskProject, userId = currentUse
   if (!supabase || !userId) return;
   const { error } = await supabase.from("task_projects").upsert(toTaskProjectRow(project, userId));
   if (error) {
-    setBackendStatus({ error: `Supabase save failed for task_projects: ${error.message}` });
-    throw error;
+    const fallback = await supabase.from("task_projects").upsert(toRemoteRow(project, userId));
+    if (fallback.error) {
+      setBackendStatus({ error: `Supabase save failed for task_projects: ${fallback.error.message}` });
+      throw fallback.error;
+    }
   }
   setBackendStatus({ label: "Supabase realtime", error: null });
 }

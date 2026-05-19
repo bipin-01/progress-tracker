@@ -7085,7 +7085,7 @@ function GoalsRegistry({
             <span>Task Sprint</span>
             <strong>{createTaskPlan ? "Create now" : "Link later"}</strong>
           </label>
-          <button className="submit-goal" type="submit">+ Add Goal</button>
+          <button className="submit-goal" type="submit">ADD</button>
         </form>
         {goalStatus && <div className="goal-create-status">{goalStatus}</div>}
         <div className="goal-registry-filter">
@@ -7739,7 +7739,7 @@ function TaskProtocol({
               }}
               placeholder={`// add a task for D${activeDay} - press Enter`}
             />
-            <button type="button" onClick={addTask}>+ Add</button>
+            <button type="button" onClick={addTask}>ADD</button>
           </div>
         </section>
       </HudCard>
@@ -14398,7 +14398,7 @@ function ProjectCreateForm({
         />
       )}
       <span className="project-range">{rangeDays}d</span>
-      <button type="submit">+</button>
+      <button type="submit">ADD</button>
     </form>
   );
 }
