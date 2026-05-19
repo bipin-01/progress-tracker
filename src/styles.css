@@ -9414,17 +9414,72 @@ button.load-forecast-day:hover {
   font-weight: 500;
 }
 
-.calendar-maintenance select {
-  height: 34px;
-  border: 1px solid var(--hair);
-  background: rgba(5, 9, 18, 0.6);
-  color: var(--ink);
-  font: inherit;
-  outline: none;
-  padding: 0 10px;
+.calendar-series-list {
+  display: grid;
+  gap: 7px;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
-.calendar-maintenance button {
+.calendar-series-list p {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0;
+}
+
+.calendar-series-list button {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 4px 10px;
+  border: 1px solid var(--hair-soft);
+  background: rgba(5, 9, 18, 0.42);
+  cursor: pointer;
+  min-height: 58px;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.calendar-series-list button:hover {
+  border-color: var(--violet);
+  background: rgba(170, 114, 255, 0.08);
+}
+
+.calendar-series-list button span {
+  grid-row: span 2;
+  color: var(--violet);
+}
+
+.calendar-series-list button strong {
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-series-list button em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-cleanup-confirm {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(255, 90, 120, 0.35);
+  background: rgba(255, 90, 120, 0.08);
+  padding: 10px;
+}
+
+.calendar-cleanup-confirm > div {
+  display: flex;
+  gap: 8px;
+}
+
+.calendar-cleanup-confirm button {
   height: 34px;
   border: 1px solid var(--violet);
   color: var(--violet);
@@ -9434,7 +9489,12 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
-.calendar-maintenance button:disabled {
+.calendar-cleanup-confirm button:first-child {
+  border-color: rgba(255, 90, 120, 0.7);
+  color: var(--red);
+}
+
+.calendar-cleanup-confirm button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }

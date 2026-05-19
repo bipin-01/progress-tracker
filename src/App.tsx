@@ -12779,6 +12779,10 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#039;");
 }
 
+type CalendarCleanupRequest =
+  | { type: "all"; ids: string[]; title: string }
+  | { type: "series"; ids: string[]; title: string; seriesId: string };
+
 function CalendarView({
   events,
 }: {
@@ -12793,7 +12797,7 @@ function CalendarView({
   const [eventDate, setEventDate] = useState(todayKey);
   const [recurrence, setRecurrence] = useState<NonNullable<CalendarEvent["recurrence"]>>("none");
   const [repeatCount, setRepeatCount] = useState(4);
-  const [selectedSeriesId, setSelectedSeriesId] = useState("");
+  const [pendingCleanup, setPendingCleanup] = useState<CalendarCleanupRequest | null>(null);
   const [calendarStatus, setCalendarStatus] = useState("");
   const activeDate = parseDateInput(eventDate) ?? today;
   const activeDateKey = toDateInputValue(activeDate);
@@ -12825,10 +12829,13 @@ function CalendarView({
   const recurringSeries = useMemo(() => getCalendarRecurringSeries(events), [events]);
 
   useEffect(() => {
-    if (selectedSeriesId && !recurringSeries.some((series) => series.id === selectedSeriesId)) {
-      setSelectedSeriesId("");
+    if (pendingCleanup?.type === "series" && !recurringSeries.some((series) => series.id === pendingCleanup.seriesId)) {
+      setPendingCleanup(null);
     }
-  }, [recurringSeries, selectedSeriesId]);
+    if (pendingCleanup?.type === "all" && events.length === 0) {
+      setPendingCleanup(null);
+    }
+  }, [events.length, pendingCleanup, recurringSeries]);
 
   function addEvent() {
     const cleanTitle = title.trim();
@@ -12875,42 +12882,47 @@ function CalendarView({
     );
   }
 
-  function clearAllEvents() {
+  function requestClearAllEvents() {
     if (events.length === 0) {
       setCalendarStatus("Calendar is already clear.");
       return;
     }
-    if (!window.confirm(`Clear all ${events.length} calendar events? This cannot be undone.`)) return;
-    void calendarCrud.deleteMany(events.map((event) => event.id));
-    logActivityEvent({
-      domain: "calendar",
-      action: "deleted",
-      entityId: "calendar-all-events",
-      entityTitle: "All calendar events",
-      source: "Calendar maintenance",
-      metadata: { count: events.length },
-    });
-    setCalendarStatus(`Cleared ${events.length} calendar events.`);
+    setPendingCleanup({ type: "all", ids: events.map((event) => event.id), title: `all ${events.length} calendar events` });
+    setCalendarStatus("Confirm clear all in the cleanup panel.");
   }
 
-  function clearRecurringSeries(seriesId: string) {
+  function requestClearRecurringSeries(seriesId: string) {
     const series = recurringSeries.find((item) => item.id === seriesId);
     if (!series) {
       setCalendarStatus("Choose a recurring series to clear.");
       return;
     }
-    if (!window.confirm(`Clear recurring series "${series.title}" (${series.events.length} events)? This cannot be undone.`)) return;
-    void calendarCrud.deleteMany(series.events.map((event) => event.id));
-    logActivityEvent({
-      domain: "calendar",
-      action: "deleted",
-      entityId: series.id,
-      entityTitle: series.title,
-      source: "Calendar maintenance",
-      metadata: { count: series.events.length, recurrence: series.recurrence, firstDate: series.firstDate, lastDate: series.lastDate },
+    setPendingCleanup({
+      type: "series",
+      ids: series.events.map((event) => event.id),
+      title: `${series.title} (${series.events.length} events)`,
+      seriesId: series.id,
     });
-    setSelectedSeriesId("");
-    setCalendarStatus(`Cleared ${series.events.length} events from ${series.title}.`);
+    setCalendarStatus(`Confirm cleanup for ${series.title}.`);
+  }
+
+  async function confirmCalendarCleanup() {
+    if (!pendingCleanup || pendingCleanup.ids.length === 0) return;
+    try {
+      await calendarCrud.deleteMany(pendingCleanup.ids);
+      logActivityEvent({
+        domain: "calendar",
+        action: "deleted",
+        entityId: pendingCleanup.type === "all" ? "calendar-all-events" : pendingCleanup.seriesId,
+        entityTitle: pendingCleanup.title,
+        source: "Calendar maintenance",
+        metadata: { count: pendingCleanup.ids.length, cleanupType: pendingCleanup.type },
+      });
+      setCalendarStatus(`Cleared ${pendingCleanup.ids.length} event${pendingCleanup.ids.length === 1 ? "" : "s"} from ${pendingCleanup.title}.`);
+      setPendingCleanup(null);
+    } catch (error) {
+      setCalendarStatus(`Cleanup failed: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
   }
 
   function deleteSingleEvent(event: CalendarEvent) {
@@ -12955,7 +12967,7 @@ function CalendarView({
                 setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1));
                 selectCalendarDate(today);
               }}>today</button>
-              <button className="calendar-clear-button" type="button" onClick={clearAllEvents} disabled={events.length === 0}>clear all</button>
+              <button className="calendar-clear-button" type="button" onClick={requestClearAllEvents} disabled={events.length === 0}>clear all</button>
               <strong>{visibleMonthLabel}</strong>
             </div>
             <span>{visibleMonthEventCount} events this month</span>
@@ -13030,32 +13042,35 @@ function CalendarView({
             {selectedEvents.length === 0 ? (
               <p>// no events scheduled</p>
             ) : (
-              selectedEvents.map((event) => (
-                <div className="selected-event" key={event.id}>
-                  <span>{event.time}</span>
-                  <strong>{event.title}</strong>
-                  <em>{event.kind}</em>
-                  <div className="selected-event-actions">
-                    {event.recurringGroupId && (
+              selectedEvents.map((event) => {
+                const seriesForEvent = recurringSeries.find((series) => series.events.some((item) => item.id === event.id));
+                return (
+                  <div className="selected-event" key={event.id}>
+                    <span>{event.time}</span>
+                    <strong>{event.title}</strong>
+                    <em>{event.kind}</em>
+                    <div className="selected-event-actions">
+                      {seriesForEvent && (
+                        <button
+                          className="selected-event-series"
+                          type="button"
+                          onClick={() => requestClearRecurringSeries(seriesForEvent.id)}
+                          aria-label={`Delete recurring series ${event.title}`}
+                        >
+                          series
+                        </button>
+                      )}
                       <button
-                        className="selected-event-series"
                         type="button"
-                        onClick={() => clearRecurringSeries(event.recurringGroupId ?? "")}
-                        aria-label={`Delete recurring series ${event.title}`}
+                        onClick={() => deleteSingleEvent(event)}
+                        aria-label={`Delete ${event.title}`}
                       >
-                        series
+                        ×
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => deleteSingleEvent(event)}
-                      aria-label={`Delete ${event.title}`}
-                    >
-                      ×
-                    </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
           {selectedDateLocked && <div className="selected-day-lock">// past date locked - create events on today or a future date</div>}
@@ -13095,15 +13110,29 @@ function CalendarView({
               <span>Recurring cleanup</span>
               <strong>{recurringSeries.length} active series</strong>
             </div>
-            <select value={selectedSeriesId} onChange={(event) => setSelectedSeriesId(event.target.value)}>
-              <option value="">Select recurring series</option>
-              {recurringSeries.map((series) => (
-                <option value={series.id} key={series.id}>
-                  {series.title} - {series.events.length} {series.recurrence} events
-                </option>
-              ))}
-            </select>
-            <button type="button" disabled={!selectedSeriesId} onClick={() => clearRecurringSeries(selectedSeriesId)}>Clear Selected Series</button>
+            <div className="calendar-series-list">
+              {recurringSeries.length === 0 ? (
+                <p>// no repeated or recurring events detected</p>
+              ) : (
+                recurringSeries.map((series) => (
+                  <button type="button" onClick={() => requestClearRecurringSeries(series.id)} key={series.id}>
+                    <span>{series.recurrence === "inferred" ? "repeated" : series.recurrence}</span>
+                    <strong>{series.title}</strong>
+                    <em>{series.events.length} events · {formatCalendarDateRange(series.firstDate, series.lastDate)}</em>
+                  </button>
+                ))
+              )}
+            </div>
+            {pendingCleanup && (
+              <div className="calendar-cleanup-confirm">
+                <span>Confirm cleanup</span>
+                <strong>{pendingCleanup.title}</strong>
+                <div>
+                  <button type="button" onClick={() => void confirmCalendarCleanup()}>Confirm Delete</button>
+                  <button type="button" onClick={() => setPendingCleanup(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         </HudCard>
       </section>
@@ -28136,9 +28165,19 @@ function buildCalendarEvents({
 
 function getCalendarRecurringSeries(events: CalendarEvent[]) {
   const groups = new Map<string, CalendarEvent[]>();
+  const inferredGroups = new Map<string, CalendarEvent[]>();
+
   events.forEach((event) => {
-    if (!event.recurringGroupId) return;
-    groups.set(event.recurringGroupId, [...(groups.get(event.recurringGroupId) ?? []), event]);
+    if (event.recurringGroupId) {
+      groups.set(event.recurringGroupId, [...(groups.get(event.recurringGroupId) ?? []), event]);
+      return;
+    }
+    const inferredKey = `inferred:${slugify(event.title)}:${event.kind}:${event.time}`;
+    inferredGroups.set(inferredKey, [...(inferredGroups.get(inferredKey) ?? []), event]);
+  });
+
+  inferredGroups.forEach((seriesEvents, key) => {
+    if (seriesEvents.length > 1) groups.set(key, seriesEvents);
   });
 
   return Array.from(groups.entries())
@@ -28149,13 +28188,21 @@ function getCalendarRecurringSeries(events: CalendarEvent[]) {
       return {
         id,
         title: first?.title ?? "Recurring series",
-        recurrence: first?.recurrence ?? "none",
+        recurrence: id.startsWith("inferred:") ? "inferred" : first?.recurrence ?? "none",
         firstDate: first ? toDateInputValue(getEventDate(first)) : "",
         lastDate: last ? toDateInputValue(getEventDate(last)) : "",
         events: sortedEvents,
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title) || a.firstDate.localeCompare(b.firstDate));
+}
+
+function formatCalendarDateRange(firstDate: string, lastDate: string) {
+  const first = parseDateInput(firstDate);
+  const last = parseDateInput(lastDate);
+  if (!first || !last) return "date range unknown";
+  if (firstDate === lastDate) return formatUpcomingDate(first);
+  return `${formatUpcomingDate(first)} to ${formatUpcomingDate(last)}`;
 }
 
 function getUpcomingEvents(events: CalendarEvent[], now: Date) {

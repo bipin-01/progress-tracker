@@ -704,8 +704,19 @@ export const calendarCrud = {
   async deleteMany(ids: string[]) {
     if (ids.length === 0) return;
     if (isSupabaseConfigured) {
-      if (!supabase || !currentUserId) return;
-      const { error } = await supabase.from("calendar_events").delete().eq("user_id", currentUserId).in("id", ids);
+      if (!supabase) return;
+      let userId = currentUserId;
+      if (!userId) {
+        const { data } = await supabase.auth.getUser();
+        userId = data.user?.id ?? null;
+        currentUserId = userId;
+      }
+      if (!userId) {
+        const message = "No signed-in user for calendar bulk delete.";
+        setBackendStatus({ error: message });
+        throw new Error(message);
+      }
+      const { error } = await supabase.from("calendar_events").delete().eq("user_id", userId).in("id", ids);
       if (error) {
         setBackendStatus({ error: `Supabase delete failed for calendar_events: ${error.message}` });
         throw error;
