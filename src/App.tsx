@@ -12791,6 +12791,9 @@ function CalendarView({
   const [kind, setKind] = useState<CalendarEvent["kind"]>("meeting");
   const [time, setTime] = useState("09:00");
   const [eventDate, setEventDate] = useState(todayKey);
+  const [recurrence, setRecurrence] = useState<NonNullable<CalendarEvent["recurrence"]>>("none");
+  const [repeatCount, setRepeatCount] = useState(4);
+  const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [calendarStatus, setCalendarStatus] = useState("");
   const activeDate = parseDateInput(eventDate) ?? today;
   const activeDateKey = toDateInputValue(activeDate);
@@ -12819,6 +12822,13 @@ function CalendarView({
     [events, visibleMonth],
   );
   const upcomingVisibleEvents = useMemo(() => getUpcomingEvents(events, today).slice(0, 4), [events, today]);
+  const recurringSeries = useMemo(() => getCalendarRecurringSeries(events), [events]);
+
+  useEffect(() => {
+    if (selectedSeriesId && !recurringSeries.some((series) => series.id === selectedSeriesId)) {
+      setSelectedSeriesId("");
+    }
+  }, [recurringSeries, selectedSeriesId]);
 
   function addEvent() {
     const cleanTitle = title.trim();
@@ -12831,25 +12841,89 @@ function CalendarView({
       setCalendarStatus("Past dates are locked. Choose today or a future date.");
       return;
     }
-    const event: CalendarEvent = {
-      id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-      date: toDateInputValue(resolvedDate),
-      day: resolvedDate.getDate(),
+    const seriesEvents = buildCalendarEvents({
       title: cleanTitle,
       kind,
       time,
-    };
-    void calendarCrud.add(event);
+      startDate: resolvedDate,
+      recurrence,
+      repeatCount,
+    });
+    void calendarCrud.addMany(seriesEvents);
+    seriesEvents.forEach((event) => {
+      logActivityEvent({
+        domain: "calendar",
+        action: "created",
+        entityId: event.id,
+        entityTitle: event.title,
+        source: "Calendar",
+        metadata: {
+          kind: event.kind,
+          date: event.date,
+          time: event.time,
+          recurringGroupId: event.recurringGroupId,
+          recurrence: event.recurrence,
+          recurrenceIndex: event.recurrenceIndex,
+        },
+      });
+    });
+    setTitle("");
+    setCalendarStatus(
+      seriesEvents.length > 1
+        ? `Scheduled ${seriesEvents.length} ${recurrence} events for ${cleanTitle}.`
+        : `Scheduled ${cleanTitle} on ${formatUpcomingDate(resolvedDate)}.`,
+    );
+  }
+
+  function clearAllEvents() {
+    if (events.length === 0) {
+      setCalendarStatus("Calendar is already clear.");
+      return;
+    }
+    if (!window.confirm(`Clear all ${events.length} calendar events? This cannot be undone.`)) return;
+    void calendarCrud.deleteMany(events.map((event) => event.id));
     logActivityEvent({
       domain: "calendar",
-      action: "created",
+      action: "deleted",
+      entityId: "calendar-all-events",
+      entityTitle: "All calendar events",
+      source: "Calendar maintenance",
+      metadata: { count: events.length },
+    });
+    setCalendarStatus(`Cleared ${events.length} calendar events.`);
+  }
+
+  function clearRecurringSeries(seriesId: string) {
+    const series = recurringSeries.find((item) => item.id === seriesId);
+    if (!series) {
+      setCalendarStatus("Choose a recurring series to clear.");
+      return;
+    }
+    if (!window.confirm(`Clear recurring series "${series.title}" (${series.events.length} events)? This cannot be undone.`)) return;
+    void calendarCrud.deleteMany(series.events.map((event) => event.id));
+    logActivityEvent({
+      domain: "calendar",
+      action: "deleted",
+      entityId: series.id,
+      entityTitle: series.title,
+      source: "Calendar maintenance",
+      metadata: { count: series.events.length, recurrence: series.recurrence, firstDate: series.firstDate, lastDate: series.lastDate },
+    });
+    setSelectedSeriesId("");
+    setCalendarStatus(`Cleared ${series.events.length} events from ${series.title}.`);
+  }
+
+  function deleteSingleEvent(event: CalendarEvent) {
+    void calendarCrud.delete(event.id);
+    logActivityEvent({
+      domain: "calendar",
+      action: "deleted",
       entityId: event.id,
       entityTitle: event.title,
       source: "Calendar",
-      metadata: { kind: event.kind, date: event.date, time: event.time },
+      metadata: { kind: event.kind, date: event.date, time: event.time, recurringGroupId: event.recurringGroupId, recurrence: event.recurrence },
     });
-    setTitle("");
-    setCalendarStatus(`Scheduled ${cleanTitle} on ${formatUpcomingDate(resolvedDate)}.`);
+    setCalendarStatus(`Deleted ${event.title} on ${formatUpcomingDate(getEventDate(event))}.`);
   }
 
   function changeVisibleMonth(direction: -1 | 1) {
@@ -12881,6 +12955,7 @@ function CalendarView({
                 setVisibleMonth(new Date(today.getFullYear(), today.getMonth(), 1));
                 selectCalendarDate(today);
               }}>today</button>
+              <button className="calendar-clear-button" type="button" onClick={clearAllEvents} disabled={events.length === 0}>clear all</button>
               <strong>{visibleMonthLabel}</strong>
             </div>
             <span>{visibleMonthEventCount} events this month</span>
@@ -12960,23 +13035,25 @@ function CalendarView({
                   <span>{event.time}</span>
                   <strong>{event.title}</strong>
                   <em>{event.kind}</em>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void calendarCrud.delete(event.id);
-                      logActivityEvent({
-                        domain: "calendar",
-                        action: "deleted",
-                        entityId: event.id,
-                        entityTitle: event.title,
-                        source: "Calendar",
-                        metadata: { kind: event.kind, date: event.date, time: event.time },
-                      });
-                    }}
-                    aria-label={`Delete ${event.title}`}
-                  >
-                    ×
-                  </button>
+                  <div className="selected-event-actions">
+                    {event.recurringGroupId && (
+                      <button
+                        className="selected-event-series"
+                        type="button"
+                        onClick={() => clearRecurringSeries(event.recurringGroupId ?? "")}
+                        aria-label={`Delete recurring series ${event.title}`}
+                      >
+                        series
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteSingleEvent(event)}
+                      aria-label={`Delete ${event.title}`}
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -12994,7 +13071,39 @@ function CalendarView({
             </select>
             <input type="date" min={todayKey} value={eventDate} onChange={(event) => handleDateInput(event.target.value)} />
             <input value={time} disabled={selectedDateLocked} onChange={(event) => setTime(event.target.value)} placeholder="HH:MM" />
-            <button type="button" disabled={selectedDateLocked} onClick={addEvent}>+ Add Event</button>
+            <div className="event-recurrence-row">
+              <select value={recurrence} disabled={selectedDateLocked} onChange={(event) => setRecurrence(event.target.value as NonNullable<CalendarEvent["recurrence"]>)}>
+                <option value="none">No repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <input
+                type="number"
+                min="2"
+                max="52"
+                disabled={selectedDateLocked || recurrence === "none"}
+                value={repeatCount}
+                onChange={(event) => setRepeatCount(clamp(Math.round(Number(event.target.value) || 2), 2, 52))}
+                aria-label="Repeat count"
+              />
+            </div>
+            <button type="button" disabled={selectedDateLocked} onClick={addEvent}>{recurrence === "none" ? "+ Add Event" : "+ Add Series"}</button>
+          </div>
+          <div className="calendar-maintenance">
+            <div>
+              <span>Recurring cleanup</span>
+              <strong>{recurringSeries.length} active series</strong>
+            </div>
+            <select value={selectedSeriesId} onChange={(event) => setSelectedSeriesId(event.target.value)}>
+              <option value="">Select recurring series</option>
+              {recurringSeries.map((series) => (
+                <option value={series.id} key={series.id}>
+                  {series.title} - {series.events.length} {series.recurrence} events
+                </option>
+              ))}
+            </select>
+            <button type="button" disabled={!selectedSeriesId} onClick={() => clearRecurringSeries(selectedSeriesId)}>Clear Selected Series</button>
           </div>
         </HudCard>
       </section>
@@ -27981,6 +28090,72 @@ function getEventDate(event: CalendarEvent) {
     if (year && month && day) return new Date(year, month - 1, day);
   }
   return makeCalendarDate(event.day);
+}
+
+function addCalendarRecurrence(date: Date, recurrence: NonNullable<CalendarEvent["recurrence"]>, index: number) {
+  if (recurrence === "daily") return addDays(date, index);
+  if (recurrence === "weekly") return addDays(date, index * 7);
+  if (recurrence === "monthly") return new Date(date.getFullYear(), date.getMonth() + index, date.getDate());
+  return date;
+}
+
+function buildCalendarEvents({
+  title,
+  kind,
+  time,
+  startDate,
+  recurrence,
+  repeatCount,
+}: {
+  title: string;
+  kind: CalendarEvent["kind"];
+  time: string;
+  startDate: Date;
+  recurrence: NonNullable<CalendarEvent["recurrence"]>;
+  repeatCount: number;
+}) {
+  const count = recurrence === "none" ? 1 : clamp(Math.round(repeatCount || 2), 2, 52);
+  const timestamp = Date.now();
+  const groupId = recurrence === "none" ? undefined : `${timestamp}-${slugify(title)}-${recurrence}`;
+  return Array.from({ length: count }, (_, index): CalendarEvent => {
+    const date = addCalendarRecurrence(startDate, recurrence, index);
+    return {
+      id: `${timestamp}-${index + 1}-${slugify(title)}`,
+      date: toDateInputValue(date),
+      day: date.getDate(),
+      title,
+      kind,
+      time,
+      recurringGroupId: groupId,
+      recurrence,
+      recurrenceIndex: index + 1,
+      recurrenceCount: count,
+    };
+  });
+}
+
+function getCalendarRecurringSeries(events: CalendarEvent[]) {
+  const groups = new Map<string, CalendarEvent[]>();
+  events.forEach((event) => {
+    if (!event.recurringGroupId) return;
+    groups.set(event.recurringGroupId, [...(groups.get(event.recurringGroupId) ?? []), event]);
+  });
+
+  return Array.from(groups.entries())
+    .map(([id, seriesEvents]) => {
+      const sortedEvents = [...seriesEvents].sort((a, b) => getEventDate(a).getTime() - getEventDate(b).getTime() || a.time.localeCompare(b.time));
+      const first = sortedEvents[0];
+      const last = sortedEvents[sortedEvents.length - 1];
+      return {
+        id,
+        title: first?.title ?? "Recurring series",
+        recurrence: first?.recurrence ?? "none",
+        firstDate: first ? toDateInputValue(getEventDate(first)) : "",
+        lastDate: last ? toDateInputValue(getEventDate(last)) : "",
+        events: sortedEvents,
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title) || a.firstDate.localeCompare(b.firstDate));
 }
 
 function getUpcomingEvents(events: CalendarEvent[], now: Date) {

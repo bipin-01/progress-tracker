@@ -690,9 +690,30 @@ export const calendarCrud = {
     if (isSupabaseConfigured) return remoteUpsert("calendar_events", event);
     return localCalendarCrud.add(event);
   },
+  async addMany(events: CalendarEvent[]) {
+    if (isSupabaseConfigured) {
+      await Promise.all(events.map((event) => remoteUpsert("calendar_events", event)));
+      return;
+    }
+    return localCalendarCrud.addMany(events);
+  },
   async delete(id: string) {
     if (isSupabaseConfigured) return remoteDelete("calendar_events", id);
     return localCalendarCrud.delete(id);
+  },
+  async deleteMany(ids: string[]) {
+    if (ids.length === 0) return;
+    if (isSupabaseConfigured) {
+      if (!supabase || !currentUserId) return;
+      const { error } = await supabase.from("calendar_events").delete().eq("user_id", currentUserId).in("id", ids);
+      if (error) {
+        setBackendStatus({ error: `Supabase delete failed for calendar_events: ${error.message}` });
+        throw error;
+      }
+      setBackendStatus({ label: "Supabase realtime", error: null });
+      return;
+    }
+    return localCalendarCrud.deleteMany(ids);
   },
 };
 

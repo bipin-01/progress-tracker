@@ -208,8 +208,14 @@ export const calendarCrud = {
   add(event: CalendarEvent) {
     return db.calendarEvents.put(event);
   },
+  addMany(events: CalendarEvent[]) {
+    return db.calendarEvents.bulkPut(events);
+  },
   delete(id: string) {
     return db.calendarEvents.delete(id);
+  },
+  deleteMany(ids: string[]) {
+    return db.calendarEvents.bulkDelete(ids);
   },
 };
 

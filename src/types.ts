@@ -72,6 +72,10 @@ export type CalendarEvent = {
   title: string;
   kind: "meeting" | "deadline" | "appointment" | "project" | "personal";
   time: string;
+  recurringGroupId?: string;
+  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  recurrenceIndex?: number;
+  recurrenceCount?: number;
 };
 
 export type StudyNote = {
