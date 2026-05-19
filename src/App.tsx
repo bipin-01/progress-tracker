@@ -23383,6 +23383,53 @@ const promptWorkspaces = [
 
 type PromptWorkspace = (typeof promptWorkspaces)[number]["id"];
 
+const promptWorkspaceGuide: Record<
+  PromptWorkspace,
+  {
+    label: string;
+    zone: string;
+    definition: string;
+    focus: string[];
+    next: string;
+  }
+> = {
+  today: {
+    label: "Today Command",
+    zone: "required work",
+    definition: "This is the only lane for today's bootcamp task, evidence packet, journal attempt, and daily mastery lock.",
+    focus: ["Pick the day", "Finish the five task panels", "Save one artifact", "Lock the checkpoint"],
+    next: "Work the current day from top to bottom.",
+  },
+  portfolio: {
+    label: "Portfolio Defense",
+    zone: "artifact review",
+    definition: "This lane is for case studies, mentor-defense rehearsals, checkpoint comparisons, and share-readiness gates.",
+    focus: ["Review archived reports", "Polish the weakest artifact", "Practice spoken defense", "Export mentor notes"],
+    next: "Use this after a daily task creates something worth showing.",
+  },
+  study: {
+    label: "Study Library",
+    zone: "learning material",
+    definition: "This lane is curriculum: zero-knowledge explanations, skill ladder, roadmap, SRS theory, and drill deck.",
+    focus: ["Read the primer", "Review due theory", "Open a drill", "Promote one skill level"],
+    next: "Use this when you need teaching content, not today's execution checklist.",
+  },
+  lab: {
+    label: "Prompt Lab",
+    zone: "practice workspace",
+    definition: "This lane is for writing prompts, running the local evaluator, and saving v1/v2/v3 iterations.",
+    focus: ["Choose a scenario", "Run a prompt", "Score the result", "Save the version"],
+    next: "Use this when you are experimenting with prompt quality.",
+  },
+  reference: {
+    label: "Reference Vault",
+    zone: "lookup shelf",
+    definition: "This lane is for fast lookup: reusable rule sheets and scenario cases without the daily task UI mixed in.",
+    focus: ["Open a sheet", "Compare scenario constraints", "Copy rules into lab", "Return to Today when ready"],
+    next: "Use this when you need a rule, pattern, or example case.",
+  },
+};
+
 type PromptPointerKind = "mentor" | "step" | "practice" | "rubric" | "done" | "reflection";
 
 type PromptPointer = {
@@ -23766,6 +23813,7 @@ function PromptView() {
   const activeIterations = iterations.filter((iteration) => iteration.drillId === activeDrill.id).slice(0, 3);
   const promptEndpoint = PROMPT_LAB_ENDPOINT;
   const activePromptPointerInsight = activePromptPointer ? buildPromptPointerInsight(activeDailyTask, activePromptPointer) : null;
+  const activeWorkspaceGuide = promptWorkspaceGuide[activePromptWorkspace];
 
   useEffect(() => {
     const saved = savePromptMemorySnapshot({
@@ -24720,6 +24768,7 @@ function PromptView() {
                 className={activePromptWorkspace === workspace.id ? "active" : ""}
                 onClick={() => setActivePromptWorkspace(workspace.id)}
               >
+                <small>{workspace.id === "today" ? "today" : workspace.id === "study" || workspace.id === "reference" ? "study" : "practice"}</small>
                 <span>{workspace.label}</span>
                 <em>{workspace.detail}</em>
               </button>
@@ -24727,6 +24776,7 @@ function PromptView() {
           </div>
         </HudCard>
 
+        {activePromptWorkspace === "today" ? (
         <HudCard className="prompt-day-card">
           <CardHeader title="Daily Bootcamp" meta={`D${String(selectedDay).padStart(2, "0")}`} />
           <div className="prompt-day-control">
@@ -25394,6 +25444,29 @@ function PromptView() {
             </div>
           </div>
         </HudCard>
+        ) : (
+        <HudCard className="prompt-workspace-context-card">
+          <CardHeader title={activeWorkspaceGuide.label} meta={activeWorkspaceGuide.zone} />
+          <div className="prompt-workspace-context-grid">
+            <div className="prompt-context-current">
+              <span>now viewing</span>
+              <strong>{activeWorkspaceGuide.label}</strong>
+              <p>{activeWorkspaceGuide.definition}</p>
+              <em>{activeWorkspaceGuide.next}</em>
+            </div>
+            <div className="prompt-context-today">
+              <span>today is separate</span>
+              <strong>D{String(selectedDay).padStart(2, "0")} · {dailyProgress}%</strong>
+              <p>{activeDailyTask.label}</p>
+              <button type="button" onClick={() => setActivePromptWorkspace("today")}>Open Today</button>
+            </div>
+            <div className="prompt-context-focus">
+              <span>section focus</span>
+              {activeWorkspaceGuide.focus.map((item) => <em key={item}>{item}</em>)}
+            </div>
+          </div>
+        </HudCard>
+        )}
       </section>
 
       {(activePromptWorkspace === "today" || activePromptWorkspace === "portfolio") ? (

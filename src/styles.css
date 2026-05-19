@@ -17112,6 +17112,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-hero-card,
+.prompt-workspace-context-card,
 .prompt-mastery-ledger-card,
 .prompt-day-card,
 .prompt-foundation-card,
@@ -17234,6 +17235,23 @@ button.load-forecast-day:hover {
     rgba(5, 20, 34, 0.56);
 }
 
+.prompt-workspace-switcher small {
+  width: max-content;
+  border: 1px solid rgba(53, 215, 255, 0.16);
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  padding: 3px 5px;
+  text-transform: uppercase;
+}
+
+.prompt-workspace-switcher button.active small {
+  border-color: rgba(53, 215, 255, 0.48);
+  color: var(--cyan);
+}
+
 .prompt-workspace-switcher span {
   color: var(--cyan);
   font-family: "Orbitron", sans-serif;
@@ -17285,6 +17303,7 @@ button.load-forecast-day:hover {
 }
 
 .prompt-day-card,
+.prompt-workspace-context-card,
 .prompt-mastery-ledger-card,
 .prompt-foundation-card,
 .prompt-anatomy-card,
@@ -17310,6 +17329,77 @@ button.load-forecast-day:hover {
   align-items: start;
   align-content: start;
   gap: 16px 22px;
+}
+
+.prompt-workspace-context-card {
+  animation: prompt-panel-enter 0.22s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.prompt-workspace-context-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(240px, 0.42fr) minmax(260px, 0.55fr);
+  gap: 12px;
+}
+
+.prompt-context-current,
+.prompt-context-today,
+.prompt-context-focus {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid rgba(53, 215, 255, 0.14);
+  background: rgba(2, 7, 15, 0.42);
+  padding: 12px;
+}
+
+.prompt-context-current span,
+.prompt-context-today span,
+.prompt-context-focus span {
+  color: var(--ink-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.prompt-context-current strong,
+.prompt-context-today strong {
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prompt-context-current p,
+.prompt-context-today p {
+  margin: 0;
+  color: var(--ink-1);
+  font-size: 12px;
+  line-height: 1.65;
+  text-transform: none;
+}
+
+.prompt-context-current em,
+.prompt-context-focus em {
+  border: 1px solid rgba(53, 215, 255, 0.1);
+  background: rgba(53, 215, 255, 0.045);
+  color: var(--ink-2);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.5;
+  padding: 7px 8px;
+}
+
+.prompt-context-today button {
+  width: max-content;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  padding: 8px 12px;
+  text-transform: uppercase;
 }
 
 .prompt-day-card > .card-header {
@@ -20927,6 +21017,7 @@ button.load-forecast-day:hover {
   .prompt-anatomy-grid,
   .prompt-level-rail,
   .prompt-workspace-switcher,
+  .prompt-workspace-context-grid,
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
@@ -21042,6 +21133,7 @@ button.load-forecast-day:hover {
   .zh-hsk-word-bank,
   .prompt-hero-metrics,
   .prompt-workspace-switcher,
+  .prompt-workspace-context-grid,
   .prompt-mastery-core,
   .prompt-mastery-signals,
   .prompt-mastery-archive,
