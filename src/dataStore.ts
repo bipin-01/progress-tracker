@@ -2,6 +2,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import {
+  activityEventCrud as localActivityEventCrud,
   calendarCrud as localCalendarCrud,
   agentRecommendationCrud as localAgentRecommendationCrud,
   db,
@@ -9,14 +10,15 @@ import {
   habitCrud as localHabitCrud,
   kanbanActivityCrud as localKanbanActivityCrud,
   kanbanCrud as localKanbanCrud,
+  skillRecordCrud as localSkillRecordCrud,
   studyFolderCrud as localStudyFolderCrud,
   studyNoteCrud as localStudyNoteCrud,
   taskProjectCrud as localTaskProjectCrud,
 } from "./database";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
-import type { AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
+import type { ActivityEvent, AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, SkillRecord, StudyFolder, StudyNote, TaskProject } from "./types";
 
-type TableName = "goals" | "habits" | "task_projects" | "calendar_events" | "kanban_cards" | "kanban_activity" | "agent_recommendations" | "study_notes" | "study_folders";
+type TableName = "goals" | "habits" | "task_projects" | "calendar_events" | "kanban_cards" | "kanban_activity" | "activity_events" | "agent_recommendations" | "skill_records" | "study_notes" | "study_folders";
 type StoreMap = {
   goals: Goal;
   habits: Habit;
@@ -24,7 +26,9 @@ type StoreMap = {
   calendar_events: CalendarEvent;
   kanban_cards: KanbanCard;
   kanban_activity: KanbanActivity;
+  activity_events: ActivityEvent;
   agent_recommendations: AgentRecommendation;
+  skill_records: SkillRecord;
   study_notes: StudyNote;
   study_folders: StudyFolder;
 };
@@ -50,7 +54,6 @@ function useRemoteTable<T extends StoreMap[TableName]>(table: TableName, fallbac
   const [records, setRecords] = useState<T[]>(fallback);
   const { user, loading } = useSupabaseAuth();
   const userId = user?.id ?? null;
-  const fallbackKey = useMemo(() => fallback.map((record) => record.id).join("|"), [fallback]);
 
   useEffect(() => {
     if (!supabase || loading || !userId) {
@@ -84,7 +87,7 @@ function useRemoteTable<T extends StoreMap[TableName]>(table: TableName, fallbac
       active = false;
       void client.removeChannel(channel);
     };
-  }, [fallbackKey, loading, refreshKey, table, userId]);
+  }, [fallback, loading, refreshKey, table, userId]);
 
   return records;
 }
@@ -152,6 +155,7 @@ export async function seedRemoteDatabase(seed: {
   taskProjects: TaskProject[];
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  skillRecords: SkillRecord[];
   studyNotes: StudyNote[];
   studyFolders: StudyFolder[];
 }, userId = currentUserId) {
@@ -162,28 +166,51 @@ export async function seedRemoteDatabase(seed: {
   }
   if (!userId) return;
   currentUserId = userId;
-  const [{ count: goalCount }, { count: habitCount }, { count: projectCount }, { count: eventCount }, { count: kanbanCount }, { count: noteCount }, { count: folderCount }] = await Promise.all([
+  const [{ count: goalCount }, { count: habitCount }, { count: projectCount }, { count: eventCount }, { count: kanbanCount }, { count: skillCount }, { count: noteCount }, { count: folderCount }] = await Promise.all([
     supabase.from("goals").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("habits").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("task_projects").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("calendar_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("kanban_cards").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabase.from("skill_records").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("study_notes").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("study_folders").select("id", { count: "exact", head: true }).eq("user_id", userId),
   ]);
 
+  const missingStudyFoldersPromise = folderCount && folderCount > 0
+    ? supabase.from("study_folders").select("id").eq("user_id", userId).then(({ data }) => {
+        const existingFolderIds = new Set((data ?? []).map((row) => row.id));
+        return seed.studyFolders.filter((folder) => !existingFolderIds.has(folder.id));
+      })
+    : Promise.resolve(seed.studyFolders);
+  const missingStudyFolders = await missingStudyFoldersPromise;
+  const missingSkillRecordsPromise = skillCount && skillCount > 0
+    ? supabase.from("skill_records").select("id").eq("user_id", userId).then(({ data }) => {
+        const existingSkillIds = new Set((data ?? []).map((row) => row.id));
+        return seed.skillRecords.filter((record) => !existingSkillIds.has(record.id));
+      })
+    : Promise.resolve(seed.skillRecords);
+  const missingSkillRecords = await missingSkillRecordsPromise;
+
   await Promise.all([
-    goalCount === 0 ? supabase.from("goals").upsert(seed.goals.map((record) => toRemoteRow(record, userId))) : null,
+    goalCount === 0 ? supabase.from("goals").upsert(seed.goals.map((record) => toGoalRow(record, userId))) : null,
     habitCount === 0 ? supabase.from("habits").upsert(seed.habits.map((record) => toRemoteRow(record, userId))) : null,
     projectCount === 0
-      ? supabase.from("task_projects").upsert(seed.taskProjects.map((record) => toRemoteRow(record, userId)))
+      ? supabase.from("task_projects").upsert(seed.taskProjects.map((record) => toTaskProjectRow(record, userId)))
       : null,
     eventCount === 0
       ? supabase.from("calendar_events").upsert(seed.calendarEvents.map((record) => toRemoteRow(record, userId)))
       : null,
     kanbanCount === 0 ? remoteUpsertKanbanCards(seed.kanbanCards, userId) : null,
+    missingSkillRecords.length > 0
+      ? Promise.all(missingSkillRecords.map((record) => remoteUpsertSkillRecord(record, userId))).catch((error) => {
+          const message = error instanceof Error ? error.message : "unknown error";
+          console.warn("Skill record seed failed", error);
+          setBackendStatus({ error: `Skill record sync pending migration: ${message}` });
+        })
+      : null,
     noteCount === 0 ? supabase.from("study_notes").upsert(seed.studyNotes.map((record) => toStudyNoteRow(record, userId))) : null,
-    folderCount === 0 ? supabase.from("study_folders").upsert(seed.studyFolders.map((record) => toStudyFolderRow(record, userId))) : null,
+    missingStudyFolders.length > 0 ? supabase.from("study_folders").upsert(missingStudyFolders.map((record) => toStudyFolderRow(record, userId))) : null,
   ]);
 }
 
@@ -212,9 +239,19 @@ export function useKanbanActivityData(refreshKey = 0) {
   return useRemoteTable("kanban_activity", local, refreshKey);
 }
 
+export function useActivityEventsData(refreshKey = 0) {
+  const local = useLiveQuery(() => db.activityEvents.toArray(), []) ?? [];
+  return useRemoteTable("activity_events", local, refreshKey);
+}
+
 export function useAgentRecommendationsData(refreshKey = 0) {
   const local = useLiveQuery(() => db.agentRecommendations.toArray(), []) ?? [];
   return useRemoteTable("agent_recommendations", local, refreshKey);
+}
+
+export function useSkillRecordsData(seed: SkillRecord[], refreshKey = 0) {
+  const local = useLiveQuery(() => db.skillRecords.toArray(), []) ?? seed;
+  return useRemoteTable("skill_records", local, refreshKey);
 }
 
 export function useStudyNotesData(seed: StudyNote[], refreshKey = 0) {
@@ -261,6 +298,30 @@ function toRemoteRow<T extends { id: string }>(record: T, userId = currentUserId
   return { id: record.id, user_id: userId, data: record };
 }
 
+function toGoalRow(goal: Goal, userId = currentUserId) {
+  return {
+    ...toRemoteRow(goal, userId),
+    title: goal.title,
+    due: goal.due,
+    level: goal.level,
+    progress: goal.progress,
+    milestones: goal.milestones ?? [],
+  };
+}
+
+function toTaskProjectRow(project: TaskProject, userId = currentUserId) {
+  return {
+    ...toRemoteRow(project, userId),
+    name: project.name,
+    goal_id: project.goalId ?? null,
+    outcome: project.outcome ?? null,
+    start_date: project.startDate,
+    end_date: project.endDate,
+    current_day: project.currentDay,
+    deadline_days: project.deadlineDays,
+  };
+}
+
 function toKanbanCardRow(card: KanbanCard, userId = currentUserId) {
   return {
     ...toRemoteRow(card, userId),
@@ -292,8 +353,62 @@ function toKanbanActivityRow(activity: KanbanActivity, userId = currentUserId) {
   };
 }
 
+function toActivityEventRow(event: ActivityEvent, userId = currentUserId) {
+  return {
+    ...toRemoteRow(event, userId),
+    domain: event.domain,
+    action: event.action,
+    entity_id: event.entityId,
+    entity_title: event.entityTitle,
+    source: event.source,
+    day_key: event.dayKey,
+    created_at: event.timestamp,
+  };
+}
+
+function toSkillRecordRow(record: SkillRecord, userId = currentUserId) {
+  return {
+    ...toRemoteRow(record, userId),
+    domain: record.domain,
+    route: record.route,
+    title: record.title,
+    career: record.career,
+    status: record.status,
+    level: record.level,
+    xp: record.xp,
+    last_practiced_at: record.lastPracticedAt ?? null,
+    updated_at: record.updatedAt,
+  };
+}
+
 async function remoteUpsertKanbanCards(cards: KanbanCard[], userId = currentUserId) {
   await Promise.all(cards.map((card) => remoteUpsertKanbanCard(card, userId)));
+}
+
+async function remoteUpsertGoal(goal: Goal, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from("goals").upsert(toGoalRow(goal, userId));
+  if (error) {
+    const fallback = await supabase.from("goals").upsert(toRemoteRow(goal, userId));
+    if (fallback.error) {
+      setBackendStatus({ error: `Supabase save failed for goals: ${fallback.error.message}` });
+      throw fallback.error;
+    }
+  }
+  setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertTaskProject(project: TaskProject, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from("task_projects").upsert(toTaskProjectRow(project, userId));
+  if (error) {
+    const fallback = await supabase.from("task_projects").upsert(toRemoteRow(project, userId));
+    if (fallback.error) {
+      setBackendStatus({ error: `Supabase save failed for task_projects: ${fallback.error.message}` });
+      throw fallback.error;
+    }
+  }
+  setBackendStatus({ label: "Supabase realtime", error: null });
 }
 
 async function remoteUpsertKanbanCard(card: KanbanCard, userId = currentUserId) {
@@ -381,6 +496,22 @@ async function remoteUpsertKanbanActivity(activity: KanbanActivity, userId = cur
   setBackendStatus({ label: "Supabase realtime", error: null });
 }
 
+async function remoteUpsertActivityEvent(event: ActivityEvent, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  const { error } = await supabase.from("activity_events").upsert(toActivityEventRow(event, userId));
+  if (error) {
+    setBackendStatus({ error: `Supabase save failed for activity_events: ${error.message}` });
+    throw error;
+  }
+  setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertSkillRecord(record: SkillRecord, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  await remoteUpsertWithSchemaFallback("skill_records", [toSkillRecordRow(record, userId), toRemoteRow(record, userId)]);
+  setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
 function toAgentRecommendationRow(recommendation: AgentRecommendation, userId = currentUserId) {
   return {
     ...toRemoteRow(recommendation, userId),
@@ -408,7 +539,41 @@ function toStudyNoteRow(note: StudyNote, userId = currentUserId) {
   };
 }
 
+function toStudyNoteLegacyRow(note: StudyNote, userId = currentUserId) {
+  return {
+    ...toRemoteRow(note, userId),
+    title: note.title,
+    kind: note.kind,
+    pinned: note.pinned,
+    tags: note.tags,
+    source_name: note.sourceName ?? null,
+    updated_at: note.updatedAt,
+  };
+}
+
 function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
+  return {
+    ...toRemoteRow(folder, userId),
+    name: folder.name,
+    color: folder.color,
+    parent_id: folder.parentId ?? null,
+    exam_date: folder.examDate ?? null,
+    objectives: folder.objectives ?? [],
+    created_at: folder.createdAt,
+  };
+}
+
+function toStudyFolderParentRow(folder: StudyFolder, userId = currentUserId) {
+  return {
+    ...toRemoteRow(folder, userId),
+    name: folder.name,
+    color: folder.color,
+    parent_id: folder.parentId ?? null,
+    created_at: folder.createdAt,
+  };
+}
+
+function toStudyFolderLegacyRow(folder: StudyFolder, userId = currentUserId) {
   return {
     ...toRemoteRow(folder, userId),
     name: folder.name,
@@ -419,22 +584,49 @@ function toStudyFolderRow(folder: StudyFolder, userId = currentUserId) {
 
 async function remoteUpsertStudyNote(note: StudyNote, userId = currentUserId) {
   if (!supabase || !userId) return;
-  const { error } = await supabase.from("study_notes").upsert(toStudyNoteRow(note, userId));
-  if (error) {
-    setBackendStatus({ error: `Supabase save failed for study_notes: ${error.message}` });
-    throw error;
-  }
+  await remoteUpsertWithSchemaFallback("study_notes", [toStudyNoteRow(note, userId), toStudyNoteLegacyRow(note, userId)]);
   setBackendStatus({ label: "Supabase realtime", error: null });
 }
 
 async function remoteUpsertStudyFolder(folder: StudyFolder, userId = currentUserId) {
   if (!supabase || !userId) return;
-  const { error } = await supabase.from("study_folders").upsert(toStudyFolderRow(folder, userId));
-  if (error) {
-    setBackendStatus({ error: `Supabase save failed for study_folders: ${error.message}` });
-    throw error;
-  }
+  await remoteUpsertWithSchemaFallback("study_folders", [
+    toStudyFolderRow(folder, userId),
+    toStudyFolderParentRow(folder, userId),
+    toStudyFolderLegacyRow(folder, userId),
+  ]);
   setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertWithSchemaFallback(table: TableName, rows: object[]) {
+  if (!supabase) return;
+  let lastError: unknown = null;
+  for (const row of rows) {
+    const { error } = await supabase.from(table).upsert(row, { onConflict: "user_id,id" });
+    if (!error) return;
+    lastError = error;
+    if (!isRetryableSchemaError(error)) break;
+  }
+  for (const row of rows) {
+    const { error } = await supabase.from(table).upsert(row);
+    if (!error) return;
+    lastError = error;
+    if (!isRetryableSchemaError(error)) break;
+  }
+  const message = lastError instanceof Error ? lastError.message : "Unknown Supabase save error";
+  setBackendStatus({ error: `Supabase save failed for ${table}: ${message}` });
+  throw new Error(message);
+}
+
+function isRetryableSchemaError(error: { message?: string; code?: string }) {
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    error.code === "PGRST204" ||
+    message.includes("schema cache") ||
+    message.includes("column") ||
+    message.includes("on conflict") ||
+    message.includes("unique or exclusion constraint")
+  );
 }
 
 async function remoteUpsertAgentRecommendation(recommendation: AgentRecommendation, userId = currentUserId) {
@@ -449,8 +641,16 @@ async function remoteUpsertAgentRecommendation(recommendation: AgentRecommendati
 
 export const goalCrud = {
   async add(goal: Goal) {
-    if (isSupabaseConfigured) return remoteUpsert("goals", goal);
+    if (isSupabaseConfigured) return remoteUpsertGoal(goal);
     return localGoalCrud.add(goal);
+  },
+  async update(id: string, patch: Partial<Omit<Goal, "id">>) {
+    if (isSupabaseConfigured) {
+      const goal = await getRemoteRecord<Goal>("goals", id);
+      if (!goal) return;
+      return remoteUpsertGoal({ ...goal, ...patch });
+    }
+    return localGoalCrud.update(id, patch);
   },
   async delete(id: string) {
     if (isSupabaseConfigured) return remoteDelete("goals", id);
@@ -490,9 +690,41 @@ export const calendarCrud = {
     if (isSupabaseConfigured) return remoteUpsert("calendar_events", event);
     return localCalendarCrud.add(event);
   },
+  async addMany(events: CalendarEvent[]) {
+    if (isSupabaseConfigured) {
+      await Promise.all(events.map((event) => remoteUpsert("calendar_events", event)));
+      return;
+    }
+    return localCalendarCrud.addMany(events);
+  },
   async delete(id: string) {
     if (isSupabaseConfigured) return remoteDelete("calendar_events", id);
     return localCalendarCrud.delete(id);
+  },
+  async deleteMany(ids: string[]) {
+    if (ids.length === 0) return;
+    if (isSupabaseConfigured) {
+      if (!supabase) return;
+      let userId = currentUserId;
+      if (!userId) {
+        const { data } = await supabase.auth.getUser();
+        userId = data.user?.id ?? null;
+        currentUserId = userId;
+      }
+      if (!userId) {
+        const message = "No signed-in user for calendar bulk delete.";
+        setBackendStatus({ error: message });
+        throw new Error(message);
+      }
+      const { error } = await supabase.from("calendar_events").delete().eq("user_id", userId).in("id", ids);
+      if (error) {
+        setBackendStatus({ error: `Supabase delete failed for calendar_events: ${error.message}` });
+        throw error;
+      }
+      setBackendStatus({ label: "Supabase realtime", error: null });
+      return;
+    }
+    return localCalendarCrud.deleteMany(ids);
   },
 };
 
@@ -530,6 +762,21 @@ export const kanbanActivityCrud = {
   },
 };
 
+export const activityEventCrud = {
+  async add(event: ActivityEvent) {
+    if (isSupabaseConfigured) return remoteUpsertActivityEvent(event);
+    return localActivityEventCrud.add(event);
+  },
+  async delete(id: string) {
+    if (isSupabaseConfigured) return remoteDelete("activity_events", id);
+    return localActivityEventCrud.delete(id);
+  },
+  async clear() {
+    if (isSupabaseConfigured || !db.activityEvents) return;
+    return localActivityEventCrud.clear();
+  },
+};
+
 export const agentRecommendationCrud = {
   async add(recommendation: AgentRecommendation) {
     if (isSupabaseConfigured) return remoteUpsertAgentRecommendation(recommendation);
@@ -546,6 +793,25 @@ export const agentRecommendationCrud = {
   async delete(id: string) {
     if (isSupabaseConfigured) return remoteDelete("agent_recommendations", id);
     return localAgentRecommendationCrud.delete(id);
+  },
+};
+
+export const skillRecordCrud = {
+  async add(record: SkillRecord) {
+    if (isSupabaseConfigured) return remoteUpsertSkillRecord(record);
+    return localSkillRecordCrud.add(record);
+  },
+  async update(id: string, patch: Partial<Omit<SkillRecord, "id">>) {
+    if (isSupabaseConfigured) {
+      const record = await getRemoteRecord<SkillRecord>("skill_records", id);
+      if (!record) return;
+      return remoteUpsertSkillRecord({ ...record, ...patch, updatedAt: new Date().toISOString() });
+    }
+    return localSkillRecordCrud.update(id, { ...patch, updatedAt: new Date().toISOString() });
+  },
+  async delete(id: string) {
+    if (isSupabaseConfigured) return remoteDelete("skill_records", id);
+    return localSkillRecordCrud.delete(id);
   },
 };
 
@@ -589,7 +855,7 @@ export const studyFolderCrud = {
 
 export const taskProjectCrud = {
   async add(project: TaskProject) {
-    if (isSupabaseConfigured) return remoteUpsert("task_projects", project);
+    if (isSupabaseConfigured) return remoteUpsertTaskProject(project);
     return localTaskProjectCrud.add(project);
   },
   async delete(id: string) {
@@ -600,7 +866,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", { ...project, currentDay: day });
+      return remoteUpsertTaskProject({ ...project, currentDay: day });
     }
     return localTaskProjectCrud.setCurrentDay(projectId, day);
   },
@@ -608,7 +874,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         startDate,
         endDate,
@@ -622,7 +888,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         tasksByDay: {
           ...(project.tasksByDay ?? {}),
@@ -636,7 +902,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         tasksByDay: {
           ...(project.tasksByDay ?? {}),
@@ -650,7 +916,7 @@ export const taskProjectCrud = {
     if (isSupabaseConfigured) {
       const project = await getRemoteRecord<TaskProject>("task_projects", projectId);
       if (!project) return;
-      return remoteUpsert("task_projects", {
+      return remoteUpsertTaskProject({
         ...project,
         tasksByDay: {
           ...(project.tasksByDay ?? {}),

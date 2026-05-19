@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
+import type { ActivityEvent, AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, SkillRecord, StudyFolder, StudyNote, TaskProject } from "./types";
 
 export class ProgressTrackerDatabase extends Dexie {
   goals!: Table<Goal, string>;
@@ -8,7 +8,9 @@ export class ProgressTrackerDatabase extends Dexie {
   calendarEvents!: Table<CalendarEvent, string>;
   kanbanCards!: Table<KanbanCard, string>;
   kanbanActivity!: Table<KanbanActivity, string>;
+  activityEvents!: Table<ActivityEvent, string>;
   agentRecommendations!: Table<AgentRecommendation, string>;
+  skillRecords!: Table<SkillRecord, string>;
   studyNotes!: Table<StudyNote, string>;
   studyFolders!: Table<StudyFolder, string>;
 
@@ -65,6 +67,64 @@ export class ProgressTrackerDatabase extends Dexie {
       studyNotes: "id, kind, pinned, folderId, updatedAt",
       studyFolders: "id, name, createdAt",
     });
+    this.version(7).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, name, createdAt",
+    });
+    this.version(8).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
+    this.version(9).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, goalId, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
+    this.version(10).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, goalId, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      activityEvents: "id, domain, action, entityId, dayKey, timestamp",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
+    this.version(11).stores({
+      goals: "id, level, progress",
+      habits: "id, time, done",
+      taskProjects: "id, goalId, currentDay, deadlineDays",
+      calendarEvents: "id, day, kind, time",
+      kanbanCards: "id, columnId, priority, order",
+      kanbanActivity: "id, cardId, action, createdAt",
+      activityEvents: "id, domain, action, entityId, dayKey, timestamp",
+      agentRecommendations: "id, agentId, status, severity, createdAt",
+      skillRecords: "id, domain, route, career, status, updatedAt",
+      studyNotes: "id, kind, pinned, folderId, updatedAt",
+      studyFolders: "id, parentId, examDate, name, createdAt",
+    });
   }
 }
 
@@ -76,33 +136,51 @@ export async function seedDatabase(seed: {
   taskProjects: TaskProject[];
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  skillRecords: SkillRecord[];
   studyNotes: StudyNote[];
   studyFolders: StudyFolder[];
 }) {
-  const [goalCount, habitCount, projectCount, eventCount, kanbanCount, noteCount, folderCount] = await Promise.all([
+  const [goalCount, habitCount, projectCount, eventCount, kanbanCount, skillCount, noteCount, folderCount] = await Promise.all([
     db.goals.count(),
     db.habits.count(),
     db.taskProjects.count(),
     db.calendarEvents.count(),
     db.kanbanCards.count(),
+    db.skillRecords.count(),
     db.studyNotes.count(),
     db.studyFolders.count(),
   ]);
 
-  await db.transaction("rw", [db.goals, db.habits, db.taskProjects, db.calendarEvents, db.kanbanCards, db.studyNotes, db.studyFolders], async () => {
+  await db.transaction("rw", [db.goals, db.habits, db.taskProjects, db.calendarEvents, db.kanbanCards, db.skillRecords, db.studyNotes, db.studyFolders], async () => {
     if (goalCount === 0) await db.goals.bulkPut(seed.goals);
     if (habitCount === 0) await db.habits.bulkPut(seed.habits);
     if (projectCount === 0) await db.taskProjects.bulkPut(seed.taskProjects);
     if (eventCount === 0) await db.calendarEvents.bulkPut(seed.calendarEvents);
     if (kanbanCount === 0) await db.kanbanCards.bulkPut(seed.kanbanCards);
+    if (skillCount === 0) {
+      await db.skillRecords.bulkPut(seed.skillRecords);
+    } else {
+      const existingSkillIds = new Set((await db.skillRecords.toArray()).map((record) => record.id));
+      const missingSkills = seed.skillRecords.filter((record) => !existingSkillIds.has(record.id));
+      if (missingSkills.length > 0) await db.skillRecords.bulkPut(missingSkills);
+    }
     if (noteCount === 0) await db.studyNotes.bulkPut(seed.studyNotes);
-    if (folderCount === 0) await db.studyFolders.bulkPut(seed.studyFolders);
+    if (folderCount === 0) {
+      await db.studyFolders.bulkPut(seed.studyFolders);
+    } else {
+      const existingFolderIds = new Set((await db.studyFolders.toArray()).map((folder) => folder.id));
+      const missingFolders = seed.studyFolders.filter((folder) => !existingFolderIds.has(folder.id));
+      if (missingFolders.length > 0) await db.studyFolders.bulkPut(missingFolders);
+    }
   });
 }
 
 export const goalCrud = {
   add(goal: Goal) {
     return db.goals.put(goal);
+  },
+  update(id: string, patch: Partial<Omit<Goal, "id">>) {
+    return db.goals.update(id, patch);
   },
   delete(id: string) {
     return db.goals.delete(id);
@@ -130,8 +208,14 @@ export const calendarCrud = {
   add(event: CalendarEvent) {
     return db.calendarEvents.put(event);
   },
+  addMany(events: CalendarEvent[]) {
+    return db.calendarEvents.bulkPut(events);
+  },
   delete(id: string) {
     return db.calendarEvents.delete(id);
+  },
+  deleteMany(ids: string[]) {
+    return db.calendarEvents.bulkDelete(ids);
   },
 };
 
@@ -156,6 +240,18 @@ export const kanbanActivityCrud = {
   },
 };
 
+export const activityEventCrud = {
+  add(event: ActivityEvent) {
+    return db.activityEvents.put(event);
+  },
+  delete(id: string) {
+    return db.activityEvents.delete(id);
+  },
+  clear() {
+    return db.activityEvents.clear();
+  },
+};
+
 export const agentRecommendationCrud = {
   add(recommendation: AgentRecommendation) {
     return db.agentRecommendations.put(recommendation);
@@ -165,6 +261,18 @@ export const agentRecommendationCrud = {
   },
   delete(id: string) {
     return db.agentRecommendations.delete(id);
+  },
+};
+
+export const skillRecordCrud = {
+  add(record: SkillRecord) {
+    return db.skillRecords.put(record);
+  },
+  update(id: string, patch: Partial<Omit<SkillRecord, "id">>) {
+    return db.skillRecords.update(id, patch);
+  },
+  delete(id: string) {
+    return db.skillRecords.delete(id);
   },
 };
 
