@@ -12781,7 +12781,17 @@ function escapeHtml(value: string) {
 
 type CalendarCleanupRequest =
   | { type: "all"; ids: string[]; title: string }
-  | { type: "series"; ids: string[]; title: string; seriesId: string };
+  | { type: "series"; ids: string[]; title: string; seriesId: string }
+  | { type: "series-range"; ids: string[]; title: string; seriesId: string; rangeStart: string; rangeEnd: string };
+
+type CalendarRecurringSeries = {
+  id: string;
+  title: string;
+  recurrence: NonNullable<CalendarEvent["recurrence"]> | "inferred";
+  firstDate: string;
+  lastDate: string;
+  events: CalendarEvent[];
+};
 
 function CalendarView({
   events,
@@ -12798,6 +12808,9 @@ function CalendarView({
   const [recurrence, setRecurrence] = useState<NonNullable<CalendarEvent["recurrence"]>>("none");
   const [repeatCount, setRepeatCount] = useState(4);
   const [pendingCleanup, setPendingCleanup] = useState<CalendarCleanupRequest | null>(null);
+  const [cleanupSeriesId, setCleanupSeriesId] = useState("");
+  const [cleanupStartDate, setCleanupStartDate] = useState("");
+  const [cleanupEndDate, setCleanupEndDate] = useState("");
   const [calendarStatus, setCalendarStatus] = useState("");
   const activeDate = parseDateInput(eventDate) ?? today;
   const activeDateKey = toDateInputValue(activeDate);
@@ -12827,15 +12840,29 @@ function CalendarView({
   );
   const upcomingVisibleEvents = useMemo(() => getUpcomingEvents(events, today).slice(0, 4), [events, today]);
   const recurringSeries = useMemo(() => getCalendarRecurringSeries(events), [events]);
+  const selectedCleanupSeries = useMemo(
+    () => recurringSeries.find((series) => series.id === cleanupSeriesId),
+    [cleanupSeriesId, recurringSeries],
+  );
+  const cleanupRangeEvents = useMemo(
+    () => getCalendarSeriesEventsInRange(selectedCleanupSeries, cleanupStartDate, cleanupEndDate),
+    [cleanupEndDate, cleanupStartDate, selectedCleanupSeries],
+  );
+  const cleanupRangeInvalid = Boolean(selectedCleanupSeries && cleanupStartDate && cleanupEndDate && cleanupStartDate > cleanupEndDate);
 
   useEffect(() => {
-    if (pendingCleanup?.type === "series" && !recurringSeries.some((series) => series.id === pendingCleanup.seriesId)) {
+    if (cleanupSeriesId && !recurringSeries.some((series) => series.id === cleanupSeriesId)) {
+      setCleanupSeriesId("");
+      setCleanupStartDate("");
+      setCleanupEndDate("");
+    }
+    if (pendingCleanup?.type !== "all" && pendingCleanup && !recurringSeries.some((series) => series.id === pendingCleanup.seriesId)) {
       setPendingCleanup(null);
     }
     if (pendingCleanup?.type === "all" && events.length === 0) {
       setPendingCleanup(null);
     }
-  }, [events.length, pendingCleanup, recurringSeries]);
+  }, [cleanupSeriesId, events.length, pendingCleanup, recurringSeries]);
 
   function addEvent() {
     const cleanTitle = title.trim();
@@ -12891,6 +12918,19 @@ function CalendarView({
     setCalendarStatus("Confirm clear all in the cleanup panel.");
   }
 
+  function selectCleanupSeries(seriesId: string) {
+    const series = recurringSeries.find((item) => item.id === seriesId);
+    if (!series) {
+      setCalendarStatus("Choose a recurring series to clear.");
+      return;
+    }
+    setCleanupSeriesId(series.id);
+    setCleanupStartDate(series.firstDate);
+    setCleanupEndDate(series.lastDate);
+    setPendingCleanup(null);
+    setCalendarStatus(`Selected ${series.title}. Choose a cleanup date range.`);
+  }
+
   function requestClearRecurringSeries(seriesId: string) {
     const series = recurringSeries.find((item) => item.id === seriesId);
     if (!series) {
@@ -12906,6 +12946,30 @@ function CalendarView({
     setCalendarStatus(`Confirm cleanup for ${series.title}.`);
   }
 
+  function requestClearRecurringRange() {
+    if (!selectedCleanupSeries) {
+      setCalendarStatus("Select a recurring series before choosing a cleanup range.");
+      return;
+    }
+    if (cleanupRangeInvalid) {
+      setCalendarStatus("Cleanup range is invalid. Start date must be before the end date.");
+      return;
+    }
+    if (cleanupRangeEvents.length === 0) {
+      setCalendarStatus("No recurring events found inside that date range.");
+      return;
+    }
+    setPendingCleanup({
+      type: "series-range",
+      ids: cleanupRangeEvents.map((event) => event.id),
+      title: `${selectedCleanupSeries.title} · ${formatCalendarDateRange(cleanupStartDate, cleanupEndDate)}`,
+      seriesId: selectedCleanupSeries.id,
+      rangeStart: cleanupStartDate,
+      rangeEnd: cleanupEndDate,
+    });
+    setCalendarStatus(`Confirm deletion of ${cleanupRangeEvents.length} event${cleanupRangeEvents.length === 1 ? "" : "s"} in the selected range.`);
+  }
+
   async function confirmCalendarCleanup() {
     if (!pendingCleanup || pendingCleanup.ids.length === 0) return;
     try {
@@ -12916,9 +12980,19 @@ function CalendarView({
         entityId: pendingCleanup.type === "all" ? "calendar-all-events" : pendingCleanup.seriesId,
         entityTitle: pendingCleanup.title,
         source: "Calendar maintenance",
-        metadata: { count: pendingCleanup.ids.length, cleanupType: pendingCleanup.type },
+        metadata: {
+          count: pendingCleanup.ids.length,
+          cleanupType: pendingCleanup.type,
+          rangeStart: pendingCleanup.type === "series-range" ? pendingCleanup.rangeStart : undefined,
+          rangeEnd: pendingCleanup.type === "series-range" ? pendingCleanup.rangeEnd : undefined,
+        },
       });
       setCalendarStatus(`Cleared ${pendingCleanup.ids.length} event${pendingCleanup.ids.length === 1 ? "" : "s"} from ${pendingCleanup.title}.`);
+      if (pendingCleanup.type === "series") {
+        setCleanupSeriesId("");
+        setCleanupStartDate("");
+        setCleanupEndDate("");
+      }
       setPendingCleanup(null);
     } catch (error) {
       setCalendarStatus(`Cleanup failed: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -13054,8 +13128,8 @@ function CalendarView({
                         <button
                           className="selected-event-series"
                           type="button"
-                          onClick={() => requestClearRecurringSeries(seriesForEvent.id)}
-                          aria-label={`Delete recurring series ${event.title}`}
+                          onClick={() => selectCleanupSeries(seriesForEvent.id)}
+                          aria-label={`Select recurring series ${event.title}`}
                         >
                           series
                         </button>
@@ -13115,7 +13189,12 @@ function CalendarView({
                 <p>// no repeated or recurring events detected</p>
               ) : (
                 recurringSeries.map((series) => (
-                  <button type="button" onClick={() => requestClearRecurringSeries(series.id)} key={series.id}>
+                  <button
+                    className={cleanupSeriesId === series.id ? "active" : ""}
+                    type="button"
+                    onClick={() => selectCleanupSeries(series.id)}
+                    key={series.id}
+                  >
                     <span>{series.recurrence === "inferred" ? "repeated" : series.recurrence}</span>
                     <strong>{series.title}</strong>
                     <em>{series.events.length} events · {formatCalendarDateRange(series.firstDate, series.lastDate)}</em>
@@ -13123,6 +13202,55 @@ function CalendarView({
                 ))
               )}
             </div>
+            {selectedCleanupSeries && (
+              <div className="calendar-range-cleanup">
+                <div className="calendar-range-header">
+                  <span>Range cleanup</span>
+                  <strong>{cleanupRangeEvents.length}/{selectedCleanupSeries.events.length} selected</strong>
+                </div>
+                <div className="calendar-range-fields">
+                  <label>
+                    <span>From</span>
+                    <input
+                      type="date"
+                      min={selectedCleanupSeries.firstDate}
+                      max={selectedCleanupSeries.lastDate}
+                      value={cleanupStartDate}
+                      onChange={(event) => {
+                        setCleanupStartDate(event.target.value);
+                        setPendingCleanup(null);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>To</span>
+                    <input
+                      type="date"
+                      min={selectedCleanupSeries.firstDate}
+                      max={selectedCleanupSeries.lastDate}
+                      value={cleanupEndDate}
+                      onChange={(event) => {
+                        setCleanupEndDate(event.target.value);
+                        setPendingCleanup(null);
+                      }}
+                    />
+                  </label>
+                </div>
+                <p>
+                  {cleanupRangeInvalid
+                    ? "// invalid range"
+                    : `${formatCalendarDateRange(cleanupStartDate, cleanupEndDate)} · ${cleanupRangeEvents.length} matching occurrence${cleanupRangeEvents.length === 1 ? "" : "s"}`}
+                </p>
+                <div className="calendar-range-actions">
+                  <button type="button" disabled={cleanupRangeInvalid || cleanupRangeEvents.length === 0} onClick={requestClearRecurringRange}>
+                    Delete Range
+                  </button>
+                  <button type="button" onClick={() => requestClearRecurringSeries(selectedCleanupSeries.id)}>
+                    Delete Whole Series
+                  </button>
+                </div>
+              </div>
+            )}
             {pendingCleanup && (
               <div className="calendar-cleanup-confirm">
                 <span>Confirm cleanup</span>
@@ -28163,7 +28291,7 @@ function buildCalendarEvents({
   });
 }
 
-function getCalendarRecurringSeries(events: CalendarEvent[]) {
+function getCalendarRecurringSeries(events: CalendarEvent[]): CalendarRecurringSeries[] {
   const groups = new Map<string, CalendarEvent[]>();
   const inferredGroups = new Map<string, CalendarEvent[]>();
 
@@ -28185,16 +28313,25 @@ function getCalendarRecurringSeries(events: CalendarEvent[]) {
       const sortedEvents = [...seriesEvents].sort((a, b) => getEventDate(a).getTime() - getEventDate(b).getTime() || a.time.localeCompare(b.time));
       const first = sortedEvents[0];
       const last = sortedEvents[sortedEvents.length - 1];
+      const seriesRecurrence: CalendarRecurringSeries["recurrence"] = id.startsWith("inferred:") ? "inferred" : first?.recurrence ?? "none";
       return {
         id,
         title: first?.title ?? "Recurring series",
-        recurrence: id.startsWith("inferred:") ? "inferred" : first?.recurrence ?? "none",
+        recurrence: seriesRecurrence,
         firstDate: first ? toDateInputValue(getEventDate(first)) : "",
         lastDate: last ? toDateInputValue(getEventDate(last)) : "",
         events: sortedEvents,
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title) || a.firstDate.localeCompare(b.firstDate));
+}
+
+function getCalendarSeriesEventsInRange(series: CalendarRecurringSeries | undefined, startDate: string, endDate: string) {
+  if (!series || !startDate || !endDate || startDate > endDate) return [];
+  return series.events.filter((event) => {
+    const eventDate = toDateInputValue(getEventDate(event));
+    return eventDate >= startDate && eventDate <= endDate;
+  });
 }
 
 function formatCalendarDateRange(firstDate: string, lastDate: string) {

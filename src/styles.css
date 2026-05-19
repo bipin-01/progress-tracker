@@ -9445,6 +9445,12 @@ button.load-forecast-day:hover {
   background: rgba(170, 114, 255, 0.08);
 }
 
+.calendar-series-list button.active {
+  border-color: var(--cyan);
+  background: rgba(67, 211, 255, 0.1);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+
 .calendar-series-list button span {
   grid-row: span 2;
   color: var(--violet);
@@ -9474,11 +9480,54 @@ button.load-forecast-day:hover {
   padding: 10px;
 }
 
+.calendar-range-cleanup {
+  display: grid;
+  gap: 9px;
+  border: 1px solid rgba(67, 211, 255, 0.22);
+  background: rgba(67, 211, 255, 0.06);
+  padding: 10px;
+}
+
+.calendar-range-header,
+.calendar-range-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.calendar-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-range-fields label {
+  display: grid;
+  gap: 5px;
+}
+
+.calendar-range-fields input {
+  height: 34px;
+  border: 1px solid var(--hair);
+  background: rgba(5, 9, 18, 0.64);
+  color: var(--ink);
+  font: inherit;
+  padding: 0 9px;
+}
+
+.calendar-range-cleanup p {
+  color: var(--muted);
+  font-size: 10px;
+  margin: 0;
+}
+
 .calendar-cleanup-confirm > div {
   display: flex;
   gap: 8px;
 }
 
+.calendar-range-actions button,
 .calendar-cleanup-confirm button {
   height: 34px;
   border: 1px solid var(--violet);
@@ -9489,11 +9538,13 @@ button.load-forecast-day:hover {
   text-transform: uppercase;
 }
 
+.calendar-range-actions button:first-child,
 .calendar-cleanup-confirm button:first-child {
   border-color: rgba(255, 90, 120, 0.7);
   color: var(--red);
 }
 
+.calendar-range-actions button:disabled,
 .calendar-cleanup-confirm button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
