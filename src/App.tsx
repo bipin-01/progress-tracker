@@ -6891,7 +6891,7 @@ function GoalsRegistry({
   projects: TaskProject[];
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
-  onAddGoal: (goal: Goal) => void;
+  onAddGoal: (goal: Goal) => Promise<unknown> | void;
   onUpdateGoal: (id: string, patch: Partial<Omit<Goal, "id">>) => void;
   onDeleteGoal: (id: string) => void;
   onNavigate: (view: View) => void;
@@ -6904,6 +6904,8 @@ function GoalsRegistry({
   const [activeGoalId, setActiveGoalId] = useState(goals[0]?.id ?? "");
   const [search, setSearch] = useState("");
   const [milestoneInput, setMilestoneInput] = useState("");
+  const [createTaskPlan, setCreateTaskPlan] = useState(true);
+  const [goalStatus, setGoalStatus] = useState("");
 
   useEffect(() => {
     if (!goals.length) {
@@ -6931,7 +6933,7 @@ function GoalsRegistry({
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
 
-    onAddGoal({
+    const goal: Goal = {
       id: `${Date.now()}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       title: cleanTitle,
       due: due.trim() || "Ongoing",
@@ -6946,7 +6948,30 @@ function GoalsRegistry({
         ["Ship visible progress", progress >= 60, 30],
         ["Close goal or reset target", progress >= 95, 25],
       ]),
-    });
+    };
+    const sprint = createTaskPlan ? createGoalExecutionProject(goal, projects.length) : null;
+
+    setActiveGoalId(goal.id);
+    setGoalStatus(sprint ? "Creating goal and linked task sprint..." : "Creating goal...");
+    void Promise.resolve(onAddGoal(goal))
+      .then(() => (sprint ? taskProjectCrud.add(sprint) : undefined))
+      .then(() => {
+        setActiveGoalId(goal.id);
+        if (sprint) {
+          logActivityEvent({
+            domain: "task",
+            action: "created",
+            entityId: sprint.id,
+            entityTitle: sprint.name,
+            source: "Goals registry auto sprint",
+            metadata: { goalId: goal.id, deadlineDays: sprint.deadlineDays },
+          });
+          setGoalStatus(`Created goal and ${sprint.deadlineDays}-day linked task sprint.`);
+        } else {
+          setGoalStatus("Created goal.");
+        }
+      })
+      .catch(() => setGoalStatus("Could not create the linked task sprint. Try Build Task Sprint from the goal detail."));
     setTitle("");
     setDue("Dec 31, 2026");
     setLevel("ziftinity");
@@ -6990,8 +7015,22 @@ function GoalsRegistry({
 
   function buildExecutionSprint() {
     if (!activeGoal) return;
+    if (executionMap?.projects[0]) {
+      onOpenProject(executionMap.projects[0].id);
+      return;
+    }
     const project = createGoalExecutionProject(activeGoal, projects.length);
-    void taskProjectCrud.add(project).then(() => onOpenProject(project.id));
+    void taskProjectCrud.add(project).then(() => {
+      logActivityEvent({
+        domain: "task",
+        action: "created",
+        entityId: project.id,
+        entityTitle: project.name,
+        source: "Goals registry",
+        metadata: { goalId: activeGoal.id, deadlineDays: project.deadlineDays },
+      });
+      onOpenProject(project.id);
+    });
   }
 
   return (
@@ -7026,8 +7065,14 @@ function GoalsRegistry({
               onChange={(event) => setProgress(Number(event.target.value))}
             />
           </label>
+          <label className="goal-sprint-toggle">
+            <input type="checkbox" checked={createTaskPlan} onChange={(event) => setCreateTaskPlan(event.target.checked)} />
+            <span>Task Sprint</span>
+            <strong>{createTaskPlan ? "Auto-build" : "Goal only"}</strong>
+          </label>
           <button className="submit-goal" type="submit">+ Add Goal</button>
         </form>
+        {goalStatus && <div className="goal-create-status">{goalStatus}</div>}
         <div className="goal-registry-filter">
           <Search />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="// search objectives, priority, due date" />
