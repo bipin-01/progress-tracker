@@ -351,8 +351,11 @@ async function remoteUpsertGoal(goal: Goal, userId = currentUserId) {
   if (!supabase || !userId) return;
   const { error } = await supabase.from("goals").upsert(toGoalRow(goal, userId));
   if (error) {
-    setBackendStatus({ error: `Supabase save failed for goals: ${error.message}` });
-    throw error;
+    const fallback = await supabase.from("goals").upsert(toRemoteRow(goal, userId));
+    if (fallback.error) {
+      setBackendStatus({ error: `Supabase save failed for goals: ${fallback.error.message}` });
+      throw fallback.error;
+    }
   }
   setBackendStatus({ label: "Supabase realtime", error: null });
 }
