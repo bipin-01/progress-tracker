@@ -6904,7 +6904,7 @@ function GoalsRegistry({
   const [activeGoalId, setActiveGoalId] = useState(goals[0]?.id ?? "");
   const [search, setSearch] = useState("");
   const [milestoneInput, setMilestoneInput] = useState("");
-  const [createTaskPlan, setCreateTaskPlan] = useState(true);
+  const [createTaskPlan, setCreateTaskPlan] = useState(false);
   const [goalStatus, setGoalStatus] = useState("");
 
   useEffect(() => {
@@ -6928,7 +6928,7 @@ function GoalsRegistry({
     [activeGoal, calendarEvents, kanbanCards, projects],
   );
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
@@ -6952,26 +6952,34 @@ function GoalsRegistry({
     const sprint = createTaskPlan ? createGoalExecutionProject(goal, projects.length) : null;
 
     setActiveGoalId(goal.id);
-    setGoalStatus(sprint ? "Creating goal and linked task sprint..." : "Creating goal...");
-    void Promise.resolve(onAddGoal(goal))
-      .then(() => (sprint ? taskProjectCrud.add(sprint) : undefined))
-      .then(() => {
-        setActiveGoalId(goal.id);
-        if (sprint) {
-          logActivityEvent({
-            domain: "task",
-            action: "created",
-            entityId: sprint.id,
-            entityTitle: sprint.name,
-            source: "Goals registry auto sprint",
-            metadata: { goalId: goal.id, deadlineDays: sprint.deadlineDays },
-          });
-          setGoalStatus(`Created goal and ${sprint.deadlineDays}-day linked task sprint.`);
-        } else {
-          setGoalStatus("Created goal.");
-        }
-      })
-      .catch(() => setGoalStatus("Could not create the linked task sprint. Try Build Task Sprint from the goal detail."));
+    setGoalStatus("Creating goal...");
+    try {
+      await onAddGoal(goal);
+      setActiveGoalId(goal.id);
+    } catch {
+      setGoalStatus("Could not create goal. Check your connection and try again.");
+      return;
+    }
+
+    if (!sprint) {
+      setGoalStatus("Goal created. Link a task sprint when you are ready.");
+    } else {
+      setGoalStatus("Goal created. Creating linked task sprint...");
+      try {
+        await taskProjectCrud.add(sprint);
+        logActivityEvent({
+          domain: "task",
+          action: "created",
+          entityId: sprint.id,
+          entityTitle: sprint.name,
+          source: "Goals registry auto sprint",
+          metadata: { goalId: goal.id, deadlineDays: sprint.deadlineDays },
+        });
+        setGoalStatus(`Created goal and ${sprint.deadlineDays}-day linked task sprint.`);
+      } catch {
+        setGoalStatus("Goal created. Linked task sprint failed; use Build Task Sprint from the goal detail when ready.");
+      }
+    }
     setTitle("");
     setDue("Dec 31, 2026");
     setLevel("ziftinity");
@@ -7020,17 +7028,24 @@ function GoalsRegistry({
       return;
     }
     const project = createGoalExecutionProject(activeGoal, projects.length);
-    void taskProjectCrud.add(project).then(() => {
-      logActivityEvent({
-        domain: "task",
-        action: "created",
-        entityId: project.id,
-        entityTitle: project.name,
-        source: "Goals registry",
-        metadata: { goalId: activeGoal.id, deadlineDays: project.deadlineDays },
+    setGoalStatus("Creating linked task sprint...");
+    void taskProjectCrud
+      .add(project)
+      .then(() => {
+        logActivityEvent({
+          domain: "task",
+          action: "created",
+          entityId: project.id,
+          entityTitle: project.name,
+          source: "Goals registry",
+          metadata: { goalId: activeGoal.id, deadlineDays: project.deadlineDays },
+        });
+        setGoalStatus(`Created ${project.deadlineDays}-day task sprint for ${activeGoal.title}.`);
+        onOpenProject(project.id);
+      })
+      .catch(() => {
+        setGoalStatus("Could not create task sprint. Check task project storage and try again.");
       });
-      onOpenProject(project.id);
-    });
   }
 
   return (
@@ -7068,7 +7083,7 @@ function GoalsRegistry({
           <label className="goal-sprint-toggle">
             <input type="checkbox" checked={createTaskPlan} onChange={(event) => setCreateTaskPlan(event.target.checked)} />
             <span>Task Sprint</span>
-            <strong>{createTaskPlan ? "Auto-build" : "Goal only"}</strong>
+            <strong>{createTaskPlan ? "Create now" : "Link later"}</strong>
           </label>
           <button className="submit-goal" type="submit">+ Add Goal</button>
         </form>
