@@ -4,6 +4,9 @@ export type Priority = "ziftinity" | "high" | "medium" | "low";
 export type View = "dashboard" | "today" | "planner" | "goals" | "habits" | "tasks" | "kanban" | "notes" | "chinese" | "prompt" | "pentesting" | "pentestAi" | "sentinel" | "calendar" | "progress" | "insights" | "agents";
 export type GoalChart = "line" | "bars" | "blocks" | "dots";
 export type IconKey = "book" | "run" | "wallet" | "code" | "leaf" | "target";
+export type SkillDomain = "pentesting" | "soc" | "prompt" | "chinese" | "pentestAi";
+export type SkillCareer = "pentesting" | "soc" | "prompt engineering" | "chinese";
+export type SkillRecordStatus = "learning" | "active" | "review" | "paused";
 
 export type Category = {
   name: string;
@@ -35,6 +38,11 @@ export type ProjectTask = {
   id: string;
   name: string;
   done: boolean;
+  skillRecordId?: string;
+  skillDomain?: SkillDomain;
+  linkedRoute?: View;
+  linkedQuestionId?: string;
+  learningEvidence?: string;
 };
 
 export type TaskProject = {
@@ -180,7 +188,26 @@ export type KanbanActivity = {
   createdAt: string;
 };
 
-export type ActivityEventDomain = "goal" | "habit" | "task" | "kanban" | "calendar" | "notes" | "agent" | "system";
+export type SkillRecord = {
+  id: string;
+  domain: SkillDomain;
+  route: View;
+  title: string;
+  career: SkillCareer;
+  status: SkillRecordStatus;
+  level: number;
+  streak: number;
+  xp: number;
+  currentFocus: string;
+  learned: string[];
+  evidence: string[];
+  linkedTaskIds: string[];
+  lastPracticedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ActivityEventDomain = "goal" | "habit" | "task" | "kanban" | "calendar" | "notes" | "agent" | "skill" | "system";
 export type ActivityEventAction =
   | "created"
   | "updated"

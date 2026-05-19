@@ -39,6 +39,7 @@ import {
   habitCrud,
   kanbanActivityCrud,
   kanbanCrud,
+  skillRecordCrud,
   studyFolderCrud,
   studyNoteCrud,
   taskProjectCrud,
@@ -51,6 +52,7 @@ import {
   useHabitsData,
   useKanbanActivityData,
   useKanbanCardsData,
+  useSkillRecordsData,
   useSupabaseAuth,
   useStudyFoldersData,
   useStudyNotesData,
@@ -106,7 +108,7 @@ import {
   sentinelWorkspaces,
 } from "./sentinelPlan";
 import type { SentinelWorkspace } from "./sentinelPlan";
-import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
+import type { ActivityEvent, ActivityEventAction, ActivityEventDomain, ActivityEventMetadata, AgentId, AgentRecommendation, CalendarEvent, Category, Goal, GoalMilestone, Habit, IconKey, KanbanActivity, KanbanCard, KanbanColumnId, KanbanLabelColor, Priority, ProjectTask, SkillDomain, SkillRecord, StudyFolder, StudyNote, StudyObjective, TaskProject, View } from "./types";
 
 const iconMap: Record<IconKey, typeof BookOpen> = {
   book: BookOpen,
@@ -382,6 +384,94 @@ const initialStudyFolders: StudyFolder[] = [
     createdAt: "2026-05-11T12:08:00.000Z",
   },
   { id: "folder-project-notes", name: "Project Notes", color: "lime", createdAt: "2026-05-11T12:10:00.000Z" },
+];
+
+const initialSkillRecords: SkillRecord[] = [
+  {
+    id: "skill-prompt-ops",
+    domain: "prompt",
+    route: "prompt",
+    title: "SOC Prompt Engineering",
+    career: "prompt engineering",
+    status: "active",
+    level: 12,
+    streak: 0,
+    xp: 120,
+    currentFocus: "Translate messy SOC evidence into safe, reusable prompt systems.",
+    learned: ["Prompt anatomy", "Evidence boundaries", "Rubric-based self-review"],
+    evidence: ["Prompt Ops Academy bootcamp seeded"],
+    linkedTaskIds: [],
+    createdAt: "2026-05-19T00:00:00.000Z",
+    updatedAt: "2026-05-19T00:00:00.000Z",
+  },
+  {
+    id: "skill-pentest-ops",
+    domain: "pentesting",
+    route: "pentesting",
+    title: "Authorized Pentesting",
+    career: "pentesting",
+    status: "learning",
+    level: 9,
+    streak: 0,
+    xp: 90,
+    currentFocus: "Build scope-first testing habits with clean evidence and report discipline.",
+    learned: ["Scope comes first", "Evidence chain basics", "Safe lab framing"],
+    evidence: ["Pentest Ops Academy route seeded"],
+    linkedTaskIds: [],
+    createdAt: "2026-05-19T00:00:00.000Z",
+    updatedAt: "2026-05-19T00:00:00.000Z",
+  },
+  {
+    id: "skill-pentest-ai",
+    domain: "pentestAi",
+    route: "pentestAi",
+    title: "AI-Assisted Pentesting",
+    career: "pentesting",
+    status: "learning",
+    level: 7,
+    streak: 0,
+    xp: 70,
+    currentFocus: "Use AI to tighten scope, summarize evidence, and compare manual vs assisted workflows.",
+    learned: ["Manual baseline before AI", "AI guardrails", "Operator notebooks"],
+    evidence: ["Pentest AI mentor notebook seeded"],
+    linkedTaskIds: [],
+    createdAt: "2026-05-19T00:00:00.000Z",
+    updatedAt: "2026-05-19T00:00:00.000Z",
+  },
+  {
+    id: "skill-chinese-lab",
+    domain: "chinese",
+    route: "chinese",
+    title: "Mandarin Chinese",
+    career: "chinese",
+    status: "active",
+    level: 8,
+    streak: 0,
+    xp: 80,
+    currentFocus: "Build tones, HSK1 foundations, character memory, and daily sentence output.",
+    learned: ["Tone-color pinyin", "HSK ladder", "Daily vocabulary database"],
+    evidence: ["Chinese Lab 500-day practice plan seeded"],
+    linkedTaskIds: [],
+    createdAt: "2026-05-19T00:00:00.000Z",
+    updatedAt: "2026-05-19T00:00:00.000Z",
+  },
+  {
+    id: "skill-sentinel-soc",
+    domain: "soc",
+    route: "sentinel",
+    title: "SENTINEL SOC Analyst",
+    career: "soc",
+    status: "learning",
+    level: 10,
+    streak: 0,
+    xp: 100,
+    currentFocus: "Turn triage, correlation, escalation, and analyst reporting into a portfolio SOC system.",
+    learned: ["SOC capstone architecture", "Alert triage loops", "Escalation decision points"],
+    evidence: ["SENTINEL SOC route seeded"],
+    linkedTaskIds: [],
+    createdAt: "2026-05-19T00:00:00.000Z",
+    updatedAt: "2026-05-19T00:00:00.000Z",
+  },
 ];
 
 function makeStudyObjectives(items: Array<[string, number]>): StudyObjective[] {
@@ -3640,6 +3730,7 @@ function App() {
   const kanbanActivity = useKanbanActivityData(remoteSeedVersion);
   const activityEvents = useActivityEventsData(remoteSeedVersion);
   const agentRecommendations = useAgentRecommendationsData(remoteSeedVersion);
+  const skillRecords = useSkillRecordsData(initialSkillRecords, remoteSeedVersion);
   const studyFolders = useStudyFoldersData(initialStudyFolders, remoteSeedVersion);
   const studyNotes = useStudyNotesData(initialStudyNotes, remoteSeedVersion);
   const activeStudyFolders = useMemo(() => studyFolders.filter((folder) => !folder.deletedAt), [studyFolders]);
@@ -3664,6 +3755,7 @@ function App() {
       taskProjects: initialTaskProjects,
       calendarEvents: initialCalendarEvents,
       kanbanCards: initialKanbanCards,
+      skillRecords: initialSkillRecords,
       studyNotes: initialStudyNotes,
       studyFolders: initialStudyFolders,
     });
@@ -3677,6 +3769,7 @@ function App() {
       taskProjects: initialTaskProjects,
       calendarEvents: initialCalendarEvents,
       kanbanCards: initialKanbanCards,
+      skillRecords: initialSkillRecords,
       studyNotes: initialStudyNotes,
       studyFolders: initialStudyFolders,
     }, auth.user.id).then(() => setRemoteSeedVersion((version) => version + 1));
@@ -3921,6 +4014,43 @@ function App() {
       setActiveTaskProjectId(taskProjects[0]?.id ?? "");
     }
   }, [activeTaskProjectId, taskProjects]);
+  const completedSkillTaskKey = useMemo(
+    () =>
+      activityEvents
+        .filter((event) => event.domain === "task" && event.action === "completed" && event.metadata?.skillRecordId)
+        .map((event) => `${event.entityId}:${event.metadata?.skillRecordId}:${event.timestamp}`)
+        .sort()
+        .join("|"),
+    [activityEvents],
+  );
+  useEffect(() => {
+    const completedSkillEvents = activityEvents.filter((event) => event.domain === "task" && event.action === "completed" && event.metadata?.skillRecordId);
+    const eventsBySkillId = new Map<string, ActivityEvent[]>();
+    completedSkillEvents.forEach((event) => {
+      const skillRecordId = String(event.metadata?.skillRecordId ?? "");
+      if (!skillRecordId) return;
+      eventsBySkillId.set(skillRecordId, [...(eventsBySkillId.get(skillRecordId) ?? []), event]);
+    });
+
+    eventsBySkillId.forEach((events, skillRecordId) => {
+      const record = skillRecords.find((item) => item.id === skillRecordId);
+      if (!record) return;
+      const completedTaskIds = uniqueStrings(events.map((event) => event.entityId));
+      const newTaskIds = completedTaskIds.filter((taskId) => !(record.linkedTaskIds ?? []).includes(taskId));
+      const proofLines = uniqueStrings(events.map((event) => `Completed: ${event.entityTitle}`)).slice(-6);
+      const hasMissingEvidence = proofLines.some((line) => !(record.evidence ?? []).includes(line));
+      if (newTaskIds.length === 0 && !hasMissingEvidence) return;
+      void skillRecordCrud
+        .update(record.id, {
+          xp: record.xp + newTaskIds.length * 10,
+          linkedTaskIds: uniqueStrings([...(record.linkedTaskIds ?? []), ...completedTaskIds]),
+          evidence: uniqueStrings([...(record.evidence ?? []), ...proofLines]).slice(-16),
+          lastPracticedAt: events.sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]?.timestamp ?? new Date().toISOString(),
+          status: "active",
+        })
+        .catch((error) => console.warn("Skill completion reflection failed", error));
+    });
+  }, [completedSkillTaskKey, skillRecords, activityEvents]);
   const dashboardTasks = useMemo(() => getDashboardTasks(taskProjects), [taskProjects]);
   const upcomingEvents = useMemo(() => getUpcomingEvents(calendarEvents, new Date()), [calendarEvents]);
   const done = dashboardTasks.filter((task) => task.done).length;
@@ -4336,7 +4466,7 @@ function App() {
                         entityId: task.id,
                         entityTitle: task.name,
                         source: "Dashboard daily tasks",
-                        metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day },
+                        metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day, ...getTaskLearningMetadata(task) },
                       });
                     }}
                   >
@@ -4419,6 +4549,8 @@ function App() {
               projects={taskProjects}
               calendarEvents={calendarEvents}
               kanbanCards={kanbanCards}
+              skillRecords={skillRecords}
+              activityEvents={activityEvents}
               onNavigate={navigateTo}
             />
           ) : activeView === "goals" ? (
@@ -5267,7 +5399,7 @@ function TodayView({
       entityId: task.id,
       entityTitle: task.name,
       source: "Today queue",
-      metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day },
+      metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day, ...getTaskLearningMetadata(task) },
     });
   }
 
@@ -5279,7 +5411,7 @@ function TodayView({
       entityId: task.id,
       entityTitle: task.name,
       source: "Today daily execution",
-      metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day },
+      metadata: { projectId: task.projectId, projectName: task.projectName, day: task.day, ...getTaskLearningMetadata(task) },
     });
   }
 
@@ -5290,6 +5422,11 @@ function TodayView({
       id: `${Date.now()}-defer-${slugify(task.name)}`,
       name: task.name,
       done: false,
+      skillRecordId: task.skillRecordId,
+      skillDomain: task.skillDomain,
+      linkedRoute: task.linkedRoute,
+      linkedQuestionId: task.linkedQuestionId,
+      learningEvidence: task.learningEvidence,
     };
     void taskProjectCrud.addTask(task.projectId, task.day + 1, deferred).then(() => taskProjectCrud.deleteTask(task.projectId, task.day, task.id));
     logActivityEvent({
@@ -5298,7 +5435,7 @@ function TodayView({
       entityId: task.id,
       entityTitle: task.name,
       source: "Today queue",
-      metadata: { projectId: task.projectId, projectName: task.projectName, fromDay: task.day, toDay: task.day + 1 },
+      metadata: { projectId: task.projectId, projectName: task.projectName, fromDay: task.day, toDay: task.day + 1, ...getTaskLearningMetadata(task) },
     });
   }
 
@@ -5335,7 +5472,7 @@ function TodayView({
       entityId: task.id,
       entityTitle: task.name,
       source: "Today protocol packet",
-      metadata: { projectId: packet.project.id, projectName: packet.project.name, day: packet.day },
+      metadata: { projectId: packet.project.id, projectName: packet.project.name, day: packet.day, ...getTaskLearningMetadata(task) },
     });
   }
 
@@ -6570,6 +6707,8 @@ function PlannerView({
   projects,
   calendarEvents,
   kanbanCards,
+  skillRecords,
+  activityEvents,
   onNavigate,
 }: {
   goals: Goal[];
@@ -6578,6 +6717,8 @@ function PlannerView({
   projects: TaskProject[];
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  skillRecords: SkillRecord[];
+  activityEvents: ActivityEvent[];
   onNavigate: (view: View) => void;
 }) {
   const [sourceId, setSourceId] = useState("");
@@ -6588,6 +6729,8 @@ function PlannerView({
   const [includeCalendar, setIncludeCalendar] = useState(true);
   const [includeKanban, setIncludeKanban] = useState(true);
   const [plannerStatus, setPlannerStatus] = useState("");
+  const [agentDestinations, setAgentDestinations] = useState<Record<string, string>>({});
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, "accepted" | "deferred" | "dismissed">>({});
   const sources = useMemo(() => getPlanningSources(goals, folders, notes), [folders, goals, notes]);
   const activeSource = sources.find((source) => source.id === sourceId) ?? sources[0];
   const generatedPlan = useMemo(
@@ -6608,6 +6751,14 @@ function PlannerView({
   const plannerProjects = useMemo(
     () => projects.filter((project) => project.name.toLowerCase().includes("planner") || project.name.toLowerCase().includes("sprint")),
     [projects],
+  );
+  const skillSignals = useMemo(
+    () => getSkillLearningSignals(skillRecords, activityEvents, projects),
+    [activityEvents, projects, skillRecords],
+  );
+  const agentSuggestions = useMemo(
+    () => buildPlannerAgentSuggestions(skillSignals, generatedPlan).filter((suggestion) => !agentStatuses[suggestion.id]),
+    [agentStatuses, generatedPlan, skillSignals],
   );
 
   useEffect(() => {
@@ -6651,6 +6802,99 @@ function PlannerView({
 
     await Promise.all(writes);
     setPlannerStatus(`${activeSource.title} plan deployed to ${deployed.join(", ")}.`);
+  }
+
+  async function acceptAgentSuggestion(suggestion: PlannerAgentSuggestion) {
+    const destination = agentDestinations[suggestion.id] ?? getPlannerDefaultDestination(projects);
+    const now = new Date();
+    const task: ProjectTask = {
+      id: `${now.getTime()}-${slugify(suggestion.title)}`,
+      name: suggestion.title,
+      done: false,
+      skillRecordId: suggestion.skillRecordId,
+      skillDomain: suggestion.domain,
+      linkedRoute: suggestion.route,
+      linkedQuestionId: suggestion.linkedQuestionId,
+      learningEvidence: suggestion.reason,
+    };
+    const target = await getPlannerTaskDestination(destination, projects, now);
+    await taskProjectCrud.addTask(target.project.id, target.day, task);
+    const record = skillRecords.find((item) => item.id === suggestion.skillRecordId);
+    if (record) {
+      try {
+        await skillRecordCrud.update(record.id, {
+          status: "active",
+          xp: record.xp + suggestion.xp,
+          linkedTaskIds: uniqueStrings([...(record.linkedTaskIds ?? []), task.id]),
+          evidence: uniqueStrings([
+            ...(record.evidence ?? []),
+            `Planner accepted: ${suggestion.title}`,
+            `Destination: ${target.project.name} D${target.day}`,
+          ]).slice(-14),
+          lastPracticedAt: now.toISOString(),
+        });
+      } catch (error) {
+        console.warn("Skill record update failed", error);
+      }
+    }
+    logActivityEvent({
+      domain: "skill",
+      action: "accepted",
+      entityId: suggestion.skillRecordId,
+      entityTitle: suggestion.skillTitle,
+      source: "Planner learning agent",
+      timestamp: now.toISOString(),
+      metadata: {
+        suggestionId: suggestion.id,
+        taskId: task.id,
+        projectId: target.project.id,
+        day: target.day,
+        domain: suggestion.domain,
+        route: suggestion.route,
+      },
+    });
+    logActivityEvent({
+      domain: "task",
+      action: "created",
+      entityId: task.id,
+      entityTitle: task.name,
+      source: "Planner learning agent",
+      timestamp: now.toISOString(),
+      metadata: {
+        projectId: target.project.id,
+        projectName: target.project.name,
+        day: target.day,
+        skillRecordId: suggestion.skillRecordId,
+        skillDomain: suggestion.domain,
+        route: suggestion.route,
+      },
+    });
+    setAgentStatuses((state) => ({ ...state, [suggestion.id]: "accepted" }));
+    setPlannerStatus(`${suggestion.skillTitle} task accepted into ${target.project.name} D${target.day}.`);
+  }
+
+  function deferAgentSuggestion(suggestion: PlannerAgentSuggestion) {
+    setAgentStatuses((state) => ({ ...state, [suggestion.id]: "deferred" }));
+    logActivityEvent({
+      domain: "skill",
+      action: "deferred",
+      entityId: suggestion.skillRecordId,
+      entityTitle: suggestion.skillTitle,
+      source: "Planner learning agent",
+      metadata: { suggestionId: suggestion.id, domain: suggestion.domain, route: suggestion.route },
+    });
+  }
+
+  function dismissAgentSuggestion(suggestion: PlannerAgentSuggestion) {
+    setAgentStatuses((state) => ({ ...state, [suggestion.id]: "dismissed" }));
+    logActivityEvent({
+      domain: "skill",
+      action: "dismissed",
+      entityId: suggestion.skillRecordId,
+      entityTitle: suggestion.skillTitle,
+      source: "Planner learning agent",
+      metadata: { suggestionId: suggestion.id, domain: suggestion.domain, route: suggestion.route },
+    });
   }
 
   return (
@@ -6739,6 +6983,15 @@ function PlannerView({
               <strong>{plannerCards.length} active planner card{plannerCards.length === 1 ? "" : "s"}</strong>
             </button>
           </div>
+          <div className="planner-skill-strip" aria-label="Skill memory status">
+            {skillSignals.slice(0, 5).map((signal) => (
+              <button type="button" onClick={() => onNavigate(signal.record.route)} key={signal.record.id}>
+                <span>{signal.record.career}</span>
+                <strong>{signal.completedLinkedTasks}/{signal.totalLinkedTasks}</strong>
+                <em>{signal.recommendedFocus}</em>
+              </button>
+            ))}
+          </div>
         </HudCard>
       </section>
 
@@ -6773,25 +7026,47 @@ function PlannerView({
           </div>
         </HudCard>
 
-        <HudCard className="planner-drift-card">
-          <CardHeader title="Adaptive Rules" meta="planner logic" />
-          <div className="planner-rules">
-            <div>
-              <strong>Deadline pressure</strong>
-              <p>Shorter windows raise priority and generate tighter daily blocks.</p>
-            </div>
-            <div>
-              <strong>Objective gaps</strong>
-              <p>Incomplete certification objectives and low-progress goals are scheduled first.</p>
-            </div>
-            <div>
-              <strong>Recovery rhythm</strong>
-              <p>Weekends become review days unless the pressure score is high.</p>
-            </div>
-            <div>
-              <strong>System sync</strong>
-              <p>Calendar events feed the dashboard window, tasks feed Today, and Kanban logs the sprint.</p>
-            </div>
+        <HudCard className="planner-drift-card planner-agent-card">
+          <CardHeader title="Learning Agent Queue" meta={`${agentSuggestions.length} proposals`} />
+          <div className="planner-agent-list">
+            {agentSuggestions.length === 0 ? (
+              <div className="kanban-empty">// no active proposals - deferred or accepted tasks are already handled</div>
+            ) : (
+              agentSuggestions.map((suggestion) => (
+                <article key={suggestion.id}>
+                  <div className="planner-agent-head">
+                    <span>{suggestion.career}</span>
+                    <PriorityChip level={suggestion.priority} />
+                  </div>
+                  <strong>{suggestion.title}</strong>
+                  <p>{suggestion.reason}</p>
+                  <div className="planner-agent-evidence">
+                    {suggestion.evidence.map((item) => (
+                      <em key={item}>{item}</em>
+                    ))}
+                  </div>
+                  <label>
+                    <span>Destination</span>
+                    <select
+                      value={agentDestinations[suggestion.id] ?? getPlannerDefaultDestination(projects)}
+                      onChange={(event) => setAgentDestinations((state) => ({ ...state, [suggestion.id]: event.target.value }))}
+                    >
+                      <option value={PLANNER_TODAY_DESTINATION_ID}>Today independent task</option>
+                      {projects.map((project) => (
+                        <option value={project.id} key={project.id}>
+                          {project.name} - D{project.currentDay}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="planner-agent-actions">
+                    <button type="button" onClick={() => void acceptAgentSuggestion(suggestion)}>accept</button>
+                    <button type="button" onClick={() => deferAgentSuggestion(suggestion)}>defer</button>
+                    <button type="button" onClick={() => dismissAgentSuggestion(suggestion)}>delete</button>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </HudCard>
       </section>
@@ -7701,7 +7976,7 @@ function TaskProtocol({
                       entityId: task.id,
                       entityTitle: task.name,
                       source: "Task protocol",
-                      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay },
+                      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay, ...getTaskLearningMetadata(task) },
                     });
                   }}
                   aria-label={`${task.done ? "Mark incomplete" : "Mark complete"} ${task.name}`}
@@ -7720,7 +7995,7 @@ function TaskProtocol({
                       entityId: task.id,
                       entityTitle: task.name,
                       source: "Task protocol",
-                      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay },
+                      metadata: { projectId: activeProject.id, projectName: activeProject.name, day: activeDay, ...getTaskLearningMetadata(task) },
                     });
                   }}
                   aria-label={`Delete ${task.name}`}
@@ -10944,6 +11219,35 @@ type UnifiedPlan = {
   calendarCount: number;
 };
 
+const PLANNER_TODAY_DESTINATION_ID = "planner-today-independent";
+
+type SkillLearningSignal = {
+  record: SkillRecord;
+  routeEventCount: number;
+  totalLinkedTasks: number;
+  completedLinkedTasks: number;
+  completionRate: number;
+  staleDays: number;
+  pressure: number;
+  recommendedFocus: string;
+  lastSignalLabel: string;
+};
+
+type PlannerAgentSuggestion = {
+  id: string;
+  skillRecordId: string;
+  skillTitle: string;
+  domain: SkillDomain;
+  route: View;
+  career: string;
+  title: string;
+  reason: string;
+  evidence: string[];
+  priority: Priority;
+  linkedQuestionId?: string;
+  xp: number;
+};
+
 function getPlanningSources(goals: Goal[], folders: StudyFolder[], notes: StudyNote[]): PlanningSource[] {
   const certSources = getCertificationTracks(folders, notes).map((track): PlanningSource => {
     const weakTopics = getCertificationWeakTopics(track);
@@ -11121,6 +11425,183 @@ function createKanbanCardFromPlan(plan: UnifiedPlan, timestamp: number, linkTask
     ],
     order: timestamp,
   };
+}
+
+function getSkillLearningSignals(records: SkillRecord[], events: ActivityEvent[], projects: TaskProject[]): SkillLearningSignal[] {
+  const now = new Date();
+  const taskLinks = projects.flatMap((project) =>
+    Object.entries(project.tasksByDay ?? {}).flatMap(([day, tasks]) =>
+      tasks.map((task) => ({
+        project,
+        day: Number(day),
+        task,
+      })),
+    ),
+  );
+
+  return records
+    .map((record) => {
+      const linkedTaskIds = new Set(record.linkedTaskIds ?? []);
+      const linkedTasks = taskLinks.filter(({ task }) => {
+        return task.skillRecordId === record.id || task.skillDomain === record.domain || linkedTaskIds.has(task.id);
+      });
+      const routeEvents = events.filter((event) => {
+        const metadata = event.metadata ?? {};
+        return (
+          metadata.skillRecordId === record.id ||
+          metadata.skillDomain === record.domain ||
+          metadata.route === record.route ||
+          event.source.toLowerCase().includes(record.route.toLowerCase())
+        );
+      });
+      const lastTimestamp = record.lastPracticedAt ?? routeEvents.sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]?.timestamp ?? record.updatedAt;
+      const lastDate = new Date(lastTimestamp);
+      const staleDays = Number.isNaN(lastDate.getTime()) ? 7 : Math.max(0, daysBetween(lastDate, now));
+      const completedLinkedTasks = linkedTasks.filter(({ task }) => task.done).length;
+      const totalLinkedTasks = linkedTasks.length;
+      const completionRate = totalLinkedTasks ? Math.round((completedLinkedTasks / totalLinkedTasks) * 100) : 0;
+      const routeSignal = routeEvents.length ? `${routeEvents.length} route events` : "no route events yet";
+      const taskSignal = totalLinkedTasks ? `${completedLinkedTasks}/${totalLinkedTasks} linked tasks complete` : "no linked tasks yet";
+      const pressure = clamp(
+        Math.round(staleDays * 10 + (totalLinkedTasks ? 100 - completionRate : 52) * 0.44 + Math.max(0, 40 - record.level) * 0.5),
+        0,
+        100,
+      );
+      const recommendedFocus =
+        totalLinkedTasks && completedLinkedTasks < totalLinkedTasks
+          ? "finish linked work"
+          : staleDays >= 2
+            ? "restart daily practice"
+            : record.currentFocus;
+
+      return {
+        record,
+        routeEventCount: routeEvents.length,
+        totalLinkedTasks,
+        completedLinkedTasks,
+        completionRate,
+        staleDays,
+        pressure,
+        recommendedFocus,
+        lastSignalLabel: `${taskSignal} - ${routeSignal}`,
+      };
+    })
+    .sort((a, b) => b.pressure - a.pressure || a.record.title.localeCompare(b.record.title));
+}
+
+function buildPlannerAgentSuggestions(signals: SkillLearningSignal[], plan: UnifiedPlan | null): PlannerAgentSuggestion[] {
+  const activePlanCue = plan ? `Current planner source is ${plan.source.title}; avoid overloading the same day if this task is accepted.` : "No generated sprint is active yet.";
+  return signals.slice(0, 5).map((signal) => {
+    const template = getSkillPlannerTemplate(signal.record.domain, signal.recommendedFocus);
+    const priority: Priority = signal.pressure >= 82 ? "ziftinity" : signal.pressure >= 64 ? "high" : signal.pressure >= 38 ? "medium" : "low";
+    return {
+      id: `skill-agent-${signal.record.id}-${slugify(signal.recommendedFocus)}-${signal.totalLinkedTasks}-${signal.completedLinkedTasks}`,
+      skillRecordId: signal.record.id,
+      skillTitle: signal.record.title,
+      domain: signal.record.domain,
+      route: signal.record.route,
+      career: signal.record.career,
+      title: template.title,
+      reason: `${template.reason} ${activePlanCue}`,
+      evidence: [
+        `${signal.staleDays}d since last practice`,
+        signal.lastSignalLabel,
+        `Level ${signal.record.level} / ${signal.record.xp} XP`,
+      ],
+      priority,
+      linkedQuestionId: template.linkedQuestionId,
+      xp: template.xp,
+    };
+  });
+}
+
+function getSkillPlannerTemplate(domain: SkillDomain, focus: string) {
+  if (domain === "prompt") {
+    return {
+      title: "Prompt Ops: repair one SOC prompt with evidence boundaries",
+      reason: "This builds the habit of turning theory into a reusable analyst prompt instead of only reading the bootcamp.",
+      linkedQuestionId: "prompt-evidence-boundary",
+      xp: 18,
+    };
+  }
+  if (domain === "pentesting") {
+    return {
+      title: "Pentest Ops: write scope, allowed targets, and proof checklist",
+      reason: "Pentesting skill improves fastest when every practice starts with authorization boundaries and expected evidence.",
+      linkedQuestionId: "pentest-scope-proof",
+      xp: 16,
+    };
+  }
+  if (domain === "pentestAi") {
+    return {
+      title: "Pentest AI: compare manual notes vs AI-assisted summary",
+      reason: "The AI workflow needs a manual baseline so the model augments judgment instead of replacing it.",
+      linkedQuestionId: "pentest-ai-manual-baseline",
+      xp: 17,
+    };
+  }
+  if (domain === "chinese") {
+    return {
+      title: "Chinese Lab: review tones, 10 words, and write 3 sentences",
+      reason: "Mandarin retention comes from small daily output: sound, character, meaning, and sentence together.",
+      linkedQuestionId: "chinese-daily-output",
+      xp: 15,
+    };
+  }
+  return {
+    title: "SENTINEL SOC: triage one alert and record escalation decision",
+    reason: `SOC skill needs traceable decisions; ${focus} should become a small analyst artifact today.`,
+    linkedQuestionId: "sentinel-triage-escalation",
+    xp: 18,
+  };
+}
+
+function getPlannerDefaultDestination(projects: TaskProject[]) {
+  return PLANNER_TODAY_DESTINATION_ID;
+}
+
+async function getPlannerTaskDestination(destination: string, projects: TaskProject[], now: Date) {
+  const selectedProject = destination !== PLANNER_TODAY_DESTINATION_ID ? projects.find((project) => project.id === destination) : undefined;
+  if (selectedProject) {
+    return { project: selectedProject, day: selectedProject.currentDay };
+  }
+
+  const project = getTodayIndependentProject(projects, now);
+  if (!projects.some((item) => item.id === project.id)) {
+    await taskProjectCrud.add(project);
+  }
+  return { project, day: 1 };
+}
+
+function getTodayIndependentProject(projects: TaskProject[], now: Date): TaskProject {
+  const today = toDateInputValue(now);
+  const id = `today-independent-${today}`;
+  const existing = projects.find((project) => project.id === id);
+  if (existing) return existing;
+  return {
+    id,
+    name: "Today independent tasks",
+    outcome: "Free tasks accepted from the learning planner for today only",
+    startDate: today,
+    endDate: today,
+    deadlineDays: 1,
+    currentDay: 1,
+    tasksByDay: { 1: [] },
+  };
+}
+
+function getTaskLearningMetadata(task: ProjectTask) {
+  return {
+    skillRecordId: task.skillRecordId,
+    skillDomain: task.skillDomain,
+    route: task.linkedRoute,
+    linkedQuestionId: task.linkedQuestionId,
+    learningEvidence: task.learningEvidence,
+  };
+}
+
+function uniqueStrings(values: Array<string | undefined>) {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value?.trim()))));
 }
 
 function sortStudyNotes(notes: StudyNote[]) {

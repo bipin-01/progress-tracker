@@ -10,14 +10,15 @@ import {
   habitCrud as localHabitCrud,
   kanbanActivityCrud as localKanbanActivityCrud,
   kanbanCrud as localKanbanCrud,
+  skillRecordCrud as localSkillRecordCrud,
   studyFolderCrud as localStudyFolderCrud,
   studyNoteCrud as localStudyNoteCrud,
   taskProjectCrud as localTaskProjectCrud,
 } from "./database";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
-import type { ActivityEvent, AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, StudyFolder, StudyNote, TaskProject } from "./types";
+import type { ActivityEvent, AgentRecommendation, CalendarEvent, Goal, Habit, KanbanActivity, KanbanCard, KanbanColumnId, ProjectTask, SkillRecord, StudyFolder, StudyNote, TaskProject } from "./types";
 
-type TableName = "goals" | "habits" | "task_projects" | "calendar_events" | "kanban_cards" | "kanban_activity" | "activity_events" | "agent_recommendations" | "study_notes" | "study_folders";
+type TableName = "goals" | "habits" | "task_projects" | "calendar_events" | "kanban_cards" | "kanban_activity" | "activity_events" | "agent_recommendations" | "skill_records" | "study_notes" | "study_folders";
 type StoreMap = {
   goals: Goal;
   habits: Habit;
@@ -27,6 +28,7 @@ type StoreMap = {
   kanban_activity: KanbanActivity;
   activity_events: ActivityEvent;
   agent_recommendations: AgentRecommendation;
+  skill_records: SkillRecord;
   study_notes: StudyNote;
   study_folders: StudyFolder;
 };
@@ -153,6 +155,7 @@ export async function seedRemoteDatabase(seed: {
   taskProjects: TaskProject[];
   calendarEvents: CalendarEvent[];
   kanbanCards: KanbanCard[];
+  skillRecords: SkillRecord[];
   studyNotes: StudyNote[];
   studyFolders: StudyFolder[];
 }, userId = currentUserId) {
@@ -163,12 +166,13 @@ export async function seedRemoteDatabase(seed: {
   }
   if (!userId) return;
   currentUserId = userId;
-  const [{ count: goalCount }, { count: habitCount }, { count: projectCount }, { count: eventCount }, { count: kanbanCount }, { count: noteCount }, { count: folderCount }] = await Promise.all([
+  const [{ count: goalCount }, { count: habitCount }, { count: projectCount }, { count: eventCount }, { count: kanbanCount }, { count: skillCount }, { count: noteCount }, { count: folderCount }] = await Promise.all([
     supabase.from("goals").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("habits").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("task_projects").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("calendar_events").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("kanban_cards").select("id", { count: "exact", head: true }).eq("user_id", userId),
+    supabase.from("skill_records").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("study_notes").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("study_folders").select("id", { count: "exact", head: true }).eq("user_id", userId),
   ]);
@@ -180,6 +184,13 @@ export async function seedRemoteDatabase(seed: {
       })
     : Promise.resolve(seed.studyFolders);
   const missingStudyFolders = await missingStudyFoldersPromise;
+  const missingSkillRecordsPromise = skillCount && skillCount > 0
+    ? supabase.from("skill_records").select("id").eq("user_id", userId).then(({ data }) => {
+        const existingSkillIds = new Set((data ?? []).map((row) => row.id));
+        return seed.skillRecords.filter((record) => !existingSkillIds.has(record.id));
+      })
+    : Promise.resolve(seed.skillRecords);
+  const missingSkillRecords = await missingSkillRecordsPromise;
 
   await Promise.all([
     goalCount === 0 ? supabase.from("goals").upsert(seed.goals.map((record) => toGoalRow(record, userId))) : null,
@@ -191,6 +202,13 @@ export async function seedRemoteDatabase(seed: {
       ? supabase.from("calendar_events").upsert(seed.calendarEvents.map((record) => toRemoteRow(record, userId)))
       : null,
     kanbanCount === 0 ? remoteUpsertKanbanCards(seed.kanbanCards, userId) : null,
+    missingSkillRecords.length > 0
+      ? Promise.all(missingSkillRecords.map((record) => remoteUpsertSkillRecord(record, userId))).catch((error) => {
+          const message = error instanceof Error ? error.message : "unknown error";
+          console.warn("Skill record seed failed", error);
+          setBackendStatus({ error: `Skill record sync pending migration: ${message}` });
+        })
+      : null,
     noteCount === 0 ? supabase.from("study_notes").upsert(seed.studyNotes.map((record) => toStudyNoteRow(record, userId))) : null,
     missingStudyFolders.length > 0 ? supabase.from("study_folders").upsert(missingStudyFolders.map((record) => toStudyFolderRow(record, userId))) : null,
   ]);
@@ -229,6 +247,11 @@ export function useActivityEventsData(refreshKey = 0) {
 export function useAgentRecommendationsData(refreshKey = 0) {
   const local = useLiveQuery(() => db.agentRecommendations.toArray(), []) ?? [];
   return useRemoteTable("agent_recommendations", local, refreshKey);
+}
+
+export function useSkillRecordsData(seed: SkillRecord[], refreshKey = 0) {
+  const local = useLiveQuery(() => db.skillRecords.toArray(), []) ?? seed;
+  return useRemoteTable("skill_records", local, refreshKey);
 }
 
 export function useStudyNotesData(seed: StudyNote[], refreshKey = 0) {
@@ -340,6 +363,21 @@ function toActivityEventRow(event: ActivityEvent, userId = currentUserId) {
     source: event.source,
     day_key: event.dayKey,
     created_at: event.timestamp,
+  };
+}
+
+function toSkillRecordRow(record: SkillRecord, userId = currentUserId) {
+  return {
+    ...toRemoteRow(record, userId),
+    domain: record.domain,
+    route: record.route,
+    title: record.title,
+    career: record.career,
+    status: record.status,
+    level: record.level,
+    xp: record.xp,
+    last_practiced_at: record.lastPracticedAt ?? null,
+    updated_at: record.updatedAt,
   };
 }
 
@@ -465,6 +503,12 @@ async function remoteUpsertActivityEvent(event: ActivityEvent, userId = currentU
     setBackendStatus({ error: `Supabase save failed for activity_events: ${error.message}` });
     throw error;
   }
+  setBackendStatus({ label: "Supabase realtime", error: null });
+}
+
+async function remoteUpsertSkillRecord(record: SkillRecord, userId = currentUserId) {
+  if (!supabase || !userId) return;
+  await remoteUpsertWithSchemaFallback("skill_records", [toSkillRecordRow(record, userId), toRemoteRow(record, userId)]);
   setBackendStatus({ label: "Supabase realtime", error: null });
 }
 
@@ -717,6 +761,25 @@ export const agentRecommendationCrud = {
   async delete(id: string) {
     if (isSupabaseConfigured) return remoteDelete("agent_recommendations", id);
     return localAgentRecommendationCrud.delete(id);
+  },
+};
+
+export const skillRecordCrud = {
+  async add(record: SkillRecord) {
+    if (isSupabaseConfigured) return remoteUpsertSkillRecord(record);
+    return localSkillRecordCrud.add(record);
+  },
+  async update(id: string, patch: Partial<Omit<SkillRecord, "id">>) {
+    if (isSupabaseConfigured) {
+      const record = await getRemoteRecord<SkillRecord>("skill_records", id);
+      if (!record) return;
+      return remoteUpsertSkillRecord({ ...record, ...patch, updatedAt: new Date().toISOString() });
+    }
+    return localSkillRecordCrud.update(id, { ...patch, updatedAt: new Date().toISOString() });
+  },
+  async delete(id: string) {
+    if (isSupabaseConfigured) return remoteDelete("skill_records", id);
+    return localSkillRecordCrud.delete(id);
   },
 };
 
