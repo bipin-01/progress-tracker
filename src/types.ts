@@ -1,9 +1,12 @@
 import type { LucideIcon } from "lucide-react";
 
 export type Priority = "ziftinity" | "high" | "medium" | "low";
-export type View = "dashboard" | "today" | "planner" | "goals" | "habits" | "tasks" | "kanban" | "notes" | "calendar" | "progress" | "insights" | "agents";
+export type View = "dashboard" | "today" | "planner" | "goals" | "habits" | "tasks" | "kanban" | "notes" | "chinese" | "prompt" | "pentesting" | "pentestAi" | "sentinel" | "calendar" | "progress" | "insights" | "agents";
 export type GoalChart = "line" | "bars" | "blocks" | "dots";
 export type IconKey = "book" | "run" | "wallet" | "code" | "leaf" | "target";
+export type SkillDomain = "pentesting" | "soc" | "prompt" | "chinese" | "pentestAi";
+export type SkillCareer = "pentesting" | "soc" | "prompt engineering" | "chinese";
+export type SkillRecordStatus = "learning" | "active" | "review" | "paused";
 
 export type Category = {
   name: string;
@@ -35,6 +38,11 @@ export type ProjectTask = {
   id: string;
   name: string;
   done: boolean;
+  skillRecordId?: string;
+  skillDomain?: SkillDomain;
+  linkedRoute?: View;
+  linkedQuestionId?: string;
+  learningEvidence?: string;
 };
 
 export type TaskProject = {
@@ -64,6 +72,10 @@ export type CalendarEvent = {
   title: string;
   kind: "meeting" | "deadline" | "appointment" | "project" | "personal";
   time: string;
+  recurringGroupId?: string;
+  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  recurrenceIndex?: number;
+  recurrenceCount?: number;
 };
 
 export type StudyNote = {
@@ -81,6 +93,7 @@ export type StudyNote = {
   flashcards?: StudyFlashcard[];
   askHistory?: StudyAskMessage[];
   readingProgress?: number;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -118,6 +131,7 @@ export type StudyFolder = {
   parentId?: string;
   examDate?: string;
   objectives?: StudyObjective[];
+  deletedAt?: string;
   createdAt: string;
 };
 
@@ -176,6 +190,54 @@ export type KanbanActivity = {
   fromColumnId?: KanbanColumnId;
   toColumnId?: KanbanColumnId;
   createdAt: string;
+};
+
+export type SkillRecord = {
+  id: string;
+  domain: SkillDomain;
+  route: View;
+  title: string;
+  career: SkillCareer;
+  status: SkillRecordStatus;
+  level: number;
+  streak: number;
+  xp: number;
+  currentFocus: string;
+  learned: string[];
+  evidence: string[];
+  linkedTaskIds: string[];
+  lastPracticedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ActivityEventDomain = "goal" | "habit" | "task" | "kanban" | "calendar" | "notes" | "agent" | "skill" | "system";
+export type ActivityEventAction =
+  | "created"
+  | "updated"
+  | "deleted"
+  | "completed"
+  | "reopened"
+  | "deferred"
+  | "moved"
+  | "reviewed"
+  | "opened"
+  | "accepted"
+  | "dismissed"
+  | "archived"
+  | "generated";
+export type ActivityEventMetadata = Record<string, string | number | boolean | null | undefined>;
+
+export type ActivityEvent = {
+  id: string;
+  domain: ActivityEventDomain;
+  action: ActivityEventAction;
+  entityId: string;
+  entityTitle: string;
+  source: string;
+  dayKey: string;
+  timestamp: string;
+  metadata?: ActivityEventMetadata;
 };
 
 export type AgentId = "planner" | "reviewer" | "motivation" | "project" | "discipline";
